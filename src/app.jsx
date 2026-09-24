@@ -11189,6 +11189,20 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const [ffSubject, setFfSubject] = React.useState('');
   const catSearchRef = React.useRef(null);
   const catGridRef = React.useRef(null);
+  // The pinned search bar slims down once the page scrolls under it (same
+  // idea as the Help page's mini search) — full size at the top, compact
+  // while browsing. A zero-height sentinel just above the bar tells us when
+  // it has become stuck.
+  const catBarSentinelRef = React.useRef(null);
+  const [catBarStuck, setCatBarStuck] = React.useState(false);
+  React.useEffect(() => {
+    const el = catBarSentinelRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const root = document.querySelector('.page-scroll');
+    const io = new IntersectionObserver(([entry]) => setCatBarStuck(!entry.isIntersecting), { root, threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [view, catalog]);
   // "/" or ⌘K jumps to the catalog search from anywhere on the list.
   React.useEffect(() => {
     if (view !== 'list') return undefined;
@@ -11719,7 +11733,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         return (
         <>
           {/* Search and the custom-request way out stay pinned while you scroll. */}
-          <div className={asPage ? 'cat-bar is-sticky' : 'cat-bar'}>
+          {asPage && <div ref={catBarSentinelRef} aria-hidden="true" style={{ height: 1, marginBottom: -1 }} />}
+          <div className={asPage ? 'cat-bar is-sticky' + (catBarStuck ? ' is-stuck' : '') : 'cat-bar'}>
             <div className="cat-bar-row">
               <div className={'cat-search' + (catQuery ? ' has-value' : '')}>
                 <svg className="cat-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
