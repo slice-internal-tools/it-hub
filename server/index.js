@@ -8,7 +8,7 @@ import {
   requireSliceAdmin,
   requireBotOrUser,
 } from './middleware/auth.js'; // selector: AUTH_MODE=hub (hub_token) | slicedesk (cookie)
-import { devTicketsEnabled, handleDevTicket } from './dev-tickets.js';
+import { devTicketsEnabled, handleDevTicket, devAttachmentBytes } from './dev-tickets.js';
 import {
   bootstrapStatusServices,
   ensureStatusServices,
@@ -276,6 +276,61 @@ function isOnBehalfBeneficiary(u, t) {
   return false;
 }
 
+// The one party rule for every per-ticket route: the signed-in user may act on
+// a ticket when they are its requester or submitter (by email — the ticket
+// service and the hub use different ID namespaces, so emails are the reliable
+// key), when an id matches outright (tickets the portal itself created carry
+// our hub id), or when it was raised on their behalf. Fails CLOSED — a ticket
+// with no matching party is someone else's, never "unknown so allow".
+//
+// Previously each route carried its own copy, and the attachment/status/
+// priority copies compared ids only, with a `requester_id != null` guard: an
+// email- or agent-raised ticket (requester_id `contact:N`, or another id
+// namespace) 403'd its own requester — so they never saw an agent's files —
+// while a ticket with a null requester_id let anyone through.
+function ownsTicket(u, t) {
+  if (!u || !t) return false;
+  const email = (u.email || '').trim().toLowerCase();
+  if (email) {
+    const requester = (t.requester_email || '').trim().toLowerCase();
+    const submitter = (t.submitter_email || '').trim().toLowerCase();
+    if (email === requester || email === submitter) return true;
+  }
+  const id = String(u.id ?? '').trim();
+  if (id && (String(t.requester_id ?? '') === id || String(t.submitter_id ?? '') === id)) return true;
+  return isOnBehalfBeneficiary(u, t);
+}
+
+// Strip what a requester must never receive: internal notes, and files that
+// were attached to one. The module already does this when asked
+// (?audience=requester), and the UI hides internal comments too, but the
+// browser must not get them in the first place — so it is enforced here as
+// well, whatever the module returns.
+function forRequester(t) {
+  if (!t || typeof t !== 'object') return t;
+  const isInternal = (c) => c && (c.is_internal === true || c.is_internal === 1 || c.is_internal === 'true');
+  const comments = Array.isArray(t.comments) ? t.comments : [];
+  const internalIds = new Set(comments.filter(isInternal).map((c) => String(c.id)));
+  const out = { ...t };
+  // The raw activity log is the agents' audit trail (internal-note events,
+  // notification deliveries, who changed what) — the portal doesn't render it.
+  delete out.activity;
+  if (Array.isArray(t.comments)) out.comments = comments.filter((c) => !isInternal(c));
+  if (Array.isArray(t.attachments)) {
+    out.attachments = t.attachments.filter((a) => !a || a.comment_id == null || !internalIds.has(String(a.comment_id)));
+  }
+  return out;
+}
+
+// Read a ticket for the signed-in user: fetch requester-scoped, gate on
+// ownership, strip internals. Returns { ticket } or { status, error }.
+async function readOwnTicket(u, id) {
+  const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(id)}?audience=requester`);
+  if (!ok) return { status, error: data.error || `Ticket service returned ${status}` };
+  if (!ownsTicket(u, data)) return { status: 403, error: 'This ticket belongs to someone else.' };
+  return { ticket: forRequester(data) };
+}
+
 function resolveRequester(u, requestedFor) {
   if (requestedFor && requestedFor.id && String(requestedFor.id) !== String(u.id)) {
     return {
@@ -448,21 +503,13 @@ app.get('/api/tickets', requireSliceUser, async (req, res) => {
 // the IT Hub session use different ID namespaces, so an ID comparison always
 // mismatches. Fail closed — 403 if either email is absent.
 app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
-  const u = req.user;
   try {
-    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
-    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    const userEmail       = (u.email || '').trim().toLowerCase();
-    const requesterEmail  = (data.requester_email || '').trim().toLowerCase();
-    const submitterEmail  = (data.submitter_email || '').trim().toLowerCase();
     // Requester OR submitter: whoever the ticket is for, and whoever opened it
-    // on their behalf, can both read it — same party rule as the list and the
-    // status/priority routes. Still fails closed when emails are absent.
-    if ((!userEmail || !requesterEmail || (userEmail !== requesterEmail && userEmail !== submitterEmail))
-        && !isOnBehalfBeneficiary(u, data)) {
-      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
-    }
-    res.json(data);
+    // on their behalf, can both read it (ownsTicket). Internal notes and their
+    // files are stripped before anything reaches the browser.
+    const own = await readOwnTicket(req.user, req.params.id);
+    if (own.error) return res.status(own.status).json({ error: own.error });
+    res.json(own.ticket);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.get');
   }
@@ -480,17 +527,10 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
     return res.status(400).json({ error: 'A reply can’t be empty.' });
   }
   try {
-    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
-    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    const userEmailC      = (u.email || '').trim().toLowerCase();
-    const requesterEmailC = (look.data.requester_email || '').trim().toLowerCase();
-    const submitterEmailC = (look.data.submitter_email || '').trim().toLowerCase();
     // Same party rule as GET /api/tickets/:id — the on-behalf submitter can
     // reply on the ticket they opened (attributed to them, as themselves).
-    if ((!userEmailC || !requesterEmailC || (userEmailC !== requesterEmailC && userEmailC !== submitterEmailC))
-        && !isOnBehalfBeneficiary(u, look.data)) {
-      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
-    }
+    const own = await readOwnTicket(u, req.params.id);
+    if (own.error) return res.status(own.status).json({ error: own.error });
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/comments`, {
       body: String(body).slice(0, 8000),
       author_id: u.id,
@@ -535,11 +575,9 @@ app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
     : null;
   if (!target) return res.status(400).json({ error: 'action must be "close", "cancel", "reopen", or "resolve".' });
   try {
-    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
-    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id) && !isOnBehalfBeneficiary(u, look.data)) {
-      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
-    }
+    const own = await readOwnTicket(u, req.params.id);
+    if (own.error) return res.status(own.status).json({ error: own.error });
+    const look = { data: own.ticket };
     const { ok, status, data } = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { status: target });
     if (!ok || data.status === 'rejected' || data.status === 'error') {
       return res.status(ok ? 400 : status).json({ error: data.error || `Ticket service returned ${status}` });
@@ -560,11 +598,9 @@ app.post('/api/tickets/:id/priority', requireSliceUser, async (req, res) => {
     return res.status(400).json({ error: 'priority must be low, medium, high, or urgent.' });
   }
   try {
-    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
-    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id) && !isOnBehalfBeneficiary(u, look.data)) {
-      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
-    }
+    const own = await readOwnTicket(u, req.params.id);
+    if (own.error) return res.status(own.status).json({ error: own.error });
+    const look = { data: own.ticket };
     const { ok, status, data } = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { priority });
     if (!ok || data.status === 'rejected' || data.status === 'error') {
       return res.status(ok ? 400 : status).json({ error: data.error || `Ticket service returned ${status}` });
@@ -588,11 +624,9 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
     return res.status(400).json({ error: 'file_name and content_base64 are required.' });
   }
   try {
-    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
-    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id) && !isOnBehalfBeneficiary(u, look.data)) {
-      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
-    }
+    const own = await readOwnTicket(u, req.params.id);
+    if (own.error) return res.status(own.status).json({ error: own.error });
+    const look = { data: own.ticket };
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/attachments`, {
       file_name: String(file_name).slice(0, 255),
       mime_type: mime_type || 'application/octet-stream',
@@ -607,145 +641,95 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   }
 });
 
-// Serve an attachment's BYTES so the portal can show it inline. We re-read the
-// ticket to (a) gate the caller to the requester of THIS ticket and
-// (b) confirm the attachment is actually on this ticket. Then, in order:
-//   1. if the ticket read already carries the bytes (base64) or a URL, serve
-//      straight from that — no second hop;
-//   2. otherwise proxy the ticket module's EXISTING key-authed by-id download
-//      (GET /api/module/attachments/:attId/download) and re-serve it inline.
-// The module owns the Google Drive delegation + per-queue creds, so we never
-// touch Drive ourselves. Crucially, we only ever hit that by-id download for an
-// attId we verified belongs to this ticket in step (b): the download route is
-// keyed by attachment id alone (NOT ticket-scoped), so proxying it blind would
-// let a user read another ticket's file by guessing ids (IDOR). That check needs
-// the module to return an `attachments` array on the ticket read
-// (ATTACHMENTS_API_SPEC.md §1). The browser authenticates this like any /api
-// call (X-Hub-Token via the shim, or ?hub_token=).
-const ATT_NOT_IN_TICKET =
-  "That attachment isn't listed on this ticket. If GET /tickets/:id doesn't " +
-  'return an `attachments` array, the module side (101) needs to add it ' +
-  '(ATTACHMENTS_API_SPEC.md §1) before by-id download can be used safely.';
-app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (req, res) => {
-  const u = req.user;
-  const sendBytes = (src, mime, fileName) => {
-    const buf = Buffer.isBuffer(src) ? src : Buffer.from(src, 'base64');
-    res.setHeader('Content-Type', mime || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${String(fileName || 'attachment').replace(/[\r\n"]/g, '')}"`);
-    res.setHeader('Cache-Control', 'private, max-age=3600');
-    return res.send(buf);
-  };
-  try {
-    // Ownership gate — the module proxy has module-wide access, so without this a
-    // user could read anyone's file by guessing ids (same rule as GET /tickets/:id).
-    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
-    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id) && !isOnBehalfBeneficiary(u, look.data)) {
-      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
-    }
+// Serve an attachment's BYTES so the portal can show it inline.
+//
+//   1. readOwnTicket gates the caller to THIS ticket and hands back its
+//      requester-scoped `attachments` (internal-note files already removed).
+//   2. The attId must be in that list. The module's by-id routes are keyed by
+//      attachment id alone, so proxying an unverified id would let a user read
+//      another ticket's file by guessing (IDOR) — and an internal-note file is
+//      simply not in the list, so it 404s too.
+//   3. Stream from the module's ticket-scoped content endpoint
+//      (/tickets/:id/attachments/:attId/content, which re-checks both of the
+//      above on its side). A module deploy that predates it 404s, and we fall
+//      back to the older by-id download — safe, because of step 2.
+//
+// Only types a browser can't execute are served inline (images, PDF, plain
+// text/video/audio). Everything else — HTML, SVG, anything unknown — is sent
+// as a download with a sandbox CSP, so a file an agent (or a requester)
+// attached can never run script on the portal's origin. ?download=1 forces a
+// download for any type.
+const INLINE_SAFE_TYPES = /^(image\/(png|jpe?g|gif|webp|bmp|avif|heic|heif)|application\/pdf|text\/plain|video\/(mp4|webm|quicktime)|audio\/(mpeg|mp4|wav|ogg|webm))$/i;
 
-    // Find this attachment in the ticket we just read; serve it directly if it
-    // already carries the bytes (base64) or a public URL — covers modules that
-    // inline content on read but never built a dedicated content endpoint.
-    const d = look.data || {};
-    const pool = [];
-    if (Array.isArray(d.attachments)) pool.push(...d.attachments);
-    if (Array.isArray(d.files)) pool.push(...d.files);
-    if (Array.isArray(d.comments)) d.comments.forEach((c) => {
-      if (c && Array.isArray(c.attachments)) pool.push(...c.attachments);
-      if (c && Array.isArray(c.files)) pool.push(...c.files);
-      if (c && Array.isArray(c.media)) pool.push(...c.media);
-    });
-    const attIdStr = String(req.params.attId);
-    const matchAtt = (a) => a && String(a.id ?? a.attachment_id ?? a.file_id ?? '') === attIdStr;
-    let meta = pool.find(matchAtt);
-    // The module's ticket read often doesn't inline attachments. Fall back to the
-    // ticket's OWN attachments list (ticket-scoped, so verifying the id against it
-    // is still IDOR-safe) — otherwise a user can't even view their own image.
-    if (!meta) {
-      try {
-        const listRes = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}/attachments`);
-        const arr = Array.isArray(listRes.data) ? listRes.data
-          : (listRes.data && Array.isArray(listRes.data.attachments) ? listRes.data.attachments : []);
-        meta = arr.find(matchAtt) || null;
-      } catch { /* leave meta null → 404 below */ }
-    }
-    if (!meta) {
-      // attId isn't on this ticket. Refuse rather than proxy the by-id download —
-      // that route isn't ticket-scoped, so hitting it for an unverified id is IDOR.
-      return res.status(404).json({ error: ATT_NOT_IN_TICKET });
-    }
-    // Serve straight from the attachment when it carries the bytes (base64) or a
-    // public/signed URL (no second hop).
-    const inlineB64 = meta.content_base64 || meta.content || meta.data;
-    if (typeof inlineB64 === 'string' && inlineB64.length > 64) {
-      return sendBytes(inlineB64, meta.mime_type || meta.content_type, meta.file_name || meta.name);
-    }
-    const metaLink = meta.url || meta.download_url || meta.file_url || meta.webContentLink || meta.webViewLink || meta.signed_url || meta.href;
-    if (typeof metaLink === 'string' && /^https?:\/\//.test(metaLink)) return res.redirect(302, metaLink);
+async function listOwnAttachments(u, id) {
+  const own = await readOwnTicket(u, id);
+  if (own.error) return own;
+  if (Array.isArray(own.ticket.attachments)) return { ticket: own.ticket, attachments: own.ticket.attachments };
+  // Older module deploy: no `attachments` on the read. Use the ticket-scoped
+  // list, keeping only ticket-level files and files on a comment the
+  // requester can see (the comments were already stripped of internal notes).
+  const list = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(own.ticket.id ?? id)}/attachments?audience=requester`);
+  const arr = Array.isArray(list.data?.attachments) ? list.data.attachments : [];
+  const visibleIds = new Set((own.ticket.comments || []).map((c) => String(c.id)));
+  const attachments = arr.filter((a) => a && (a.comment_id == null || visibleIds.has(String(a.comment_id))));
+  return { ticket: own.ticket, attachments };
+}
+
+app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (req, res) => {
+  try {
+    const found = await listOwnAttachments(req.user, req.params.id);
+    if (found.error) return res.status(found.status).json({ error: found.error });
+    const meta = found.attachments.find((a) => a && String(a.id) === String(req.params.attId));
+    if (!meta) return res.status(404).json({ error: 'Attachment not found on this ticket.' });
+
+    const serve = (buf, upstreamType) => {
+      const mime = meta.mime_type || upstreamType || 'application/octet-stream';
+      const inline = !req.query.download && INLINE_SAFE_TYPES.test(mime);
+      const fileName = String(meta.file_name || 'attachment').replace(/[\r\n"\\]/g, '');
+      res.setHeader('Content-Type', inline ? mime : 'application/octet-stream');
+      res.setHeader('Content-Disposition',
+        `${inline ? 'inline' : 'attachment'}; filename="${fileName.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+      res.setHeader('Content-Length', String(buf.length));
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox");
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      return res.send(buf);
+    };
 
     if (!moduleConfig.hubApiBase || !moduleConfig.apiKey) {
+      const dev = devTicketsEnabled ? devAttachmentBytes(meta.id) : null;
+      if (dev) return serve(dev.buffer, dev.mime);
       return res.status(503).json({ error: 'Module is not configured to reach the hub.' });
     }
-
-    // Reuse the ticket module's EXISTING key-authed by-id download (Option A) —
-    // it owns the Drive delegation + per-queue creds, so we never touch Drive.
-    // Only reached for an attId verified to belong to this ticket above.
-    const url = `${moduleConfig.hubApiBase}/api/ext/modules/${moduleConfig.ticketModuleId}/api/module` +
-      `/attachments/${encodeURIComponent(req.params.attId)}/download`;
-    const upstream = await fetch(url, { headers: { Authorization: `Bearer ${moduleConfig.apiKey}` } });
-    const ctype = upstream.headers.get('content-type') || '';
-
-    if (ctype.includes('application/json')) {
+    const base = `${moduleConfig.hubApiBase}/api/ext/modules/${moduleConfig.ticketModuleId}/api/module`;
+    const headers = { Authorization: `Bearer ${moduleConfig.apiKey}` };
+    const ticketId = encodeURIComponent(found.ticket.id ?? req.params.id);
+    const attId = encodeURIComponent(meta.id);
+    let upstream = await fetch(`${base}/tickets/${ticketId}/attachments/${attId}/content?audience=requester`, { headers });
+    if (upstream.status === 404) {
+      // Pre-content-endpoint module; the id is verified to be on this ticket.
+      upstream = await fetch(`${base}/attachments/${attId}/download`, { headers });
+    }
+    const ctype = (upstream.headers.get('content-type') || '').split(';')[0].trim();
+    if (!upstream.ok || ctype === 'application/json') {
       const j = await upstream.json().catch(() => ({}));
-      if (!upstream.ok) {
-        return res.status(upstream.status).json({
-          error: j.error || `Ticket service returned ${upstream.status}`,
-          upstream_status: upstream.status,
-        });
-      }
-      // (a) a short-lived signed download URL → bounce the browser straight at it.
-      const link = j.download_url || j.url || j.href || j.signed_url;
-      if (typeof link === 'string' && /^https?:\/\//.test(link)) return res.redirect(302, link);
-      // (b) the bytes wrapped as base64 in a JSON envelope.
-      const b64 = j.content_base64 || j.content || j.data;
-      if (typeof b64 === 'string' && b64) return sendBytes(b64, j.mime_type || j.content_type, j.file_name || meta.file_name);
-      return res.status(502).json({ error: 'Attachment content unavailable', detail: 'Ticket service returned JSON with no file bytes or download URL.' });
+      const status = upstream.ok ? 502 : upstream.status;
+      return res.status(status).json({ error: j.error || `Ticket service returned ${upstream.status}` });
     }
 
-    // (c) raw bytes — re-serve inline with our OWN headers (filename from the
-    // ticket), so it views in-browser regardless of the download endpoint's
-    // attachment disposition. (No need for Dave's ?disposition=inline tweak.)
-    if (!upstream.ok) {
-      const text = await upstream.text().catch(() => '');
-      return res.status(upstream.status).json({
-        error: `Ticket service returned ${upstream.status}`,
-        upstream_status: upstream.status,
-        detail: text.slice(0, 200),
-      });
-    }
-    return sendBytes(Buffer.from(await upstream.arrayBuffer()), ctype || meta.mime_type || meta.content_type, meta.file_name || meta.name);
+    return serve(Buffer.from(await upstream.arrayBuffer()), ctype);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.attachment.content');
   }
 });
 
-// Fallback list endpoint — the portal calls this only when GET /tickets/:id did
-// NOT inline an `attachments` array (the spec allows either inlining or a
-// dedicated list route). Returns the inlined array if present, else proxies the
-// module's own list route. Safe to 404 — the portal treats that as "none".
+// The ticket's visible attachments (the ticket read already carries them; this
+// stays for older clients). Internal-note files are never listed.
 app.get('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
-  const u = req.user;
   try {
-    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
-    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id) && !isOnBehalfBeneficiary(u, look.data)) {
-      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
-    }
-    if (Array.isArray(look.data.attachments)) return res.json({ attachments: look.data.attachments });
-    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}/attachments`);
-    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    res.json(data);
+    const found = await listOwnAttachments(req.user, req.params.id);
+    if (found.error) return res.status(found.status).json({ error: found.error });
+    res.json({ attachments: found.attachments });
   } catch (err) {
     ticketProxyError(res, err, 'tickets.attachment.list');
   }
@@ -803,9 +787,7 @@ app.get('/api/bot/ticket/:idOrNumber', requireBotOrUser, async (req, res) => {
     // path so the portal's ticket-detail page continues to work.
     const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(idOrNumber)}`);
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    if (data.requester_id != null && String(data.requester_id) !== String(req.user.id) &&
-        String(data.submitter_id ?? '') !== String(req.user.id) &&
-        !isOnBehalfBeneficiary(req.user, data)) {
+    if (!ownsTicket(req.user, data)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     res.json({

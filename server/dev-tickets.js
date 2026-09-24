@@ -13,6 +13,8 @@
 // SAFE FOR PROD: never runs there. Prod sets hubApiBase + apiKey (so the real
 // proxy path is taken) AND doesn't set DEV_BYPASS_AUTH (so this is disabled).
 
+import zlib from 'node:zlib';
+
 const onFlag = (v) => ['1', 'true', 'yes'].includes(String(v || '').toLowerCase());
 
 export const devTicketsEnabled = process.env.DEV_TICKETS != null
@@ -43,6 +45,14 @@ const tickets = [
     created_at: ago(95), updated_at: ago(40),
     comments: [
       { id: 'c1-90012', author_name: 'IT Team', body: "Thanks for the report — can you confirm GlobalProtect is on the latest version? We pushed an update via Jamf this morning. Try reconnecting and let us know.", is_internal: false, created_at: ago(40) },
+      // Internal note + its file: must never reach the browser (forRequester).
+      { id: 'c2-90012', author_name: 'Dana Brooks', body: 'Internal: Jamf policy 214 failed on this Mac — check the log.', is_internal: true, created_at: ago(35) },
+      { id: 'c3-90012', author_name: 'Dana Brooks', body: '<p>Here’s where the portal address goes — screenshot below and attached.</p>', is_internal: false, created_at: ago(30) },
+    ],
+    attachments: [
+      { id: 7001, comment_id: 'c3-90012', file_name: 'globalprotect-settings.png', mime_type: 'image/png', file_size: 0, uploaded_by_name: 'Dana Brooks', created_at: ago(30) },
+      { id: 7002, comment_id: 'c2-90012', file_name: 'jamf-policy-214.log', mime_type: 'text/plain', file_size: 0, uploaded_by_name: 'Dana Brooks', created_at: ago(35) },
+      { id: 7003, comment_id: null, file_name: 'vpn-steps.txt', mime_type: 'text/plain', file_size: 0, uploaded_by_name: 'Dana Brooks', created_at: ago(28) },
     ],
   },
   {
@@ -57,6 +67,22 @@ const tickets = [
     requester_id: DEV_USER.id, requester_name: DEV_USER.name, requester_email: DEV_USER.email,
     submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
     created_at: ago(1500), updated_at: ago(1500),
+    comments: [],
+  },
+  // Declined by the approvers, but still filed as resolved (how tickets
+  // declined before rejection → 'cancelled' look) — must offer no Reopen/Close.
+  {
+    id: 90004,
+    ticket_number: 'IT-90004',
+    type: 'service_request',
+    status: 'resolved',
+    approval_status: 'rejected',
+    priority: 'medium',
+    subject: 'Request: Claude',
+    description: 'Requesting a Claude seat for drafting release notes.',
+    requester_id: DEV_USER.id, requester_name: DEV_USER.name, requester_email: DEV_USER.email,
+    submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
+    created_at: ago(3000), updated_at: ago(2900),
     comments: [],
   },
   // Two tickets the dev user opened ON BEHALF OF someone else (submitter = dev,
@@ -142,6 +168,15 @@ const agentsDirectory = [
   { user_id: 'agent-marcus', display_name: 'Marcus Reed' },
 ];
 
+// Placeholder app marks for local dev — a coloured square with a glyph, as an
+// inline SVG data URI, so the catalog tiles, "Most popular" and the icon
+// stacks can be previewed without network access. Not the real brand logos.
+const appIcon = (bg, fg, glyph, size = 30) => 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${bg}"/>` +
+  `<text x="32" y="${32 + size * 0.36}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="${size}" fill="${fg}">${glyph}</text></svg>`,
+);
+const simpleForm = (label = 'What do you need it for?') => [{ key: 'use_case', label, type: 'text', required: false }];
+
 // Catalog items incl. the spec's conditional-fields example (Headset): the
 // Delivery answer decides whether the office picker or the address fields show,
 // and Office location is the office_location field type (dropdown + pre-select).
@@ -149,6 +184,8 @@ const catalogItems = [
   {
     id: 501,
     name: 'Headset',
+    icon_url: appIcon('#211E1E', '#FDC831', '🎧', 30),
+    request_count: 41,
     description: 'A Jabra Evolve2 headset, delivered to your office or home.',
     category_name: 'Hardware',
     approval_required: false,
@@ -170,6 +207,8 @@ const catalogItems = [
   {
     id: 502,
     name: '1Password vault access',
+    icon_url: appIcon('#0A6CFF', '#FFFFFF', '1', 36),
+    request_count: 57,
     description: 'Access to a shared 1Password vault.',
     category_name: 'Access',
     approval_required: true,
@@ -179,6 +218,58 @@ const catalogItems = [
     ],
   },
 ];
+
+// Bytes for the fixture attachments above, standing in for the module's
+// content endpoint (a small generated PNG, or text).
+function makePng(w, h, [r, g, b]) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buf) => { let c = 0xffffffff; for (const x of buf) c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const row = Buffer.concat([Buffer.from([0]), Buffer.from(Array.from({ length: w }, () => [r, g, b]).flat())]);
+  const raw = Buffer.concat(Array.from({ length: h }, () => row));
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+export function devAttachmentBytes(attId) {
+  for (const t of tickets) {
+    const a = (t.attachments || []).find((x) => String(x.id) === String(attId));
+    if (!a) continue;
+    if (a.mime_type === 'image/png') return { buffer: makePng(320, 180, [253, 200, 49]), mime: 'image/png' };
+    return { buffer: Buffer.from(`Fixture file ${a.file_name}\n`), mime: a.mime_type };
+  }
+  return null;
+}
+
+// More apps so the catalog grid, category chips and "Most popular" look like
+// the real thing locally.
+catalogItems.push(
+  { id: 503, name: 'Slack', description: 'Join the Slice workspace, or get added to a private channel.', category_name: 'Communication', icon_url: appIcon('#4A154B', '#FFFFFF', '#', 38), request_count: 88, approval_required: false, justify_required: false, request_form_fields: simpleForm('Which channel or workspace?') },
+  { id: 504, name: 'Figma', description: 'Editor seat for design files, prototypes and FigJam boards.', category_name: 'Design', icon_url: appIcon('#1E1E1E', '#A259FF', 'F', 36), request_count: 73, approval_required: true, justify_required: true, request_form_fields: simpleForm('Which team or project?') },
+  { id: 505, name: 'Zoom', description: 'Licensed account for meetings over 40 minutes and webinars.', category_name: 'Communication', icon_url: appIcon('#2D8CFF', '#FFFFFF', 'Z', 36), request_count: 34, approval_required: false, justify_required: false, request_form_fields: [] },
+  { id: 506, name: 'GitHub', description: 'Access to the slice-internal-tools organisation and its repos.', category_name: 'Engineering', icon_url: appIcon('#181717', '#FFFFFF', 'GH', 26), request_count: 49, approval_required: true, justify_required: true, request_form_fields: simpleForm('Which repositories?') },
+  { id: 507, name: 'Jira', description: 'Board and project access for sprint planning and issue tracking.', category_name: 'Engineering', icon_url: appIcon('#0052CC', '#FFFFFF', 'J', 36), request_count: 26, approval_required: false, justify_required: false, request_form_fields: simpleForm('Which project?') },
+  { id: 508, name: 'Notion', description: 'Workspace access for docs, wikis and team spaces.', category_name: 'Productivity', icon_url: appIcon('#FFFFFF', '#111111', 'N', 38), request_count: 31, approval_required: false, justify_required: false, request_form_fields: [] },
+  { id: 509, name: 'Google Workspace', description: 'Shared drives, group mailboxes and calendar resources.', category_name: 'Productivity', icon_url: appIcon('#FFFFFF', '#4285F4', 'G', 38), request_count: 22, approval_required: false, justify_required: false, request_form_fields: simpleForm('Which drive, group or calendar?') },
+  { id: 510, name: 'Adobe Creative Cloud', description: 'Photoshop, Illustrator, InDesign and Acrobat Pro.', category_name: 'Design', icon_url: appIcon('#DA1F26', '#FFFFFF', 'Cc', 28), request_count: 18, approval_required: true, justify_required: true, request_form_fields: simpleForm('Which apps do you need?') },
+  { id: 511, name: 'Claude', description: 'Team seat for Claude — drafting, research and code.', category_name: 'Productivity', icon_url: appIcon('#D97757', '#FFFFFF', '✳', 38), request_count: 64, approval_required: true, justify_required: true, request_form_fields: simpleForm() },
+  { id: 513, name: 'Salesforce Sales Cloud — Enterprise Edition (Read-only reporting)', description: 'Dashboards and reports for the revenue team; no record editing.', category_name: 'Sales', icon_url: appIcon('#00A1E0', '#FFFFFF', 'S', 36), request_count: 0, approval_required: true, justify_required: false, request_form_fields: [] },
+  { id: 512, name: 'MacBook Pro 14"', description: 'Standard engineering build with the Jamf baseline.', category_name: 'Hardware', icon_url: appIcon('#E8E8ED', '#1D1D1F', '⌘', 34), request_count: 12, approval_required: true, justify_required: true, request_form_fields: [] },
+);
+// Point the fixture tickets at their app so the list rows show its icon.
+for (const [ticketId, itemId] of [[90008, 502], [90004, 511], [90006, 504], [90010, 512], [90001, 501]]) {
+  const t = tickets.find((x) => x.id === ticketId);
+  if (t) t.catalog_item_id = itemId;
+}
 
 const findTicket = (idOrNum) => {
   const key = decodeURIComponent(String(idOrNum));
@@ -215,6 +306,11 @@ export function handleDevTicket(method, subPath, body) {
   if (method === 'GET' && parts[0] === 'tickets' && parts.length === 2) {
     const t = findTicket(parts[1]);
     return t ? ok(t) : notFound();
+  }
+  // GET /tickets/:id/attachments
+  if (method === 'GET' && parts[0] === 'tickets' && parts[2] === 'attachments' && parts.length === 3) {
+    const t = findTicket(parts[1]);
+    return t ? ok({ attachments: t.attachments || [] }) : notFound();
   }
   // POST /tickets  (create)
   if (method === 'POST' && parts[0] === 'tickets' && parts.length === 1) {

@@ -943,13 +943,8 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
               <button
                 onClick={() => submit()}
                 disabled={!attached && !q.trim()}
-                className="btn btn-primary focus-ring"
-                style={{
-                  opacity: (attached || q.trim()) ? 1 : 0.4,
-                  pointerEvents: (attached || q.trim()) ? "auto" : "none",
-                  padding: "12px 22px",
-                  fontSize: 14.5
-                }}>
+                className="btn btn-primary btn-go focus-ring"
+                style={{ padding: "12px 22px", fontSize: 14.5 }}>
                 {attached ? "Analyze" : t("continue")}
                 <IconArrow size={16} stroke={2} />
               </button>
@@ -2152,7 +2147,7 @@ function QuestionFlow({ query, onBack, onDone }) {
             padding: "14px 16px",
             fontSize: 15, lineHeight: 1.5, color: "#211E1E",
             resize: "vertical",
-            transition: "all .2s var(--ease)",
+            transition: "transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), opacity .2s var(--ease)",
             fontFamily: "inherit",
             outline: "none",
           }} />
@@ -2993,7 +2988,14 @@ function App() {
     } catch {}
   }, [guide]);
   const [filedTicket, setFiledTicket] = useState(null);
-  const [ticketDraft, setTicketDraft] = useState(null);
+  const [ticketDraft, setTicketDraftState] = useState(null);
+  const [ticketDraftKey, setTicketDraftKey] = useState(0);
+  // Opening a report is a page of its own now (was an overlay): every caller
+  // that sets a draft also moves to the report stage.
+  const setTicketDraft = (d) => {
+    setTicketDraftState(d);
+    if (d) { setTicketDraftKey((k) => k + 1); setStage('report'); }
+  };
   // Which tab the Tickets page opens on — "mine" (My Tickets) or "approvals".
   // Set by the account-menu entries before navigating so each lands on its tab.
   // The bumped nav counter keys the page so re-picking the same menu item (even
@@ -3033,8 +3035,7 @@ function App() {
   });
   // "Request something" is its own page now (stage 'request'), not a modal.
   // Remember which stage we opened it from so closing returns there.
-  const requestReturnRef = React.useRef('landing');
-  const openCatalog = (opts = {}) => { requestReturnRef.current = stage; setCatalogReq(opts || {}); setStage('request'); };
+  const openCatalog = (opts = {}) => { setCatalogReq(opts || {}); setStage('request'); };
   // Cache the service catalog for the session so chat-intent matching doesn't
   // refetch on every ticket click.
   const catalogCacheRef = React.useRef(null);
@@ -3176,7 +3177,7 @@ function App() {
     : stage === "offboarding" ? "Offboarding"
     : stage === "knowledge" ? "Knowledge"
     : stage === "status" ? "Status"
-    : stage === "tickets" ? "My Tickets"
+    : (stage === "tickets" || stage === "report" || stage === "request") ? "My Tickets"
     : "Help";
   const onNavigate = (label) => {
     if (label === "Onboarding") setStage("onboarding");
@@ -3210,7 +3211,7 @@ function App() {
     <TweakCtx.Provider value={tweaks}>
       <GlobalKeyframes />
       <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenNotifications={() => setStage("notifications")} onOpenTickets={() => openTickets("mine")} onOpenApprovals={() => openTickets("approvals")} />
-      {ticketDraft && <NewTicketModal draft={ticketDraft} onClose={() => setTicketDraft(null)} onCreated={() => { setTicketDraft(null); openTickets("mine"); }} />}
+
 
       {/* __PORTAL2_SCROLL_WRAP_OPEN__ */}
       <div className="page-scroll">
@@ -3280,12 +3281,25 @@ function App() {
         onRequest={() => openCatalog()} />
       }
 
+      {stage === "report" && ticketDraft &&
+      <NewTicketModal
+        asPage
+        key={ticketDraftKey}
+        draft={ticketDraft}
+        // Back / Cancel land on My Tickets, like the catalog page.
+        onClose={() => { setTicketDraft(null); openTickets("mine"); }}
+        onCreated={() => { setTicketDraft(null); openTickets("mine"); }}
+        onBrowseCatalog={() => { setTicketDraft(null); openCatalog({}); }} />
+      }
+
       {stage === "request" &&
       <CatalogRequestModal
         asPage
         initialItemId={catalogReq && catalogReq.itemId}
         initialQuery={catalogReq && catalogReq.query}
-        onClose={() => setStage(requestReturnRef.current || "landing")}
+        // Back (and Cancel) land on My Tickets — where requests live — rather
+        // than wherever the catalog was opened from.
+        onClose={() => openTickets("mine")}
         onCreated={() => openTickets("mine")} />
       }
 
@@ -5203,6 +5217,8 @@ function useNotifications() {
             when: notifWhen(when),
             group: notifGroup(when),
             title: `${t.ticket_number || 'Your ticket'} — new update`,
+            ticketNumber: t.ticket_number || null,
+            subject: t.subject || null,
             body: `“${t.subject || 'Ticket'}” was updated by the IT Team — tap to view.`,
             color: '#FDC831',
             _ts: when.getTime(),
@@ -5446,221 +5462,177 @@ if (typeof document !== "undefined" && !document.getElementById("back-to-slicede
 // (status, ticket, access, security) and an "unread" dot; clicking marks all
 // read. Matches the user menu's visual language — hard 5px shadow, cheese
 // header, charcoal outlines.
-function NotificationsMenu({ onViewAll, onOpenTickets }) {
+// Shared behaviour for the nav's two popovers (notifications, account):
+//   - opening springs out from the trigger's corner; closing plays a short
+//     exit instead of vanishing (the panel stays mounted ~140ms to do it)
+//   - click outside / Esc closes, and Esc hands focus back to the trigger
+//   - ↑ ↓ Home End move between the menu's items; Tab keeps the order
+function useNavPopover() {
   const [open, setOpen] = React.useState(false);
-  const ref = React.useRef(null);
-  // Shared store — dropdown shows the first 5 items; dismiss/read state is
-  // persisted and sync'd with the full Notifications page in the same tab.
-  const { items: allItems, unreadCount, markRead, markAllRead } = useNotifications();
-  const items = allItems.slice(0, 5);
+  const [closing, setClosing] = React.useState(false);
+  const wrapRef = React.useRef(null);
+  const triggerRef = React.useRef(null);
+  const panelRef = React.useRef(null);
+  const timer = React.useRef(null);
+  const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const close = React.useCallback((refocus) => {
+    if (!open || closing) return;
+    setClosing(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => { setOpen(false); setClosing(false); }, reduce ? 0 : 140);
+    if (refocus && triggerRef.current) triggerRef.current.focus();
+  }, [open, closing, reduce]);
+  const toggle = () => { if (open && !closing) close(false); else { clearTimeout(timer.current); setClosing(false); setOpen(true); } };
+  React.useEffect(() => () => clearTimeout(timer.current), []);
 
   React.useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
+    if (!open || closing) return undefined;
+    const items = () => [...(panelRef.current ? panelRef.current.querySelectorAll('[role="menuitem"]:not([disabled])') : [])];
+    // Focus lands on the panel, not the first item — so a mouse user doesn't
+    // see a stray focus ring, while arrows start from the top.
+    if (panelRef.current) panelRef.current.focus({ preventScroll: true });
+    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) close(false); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+      const list = items(); if (!list.length) return;
+      e.preventDefault();
+      const i = list.indexOf(document.activeElement);
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? list.length - 1
+        : e.key === 'ArrowDown' ? (i + 1) % list.length : (i <= 0 ? list.length - 1 : i - 1);
+      list[next].focus();
     };
-  }, [open]);
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open, closing, close]);
 
-  const Dot = ({ bg }) => (
-    <span style={{
-      width: 28, height: 28, borderRadius: 8,
-      background: bg, border: "1px solid #211E1E",
-      display: "grid", placeItems: "center",
-      flexShrink: 0,
-    }}>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#211E1E"
-        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
-        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
-      </svg>
-    </span>
-  );
+  return { open, closing, toggle, close, wrapRef, triggerRef, panelRef };
+}
+
+const NotifKindIcon = ({ kind }) => (
+  <span className={'notif-kind notif-kind-' + (kind || 'info')} aria-hidden="true">
+    {kind === 'ticket' ? (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2V10a2 2 0 0 0 0 4v1.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5Z"/><path d="M14 7v10" strokeDasharray="1.5 2.5"/></svg>
+    ) : kind === 'approval' ? (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    ) : (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+    )}
+  </span>
+);
+
+function NotificationsMenu({ onViewAll, onOpenTickets }) {
+  const pop = useNavPopover();
+  // Shared store — the dropdown shows the latest 6; read state is persisted
+  // and in sync with the full Notifications page.
+  const { items: allItems, unreadCount, markRead, markAllRead } = useNotifications();
+  const items = allItems.slice(0, 6);
+
+  // The bell swings once when a NEW unread arrives (not on every render,
+  // and not on first load).
+  const [ring, setRing] = React.useState(0);
+  const prevUnread = React.useRef(unreadCount);
+  React.useEffect(() => {
+    if (unreadCount > prevUnread.current) setRing((n) => n + 1);
+    prevUnread.current = unreadCount;
+  }, [unreadCount]);
+
+  // Group rows under Today / Yesterday / Earlier, in order.
+  const groups = [];
+  items.forEach((it) => {
+    const g = it.group || 'Earlier';
+    const last = groups[groups.length - 1];
+    if (last && last.name === g) last.items.push(it); else groups.push({ name: g, items: [it] });
+  });
+  let rowIndex = 0;
+
+  const openItem = (it) => {
+    markRead(it.id);
+    if (it.kind === 'ticket' && onOpenTickets) {
+      pop.close(false);
+      if (it.ticketId != null) { try { window.__PORTAL_OPEN_TICKET__ = it.ticketId; } catch {} }
+      onOpenTickets();
+    }
+  };
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <style>{`
-        @keyframes notifMenuIn {
-          from { opacity: 0; transform: translateY(-6px) scale(0.98); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
+    <div ref={pop.wrapRef} style={{ position: 'relative' }}>
       <button
+        ref={pop.triggerRef}
         type="button"
-        aria-label={`Notifications${unreadCount ? ` (${unreadCount} unread)` : ""}`}
+        className={'nav-trigger nav-bell' + (pop.open && !pop.closing ? ' is-open' : '')}
+        aria-label={`Notifications${unreadCount ? ` (${unreadCount} unread)` : ''}`}
         aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: 34, height: 34,
-          background: open ? "#FDC831" : "#FFFFFF",
-          color: "#211E1E",
-          display: "grid", placeItems: "center",
-          borderRadius: "50%", border: "1px solid #211E1E",
-          cursor: "pointer",
-          transition: "transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease",
-          position: "relative",
-          boxShadow: open ? "2.5px 2.5px 0 #211E1E" : "none",
-        }}
-        onMouseEnter={(e)=>{ if (open) return; e.currentTarget.style.transform="translate(-1px,-1px)"; e.currentTarget.style.boxShadow="1px 1px 0 #211E1E"; }}
-        onMouseLeave={(e)=>{ if (open) return; e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}
+        aria-expanded={pop.open && !pop.closing}
+        onClick={pop.toggle}
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg key={ring} className={ring ? 'nav-bell-swing' : undefined} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
           <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
         </svg>
-        {unreadCount > 0 && (
-          <span aria-hidden="true" style={{
-            position: "absolute", top: -3, right: -3,
-            minWidth: 16, height: 16, padding: "0 4px",
-            display: "grid", placeItems: "center",
-            background: "#E8534E", color: "#FFFFFF",
-            border: "1px solid #211E1E",
-            borderRadius: 999,
-            fontSize: 9.5, fontWeight: 800,
-            fontFamily: "'Archivo', sans-serif",
-            letterSpacing: "0.02em",
-          }}>{unreadCount}</span>
-        )}
+        {unreadCount > 0 && <span key={unreadCount} className="nav-bell-count" aria-hidden="true">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
 
-      {open && (
-        <div role="menu" style={{
-          position: "absolute", top: "calc(100% + 10px)", right: 0,
-          width: 340,
-          background: "#FFFFFF",
-          border: "1px solid #211E1E",
-          borderRadius: 12,
-          boxShadow: "3px 3px 0 #211E1E",
-          overflow: "hidden",
-          animation: "notifMenuIn .14s var(--ease) both",
-          zIndex: 60,
-        }}>
-          {/* Header */}
-          <div style={{
-            padding: "12px 14px",
-            background: "#FDC831",
-            borderBottom: "1px solid #211E1E",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-          }}>
-            <div>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 13, fontWeight: 900, color: "#211E1E",
-                letterSpacing: "-0.005em",
-              }}>Notifications</div>
-              <div style={{ fontSize: 10.5, color: "#3A2F10", fontWeight: 600 }}>
-                {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
-              </div>
+      {pop.open && (
+        <div ref={pop.panelRef} tabIndex={-1} role="menu" aria-label="Notifications"
+          className={'nav-pop notif-pop' + (pop.closing ? ' is-closing' : '')}>
+          <div className="nav-pop-head">
+            <div style={{ minWidth: 0 }}>
+              <div className="nav-pop-title">Notifications</div>
+              <div className="nav-pop-sub">{unreadCount > 0 ? `${unreadCount} unread` : 'You’re all caught up'}</div>
             </div>
-            <button
-              type="button"
-              onClick={markAllRead}
-              disabled={unreadCount === 0}
-              style={{
-                padding: "4px 9px",
-                background: "#FFFFFF",
-                border: "1px solid #211E1E",
-                borderRadius: 999,
-                fontSize: 10.5, fontWeight: 700,
-                color: "#211E1E",
-                cursor: unreadCount === 0 ? "default" : "pointer",
-                opacity: unreadCount === 0 ? 0.5 : 1,
-                fontFamily: "inherit",
-                transition: "transform .15s ease",
-              }}
-            >Mark all read</button>
+            {unreadCount > 0 && (
+              <button type="button" className="notif-markall" onClick={markAllRead}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 13l3.5 3.5L13 9.5M11 16.5l1.5 1.5L21 9.5"/></svg>
+                Mark all read
+              </button>
+            )}
           </div>
 
-          {/* List */}
-          <div style={{ maxHeight: 380, overflowY: "auto" }}>
+          <div className="notif-list">
             {items.length === 0 ? (
-              <div style={{
-                padding: "28px 18px",
-                textAlign: "center",
-                fontSize: 12, color: "#78684C", fontWeight: 500,
-              }}>You're all caught up.</div>
-            ) : items.map((it) => {
-              const isUnread = it.unread;
-              return (
-                <button
-                  key={it.id}
-                  role="menuitem"
-                  type="button"
-                  onClick={() => { markRead(it.id); if (it.kind === 'ticket' && onOpenTickets) { setOpen(false); if (it.ticketId != null) { try { window.__PORTAL_OPEN_TICKET__ = it.ticketId; } catch {} } onOpenTickets(); } }}
-                  style={{
-                    width: "100%",
-                    display: "flex", alignItems: "flex-start", gap: 10,
-                    padding: "11px 14px",
-                    background: isUnread ? "#FFFAE0" : "transparent",
-                    border: "none",
-                    borderBottom: "1px solid #EDE4C8",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    fontFamily: "inherit",
-                    transition: "background .12s ease",
-                    position: "relative",
-                  }}
-                  onMouseEnter={(e)=>{ e.currentTarget.style.background = isUnread ? "#FFF5CC" : "#FAF5E5"; }}
-                  onMouseLeave={(e)=>{ e.currentTarget.style.background = isUnread ? "#FFFAE0" : "transparent"; }}
-                >
-                  {isUnread && (
-                    <span aria-hidden="true" style={{
-                      position: "absolute", left: 5, top: "50%",
-                      transform: "translateY(-50%)",
-                      width: 6, height: 6, borderRadius: "50%",
-                      background: "#E8534E",
-                    }}/>
-                  )}
-                  <Dot bg={it.color} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      display: "flex", alignItems: "baseline", justifyContent: "space-between",
-                      gap: 8, marginBottom: 2,
-                    }}>
-                      <div style={{
-                        fontSize: 12.5, fontWeight: 700, color: "#211E1E",
-                        letterSpacing: "-0.005em",
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      }}>{it.title}</div>
-                      <div style={{
-                        fontSize: 10, color: "#8A7A4E", fontWeight: 600,
-                        flexShrink: 0,
-                      }}>{it.when}</div>
-                    </div>
-                    <div style={{
-                      fontSize: 11.5, color: "#5A4B28", fontWeight: 500,
-                      lineHeight: 1.45,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}>{it.body}</div>
-                  </div>
-                </button>
-              );
-            })}
+              <div className="notif-empty">
+                <span className="notif-empty-mark" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                </span>
+                <div className="notif-empty-title">Nothing new</div>
+                <div className="notif-empty-body">Replies and status changes on your tickets land here.</div>
+              </div>
+            ) : groups.map((g) => (
+              <div key={g.name} role="group" aria-label={g.name}>
+                <div className="notif-group">{g.name}</div>
+                {g.items.map((it) => {
+                  const i = rowIndex++;
+                  return (
+                    <button key={it.id} role="menuitem" type="button"
+                      className={'notif-row nav-pop-item' + (it.unread ? ' is-unread' : '')}
+                      style={{ '--i': i }}
+                      onClick={() => openItem(it)}>
+                      <NotifKindIcon kind={it.kind} />
+                      <span className="notif-main">
+                        <span className="notif-title">{it.subject || it.title}</span>
+                        <span className="notif-body">
+                          {it.ticketNumber ? <><span className="notif-num">{it.ticketNumber}</span> · </> : null}
+                          {it.subject ? 'Updated by the IT Team' : it.body}
+                        </span>
+                      </span>
+                      <span className="notif-side">
+                        <span className="notif-when">{it.when}</span>
+                        {it.unread ? <span className="notif-dot" aria-label="Unread" /> : <span className="notif-go" aria-hidden="true">→</span>}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </div>
 
-          {/* Footer */}
-          <div style={{
-            borderTop: "1px solid #211E1E",
-            padding: "10px 14px",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <button type="button" onClick={() => { setOpen(false); onViewAll && onViewAll(); }} style={{
-              background: "transparent", border: "none", padding: 0,
-              fontSize: 11.5, fontWeight: 700, color: "#211E1E",
-              cursor: "pointer", fontFamily: "inherit",
-              textDecoration: "underline",
-              textDecorationColor: "#FDC831",
-              textUnderlineOffset: 3,
-              textDecorationThickness: 2,
-            }}>View all</button>
-          </div>
+          <button type="button" role="menuitem" className="nav-pop-foot"
+            onClick={() => { pop.close(false); onViewAll && onViewAll(); }}>
+            View all notifications <span aria-hidden="true">→</span>
+          </button>
         </div>
       )}
     </div>
@@ -5668,13 +5640,11 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
 }
 
 // --- User avatar + dropdown ---------------------------------------------------
-// Slightly dressier than a flat circle: a notched avatar button with initials,
-// presence dot, and a tiny caret. Clicking opens a small menu with typical
-// account actions (notifications, tickets, approvals, admin, sign out).
-// Click-outside and Esc both close it.
+// Avatar pill with initials, presence dot and caret; opens the account menu
+// (notifications, tickets, approvals, admin, sign out) via useNavPopover.
 function UserMenu({ onOpenNotifications, onOpenTickets, onOpenApprovals }) {
-  const [open, setOpen] = React.useState(false);
-  // __PORTAL2_USERMENU_HELPERS__
+  const pop = useNavPopover();
+  const { unreadCount } = useNotifications();
   const _userName = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
   const _userEmail = (typeof window !== 'undefined' && window.PORTAL_CURRENT_EMAIL) || '';
   // The admin console is restricted to slicedesk super_admins (the server
@@ -5682,266 +5652,84 @@ function UserMenu({ onOpenNotifications, onOpenTickets, onOpenApprovals }) {
   const _isSuperAdmin = (typeof window !== 'undefined' && window.PORTAL_CURRENT_ROLE) === 'super_admin';
   const _initials = _userName.trim().split(/\s+/).slice(0, 2).map(function(w){return (w[0]||'').toUpperCase();}).join('') || '?';
   const _displayName = _userName || 'Loading…';
-  const ref = React.useRef(null);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   const items = [
-    { label: "Notifications",  hint: "Updates & alerts",        action: "notifications", icon: (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+    { label: 'Notifications', hint: 'Updates & alerts', action: 'notifications', badge: unreadCount || null, icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
     )},
-    { label: "My tickets",     hint: "Issues & requests you raised", action: "tickets", icon: (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2V10a2 2 0 0 0 0 4v1.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5Z"/><path d="M14 7v10" strokeDasharray="1.5 2.5"/></svg>
+    { label: 'My tickets', hint: 'Issues & requests you raised', action: 'tickets', icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2V10a2 2 0 0 0 0 4v1.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5Z"/><path d="M14 7v10" strokeDasharray="1.5 2.5"/></svg>
     )},
-    { label: "Approvals",      hint: "Requests awaiting your sign-off", action: "approvals", icon: (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    { label: 'Approvals', hint: 'Requests awaiting your sign-off', action: 'approvals', icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
     )},
-    ...(_isSuperAdmin ? [{ label: "Admin",          hint: "Manage guides & content", action: "admin",   icon: (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+    ...(_isSuperAdmin ? [{ label: 'Admin', hint: 'Manage guides & content', action: 'admin', icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
     )}] : []),
   ];
 
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <style>{`
-        @keyframes userMenuIn {
-          from { opacity: 0; transform: translateY(-6px) scale(0.98); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
+  const run = (action) => {
+    pop.close(false);
+    if (action === 'notifications' && onOpenNotifications) onOpenNotifications();
+    else if (action === 'tickets' && onOpenTickets) onOpenTickets();
+    else if (action === 'approvals' && onOpenApprovals) onOpenApprovals();
+    else if (action === 'admin') window.location.href = withBase('/admin.html');
+  };
+  const isOpen = pop.open && !pop.closing;
 
-      {/* Avatar trigger */}
+  return (
+    <div ref={pop.wrapRef} style={{ position: 'relative' }}>
       <button
+        ref={pop.triggerRef}
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={pop.toggle}
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={isOpen}
         aria-label="Account menu"
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "3px 9px 3px 3px",
-          background: open ? "#FDC831" : "#FFFFFF",
-          color: "#211E1E",
-          border: "1px solid #211E1E",
-          borderRadius: 999,
-          cursor: "pointer",
-          transition: "transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease",
-          boxShadow: open ? "2.5px 2.5px 0 #211E1E" : "none",
-        }}
-        onMouseEnter={(e)=>{
-          if (open) return;
-          e.currentTarget.style.transform = "translate(-1.5px,-1.5px)";
-          e.currentTarget.style.boxShadow = "2.5px 2.5px 0 #211E1E";
-        }}
-        onMouseLeave={(e)=>{
-          if (open) return;
-          e.currentTarget.style.transform = "none";
-          e.currentTarget.style.boxShadow = "none";
-        }}
+        className={'nav-trigger nav-account' + (isOpen ? ' is-open' : '')}
       >
-        <span style={{ position: "relative", display: "inline-grid", placeItems: "center" }}>
-          <span style={{
-            width: 28, height: 28,
-            background: "#FDC831",
-            color: "#211E1E",
-            display: "grid", placeItems: "center",
-            fontSize: 11, fontWeight: 900, letterSpacing: "0.03em",
-            borderRadius: "50%",
-            border: "1px solid #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            transition: "background .15s ease, color .15s ease",
-          }}>{_initials}</span>
-          <span aria-hidden="true" style={{
-            position: "absolute", bottom: -1, right: -1,
-            width: 10, height: 10, borderRadius: "50%",
-            background: "#0A8A3E",
-            border: `2px solid ${open ? "#FDC831" : "#FFFFFF"}`,
-          }}/>
+        <span className="nav-account-avatar">
+          {_initials}
+          <span className="nav-presence" aria-hidden="true" />
         </span>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{
-          transition: "transform .18s ease",
-          transform: open ? "rotate(180deg)" : "rotate(0deg)",
-        }}>
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
+        <svg className="nav-caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
 
-      {/* Dropdown */}
-      {open && (
-        <div role="menu" style={{
-          position: "absolute", top: "calc(100% + 10px)", right: 0,
-          width: 280,
-          background: "#FFFFFF",
-          border: "1px solid #211E1E",
-          borderRadius: 12,
-          boxShadow: "3px 3px 0 #211E1E",
-          overflow: "hidden",
-          animation: "userMenuIn .14s var(--ease) both",
-          zIndex: 60,
-        }}>
-          {/* Header */}
-          <div style={{
-            padding: "14px 14px 12px",
-            background: "#FDC831",
-            borderBottom: "1px solid #211E1E",
-            display: "flex", alignItems: "center", gap: 11,
-            position: "relative",
-          }}>
-            <div style={{
-              width: 42, height: 42,
-              background: "#211E1E", color: "#FDC831",
-              display: "grid", placeItems: "center",
-              fontSize: 14, fontWeight: 900,
-              borderRadius: "50%",
-              fontFamily: "'Archivo', sans-serif",
-              border: "1px solid #211E1E",
-              letterSpacing: "0.02em",
-            }}>{_initials}</div>
+      {pop.open && (
+        <div ref={pop.panelRef} tabIndex={-1} role="menu" aria-label="Account"
+          className={'nav-pop account-pop' + (pop.closing ? ' is-closing' : '')}>
+          <div className="account-head">
+            <div className="account-avatar">{_initials}<span className="nav-presence" aria-hidden="true" /></div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{
-                fontSize: 13.5, fontWeight: 700, color: "#211E1E",
-                letterSpacing: "-0.01em",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>{_displayName}</div>
-              <div style={{
-                fontSize: 11.5, color: "#3A2F10", fontWeight: 500,
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>{_userEmail}</div>
+              <div className="account-name">{_displayName}</div>
+              <div className="account-email" title={_userEmail}>{_userEmail}</div>
             </div>
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              padding: "2px 7px",
-              background: "#FFFFFF", border: "1px solid #211E1E",
-              borderRadius: 999,
-              fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em",
-              textTransform: "uppercase", color: "#211E1E",
-            }}>
-              <span style={{
-                width: 6, height: 6, borderRadius: "50%",
-                background: "#0A8A3E",
-              }}/>
-              Online
-            </span>
           </div>
 
-          {/* Items */}
-          <div style={{ padding: 6 }}>
-            {items.map((it) => (
-              <button
-                key={it.label}
-                role="menuitem"
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  if (it.action === "notifications" && onOpenNotifications) onOpenNotifications();
-                  else if (it.action === "tickets" && onOpenTickets) onOpenTickets();
-                  else if (it.action === "approvals" && onOpenApprovals) onOpenApprovals();
-                  else if (it.action === "admin") window.location.href = withBase("/admin.html");
-                }}
-                style={{
-                  width: "100%",
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "9px 10px",
-                  background: "transparent",
-                  border: "none",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  color: "#211E1E",
-                  textAlign: "left",
-                  fontFamily: "inherit",
-                  transition: "background .12s ease",
-                }}
-                onMouseEnter={(e)=>{ e.currentTarget.style.background = "#FFF5CC"; }}
-                onMouseLeave={(e)=>{ e.currentTarget.style.background = "transparent"; }}
-              >
-                <span style={{
-                  width: 28, height: 28,
-                  display: "grid", placeItems: "center",
-                  background: "#F2EBD8",
-                  border: "1px solid #211E1E",
-                  borderRadius: 8,
-                  color: "#211E1E",
-                  flexShrink: 0,
-                }}>{it.icon}</span>
+          <div className="account-items">
+            {items.map((it, i) => (
+              <button key={it.label} role="menuitem" type="button" className="account-item nav-pop-item"
+                style={{ '--i': i }} onClick={() => run(it.action)}>
+                <span className="account-icon">{it.icon}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{
-                    display: "block",
-                    fontSize: 12.5, fontWeight: 700,
-                    letterSpacing: "-0.005em",
-                  }}>{it.label}</span>
-                  <span style={{
-                    display: "block",
-                    fontSize: 10.5, color: "#6B5E3D", fontWeight: 500,
-                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  }}>{it.hint}</span>
+                  <span className="account-label">{it.label}</span>
+                  <span className="account-hint">{it.hint}</span>
                 </span>
-                {it.badge != null && (
-                  <span style={{
-                    minWidth: 18, height: 18, padding: "0 5px",
-                    display: "inline-grid", placeItems: "center",
-                    background: "#E8534E", color: "#FFFFFF",
-                    border: "1px solid #211E1E",
-                    borderRadius: 999,
-                    fontSize: 10, fontWeight: 800,
-                    fontFamily: "'Archivo', sans-serif",
-                  }}>{it.badge}</span>
-                )}
+                {it.badge != null
+                  ? <span className="account-badge">{it.badge > 9 ? '9+' : it.badge}</span>
+                  : <span className="account-go" aria-hidden="true">→</span>}
               </button>
             ))}
           </div>
 
-          {/* Sign out */}
-          <div style={{ padding: "0 6px 6px" }}>
-            <button
-              role="menuitem"
-              type="button"
-              onClick={async () => { setOpen(false); try { await fetch("/auth/logout", {method:"POST",credentials:"include",headers:{"Content-Type":"application/json"}}); } catch(e) {} window.location.href = "/login"; }}
-              style={{
-                width: "100%",
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "9px 10px",
-                background: "transparent",
-                border: "none",
-                borderRadius: 8,
-                cursor: "pointer",
-                color: "#B92323",
-                textAlign: "left",
-                fontFamily: "inherit",
-                fontSize: 12.5, fontWeight: 700,
-                letterSpacing: "-0.005em",
-                transition: "background .12s ease",
-              }}
-              onMouseEnter={(e)=>{ e.currentTarget.style.background = "#FFE4E2"; }}
-              onMouseLeave={(e)=>{ e.currentTarget.style.background = "transparent"; }}
-            >
-              <span style={{
-                width: 28, height: 28,
-                display: "grid", placeItems: "center",
-                background: "#FFE4E2",
-                border: "1px solid #B92323",
-                borderRadius: 8,
-                color: "#B92323",
-                flexShrink: 0,
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="16 17 21 12 16 7"/>
-                  <line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
+          <div className="account-sep" />
+          <div style={{ padding: '6px' }}>
+            <button role="menuitem" type="button" className="account-item account-signout nav-pop-item" style={{ '--i': items.length }}
+              onClick={async () => { pop.close(false); try { await fetch('/auth/logout', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } }); } catch (e) {} window.location.href = '/login'; }}>
+              <span className="account-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               </span>
-              Sign out
+              <span className="account-label">Sign out</span>
             </button>
           </div>
         </div>
@@ -6171,7 +5959,7 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
         border: "1px solid #211E1E",
         background: selected ? "#211E1E" : "#FFFFFF",
         display: "grid", placeItems: "center",
-        transition: "all .2s var(--ease)",
+        transition: "transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), opacity .2s var(--ease)",
         marginTop: 1, flexShrink: 0,
       }}>
         {selected && <IconCheck size={12} stroke={3} style={{color: "#FDC831"}} />}
@@ -6231,7 +6019,7 @@ function MultiChip({ selected, title, onSelect, index }) {
         border: `2px solid ${selected ? "#FFFFFF" : "#211E1E"}`,
         display: "grid", placeItems: "center",
         background: selected ? "transparent" : "#FFFFFF",
-        transition: "all .2s var(--ease)",
+        transition: "transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), opacity .2s var(--ease)",
       }}>
         {selected && <IconCheck size={10} stroke={3.5} style={{color: "#FFFFFF"}} />}
       </span>
@@ -6249,7 +6037,7 @@ function Progress({ current, total }) {
           width: i === current ? 28 : 10, height: 10, borderRadius: 999,
           background: i <= current ? "#211E1E" : "#FFFFFF",
           border: "1px solid #211E1E",
-          transition: "all .4s var(--ease)",
+          transition: "width .4s var(--ease), transform .4s var(--ease), box-shadow .4s var(--ease), background-color .4s var(--ease), color .4s var(--ease), border-color .4s var(--ease), opacity .4s var(--ease)",
         }}/>
       ))}
     </div>
@@ -6461,7 +6249,7 @@ function NotificationsPage({ onBack }) {
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <button onClick={onBack} className="kb-back-btn">
-            <span className="kb-back-arrow">←</span>
+            <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>
             Back to IT Hub
           </button>
           <button
@@ -7373,15 +7161,7 @@ function HRApprovalDetail({ requestId, onBack, onOpenManagerView }) {
         padding: "20px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={onBack} style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "7px 12px 7px 10px",
-          background: "#FFFFFF", border: "1px solid #211E1E",
-          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          color: "#211E1E", cursor: "pointer",
-        }}>← Back to dashboard</button>
+        <button onClick={onBack} className="kb-back-btn"><svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back to dashboard</button>
 
         <div style={{ flex: 1 }}/>
 
@@ -7585,15 +7365,7 @@ function ManagerInbox({ managerName, onOpen, onBackToHR }) {
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <button onClick={onBackToHR} style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "7px 12px",
-          background: "#FFFFFF", border: "1px solid #211E1E",
-          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          color: "#211E1E", cursor: "pointer",
-        }}>← Back to HR view</button>
+        <button onClick={onBackToHR} className="kb-back-btn"><svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back to HR view</button>
         <span style={{
           fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
           padding: "3px 8px", background: "#211E1E", color: "#FDC831",
@@ -7849,16 +7621,7 @@ function ManagerApprove({ requestId, managerName, onBack, onSubmitted }) {
         boxShadow: "0 2px 12px rgba(33,30,30,0.06)",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", width: "100%", display: "flex", alignItems: "center", gap: 10, flexWrap: "nowrap" }}>
-        <button onClick={onBack} style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "7px 12px",
-          background: "#FFFFFF", border: "1px solid #211E1E",
-          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          color: "#211E1E", cursor: "pointer",
-          flexShrink: 0,
-        }}>← Inbox</button>
+        <button onClick={onBack} className="kb-back-btn"><svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Inbox</button>
         <span style={{
           fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
           padding: "3px 8px", background: "#211E1E", color: "#FDC831",
@@ -8169,7 +7932,7 @@ function ManagerHireRail({ hires, activeIdx, doneIdxs, onPick }) {
               boxShadow: active ? "1px 1px 0 #211E1E" : "none",
               fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13,
               cursor: "pointer", textAlign: "left",
-              transition: "all .12s ease",
+              transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
             }}>
               {/* Status dot */}
               <span style={{
@@ -8341,12 +8104,12 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
     </span>
   );
   return ReactDOM.createPortal((
-    <div style={{
+    <div className="overlay-in" style={{
       position: "fixed", inset: 0, zIndex: 200,
       background: "rgba(33,30,30,0.55)",
       display: "grid", placeItems: "center", padding: 20,
     }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div className="overlay-panel-in" onClick={e => e.stopPropagation()} style={{
         width: "100%", maxWidth,
         background: "#FFFFFF",
         border: "1px solid #211E1E", borderRadius: 12,
@@ -8377,35 +8140,46 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
 // (yellow page, cream header band with title + Back, centred content card)
 // instead of a modal overlay. Content width is fixed so it never jumps between
 // the flow's steps. `maxWidth` is accepted for API parity but ignored here.
-function PageShell({ title, kicker, onClose, children, icon, backLabel = "Back" }) {
-  // 44 → 60, with the logo inside going 28 → 38. It sits next to a 34px
-  // weight-900 title, and at 44 it read as a bullet point beside the name
-  // rather than the product's own mark. The offset shadow steps 2 → 3 with
-  // it: a hard shadow that doesn't scale with its object starts looking like
-  // a printing error at larger sizes rather than a deliberate edge.
+function PageShell({ title, kicker, subtitle, onClose, children, icon, backLabel = "Back", bare = false, maxWidth = 1120, centered = false, centerHead = false }) {
+  // One continuous page on the cheese background — no separate cream header
+  // band. The header used to be its own strip with the content in a card
+  // below, which read as two pages stacked and pushed everything down.
+  // `bare` drops the content card (the catalog grid sits straight on the
+  // page); forms keep one white card, because fields need a surface.
   const logo = !icon ? null : (
-    <span style={{ width: 60, height: 60, flexShrink: 0, borderRadius: 13, background: "#FFFFFF", border: "1px solid #211E1E", display: "grid", placeItems: "center", overflow: "hidden", boxShadow: "3px 3px 0 #211E1E" }}>
+    <span className="pg-logo">
       {typeof icon === "string"
-        ? <img src={icon} alt="" width="38" height="38" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        ? <img src={icon} alt="" width="34" height="34" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
         : icon}
     </span>
   );
   return (
-    <div className="page" style={{ background: "#FDC831", display: "flex", flexDirection: "column" }}>
-      <div style={{ background: "#F7F4EF", borderBottom: "1px solid #211E1E", padding: "34px 32px" }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
+    // The page column is ALWAYS 1120 wide, so Back and the title sit on the
+    // same left edge as every other page (My Tickets, the catalog). A
+    // narrower `maxWidth` only narrows the content under the header, and it
+    // stays left-aligned to that edge instead of centring — centring is what
+    // made Back jump inward on the form pages.
+    // Layouts:
+    //   default  → the full 1120 column, same left edge as My Tickets (the catalog)
+    //   centered → one narrower column, header + card centred together, with
+    //              Back and the title on the card's own left edge (forms);
+    //              `centerHead` also centres the header (confirmations)
+    <div className="page pg-shell">
+      <div className={'pg-inner' + (centered ? ' is-centered' : '') + (centerHead ? ' is-center-head' : '')} style={centered ? { maxWidth: `calc(${maxWidth}px + 64px)` } : undefined}>
+        <header className="pg-head">
+          <button onClick={onClose} className="kb-back-btn pg-back">
+            <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>{backLabel}
+          </button>
+          <div className="pg-titlerow">
             {logo}
             <div style={{ minWidth: 0 }}>
-              {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 8 }}>{kicker}</div>}
-              <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 34, fontWeight: 900, margin: 0, letterSpacing: "-0.03em", color: "#211E1E", lineHeight: 1.05 }}>{title}</h1>
+              {kicker && <div className="eyebrow pg-kicker">{kicker}</div>}
+              <h1 className="pg-title">{title}</h1>
+              {subtitle && <p className="pg-subtitle">{subtitle}</p>}
             </div>
           </div>
-          <button onClick={onClose} className="btn btn-outline" style={{ flexShrink: 0 }}>← {backLabel}</button>
-        </div>
-      </div>
-      <div style={{ maxWidth: 1120, width: "100%", margin: "0 auto", padding: "28px 32px 64px", boxSizing: "border-box" }}>
-        <div style={{ ...TK.card, padding: "22px 24px" }}>{children}</div>
+        </header>
+        {bare ? children : <div className="pg-card">{children}</div>}
       </div>
     </div>
   );
@@ -8433,7 +8207,25 @@ const btnSecondary = {
 // the clarifying answers, the assistant's suggestion + guides) so the user just
 // reviews and sends — no re-typing. Posts to /api/tickets (→ hub proxy → ticket
 // module 101) with the signed-in user as requester.
-function NewTicketModal({ onClose, onCreated, draft = {} }) {
+// Common problems, one click from a blank report — fills the subject so the
+// person only has to describe what they see.
+const REPORT_SHORTCUTS = [
+  { label: "Wi‑Fi isn't working", subject: "Wi-Fi isn't working", Icon: IconWifi },
+  { label: 'VPN won’t connect', subject: "VPN won't connect", Icon: IconShield },
+  { label: 'Can’t log in', subject: "Can't log in", Icon: IconKey },
+  { label: 'Laptop running slow', subject: 'Laptop running slow', Icon: IconLaptop },
+  { label: 'Email problem', subject: 'Email isn’t working', Icon: IconMail },
+  { label: 'Screen / accessory', subject: 'Monitor or accessory not working', Icon: IconPlug },
+];
+const URGENCY_OPTIONS = [
+  { value: 'low', label: 'Low', hint: 'Whenever you can', dot: '#0A8A3E' },
+  { value: 'medium', label: 'Medium', hint: 'Soon, but I can work', dot: '#B8860B' },
+  { value: 'high', label: 'High', hint: 'It’s blocking me', dot: '#DA3327' },
+  { value: 'critical', label: 'Critical', hint: 'Many people / can’t work', dot: '#8A1E17' },
+];
+
+function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrowseCatalog }) {
+  const Shell = asPage ? PageShell : ModalShell;
   const [subject, setSubject] = React.useState(draft.subject || "");
   const [description, setDescription] = React.useState(draft.description || "");
   const [type, setType] = React.useState(draft.type || "incident");
@@ -8442,19 +8234,48 @@ function NewTicketModal({ onClose, onCreated, draft = {} }) {
   const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
   const [talkedToNote, setTalkedToNote] = React.useState('');
   const [busy, setBusy] = React.useState(false);
-  const [busyLabel, setBusyLabel] = React.useState("Submitting…");
+  const [busyLabel, setBusyLabel] = React.useState("Sending…");
   const [result, setResult] = React.useState(null);
   const [attachWarn, setAttachWarn] = React.useState("");
   const [error, setError] = React.useState("");
+  const [subjectErr, setSubjectErr] = React.useState("");
+  const [dragging, setDragging] = React.useState(false);
+  const subjectRef = React.useRef(null);
+  const descRef = React.useRef(null);
   const who = (typeof window !== "undefined" && window.PORTAL_CURRENT_USER) || "";
-  // This modal is reused two ways: a fresh "Report an issue", or a review of a
-  // ticket pre-filled from chat / a guide. Adapt the header so a fresh report
-  // doesn't say "Pre-filled from your chat".
+  // Reused two ways: a fresh "Report an issue", or a review of a ticket
+  // pre-filled from chat / a guide.
   const prefilled = !!((draft.subject && draft.subject.trim()) || (draft.description && draft.description.trim()));
 
+  // Screenshots can be dropped anywhere on the form, or pasted (⌘V) while
+  // typing — the fastest way to show IT what's on screen.
+  const addFiles = (list) => {
+    const incoming = Array.from(list || []).filter(Boolean);
+    if (!incoming.length) return;
+    const tooBig = incoming.find((f) => f.size > MAX_ATTACH_BYTES);
+    if (tooBig) { setError('“' + (tooBig.name || 'That file') + '” is over 12 MB — attach a smaller file.'); return; }
+    setError('');
+    setAttachFiles((prev) => [...prev, ...incoming.map((f, i) => (f.name && f.name !== 'image.png') ? f
+      : new File([f], `screenshot-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}${i ? '-' + i : ''}.png`, { type: f.type || 'image/png' }))]);
+  };
+  const onPaste = (e) => {
+    const files = [...((e.clipboardData && e.clipboardData.files) || [])];
+    if (files.length) { e.preventDefault(); addFiles(files); }
+  };
+  const dragProps = {
+    onDragEnter: (e) => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setDragging(true); } },
+    onDragOver: (e) => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); },
+    onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); },
+    onDrop: (e) => { if (e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); } },
+  };
+
   const submit = async () => {
-    if (!subject.trim()) { setError("Please add a short subject."); return; }
-    setBusy(true); setError(""); setAttachWarn(""); setBusyLabel("Submitting…");
+    if (!subject.trim()) {
+      setSubjectErr("Add a short summary so IT knows what this is about.");
+      if (subjectRef.current) subjectRef.current.focus();
+      return;
+    }
+    setBusy(true); setError(""); setAttachWarn(""); setBusyLabel("Sending…");
     try {
       // Create the ticket first, then attach files to it (attachments need the
       // ticket id). A failed upload doesn't lose the ticket — we just warn.
@@ -8463,7 +8284,7 @@ function NewTicketModal({ onClose, onCreated, draft = {} }) {
         ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
       });
       if (attachFiles.length && (data.id || data.ticket_number)) {
-        setBusyLabel("Uploading attachments…");
+        setBusyLabel("Uploading files…");
         try { await uploadAttachments(data.id || data.ticket_number, attachFiles); }
         catch (e) { setAttachWarn("Your ticket was created, but an attachment didn’t upload: " + (e.message || "error") + ". You can re-add it from the ticket."); }
       }
@@ -8475,79 +8296,159 @@ function NewTicketModal({ onClose, onCreated, draft = {} }) {
     }
   };
 
-  const field = { width: "100%", padding: "11px 13px", border: "1px solid #211E1E", borderRadius: 7, fontSize: 14.5, fontFamily: "inherit", background: "#fff", color: "#211E1E", boxSizing: "border-box" };
-  const label = { display: "block", fontSize: 12.5, fontWeight: 700, color: "#55503F", marginBottom: 6, marginTop: 16 };
-  const btnCss = `
-    .tkt-btn { padding: 12px 22px; border-radius: 7px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1); }
-    .tkt-btn.is-primary { background: #211E1E; color: #FFFFFF; border: 1px solid #211E1E; box-shadow: 3px 3px 0 #FDC831; }
-    .tkt-btn.is-primary:hover:not(:disabled) { transform: translate(-2px,-2px); box-shadow: 5px 5px 0 #FDC831; }
-    .tkt-btn.is-primary:active:not(:disabled) { transform: translate(1px,1px); box-shadow: 2px 2px 0 #FDC831; }
-    .tkt-btn.is-secondary { background: #FFFFFF; color: #211E1E; border: 1px solid #211E1E; box-shadow: 3px 3px 0 #211E1E; }
-    .tkt-btn.is-secondary:hover:not(:disabled) { transform: translate(-2px,-2px); box-shadow: 5px 5px 0 #211E1E; }
-    .tkt-btn.is-secondary:active:not(:disabled) { transform: translate(1px,1px); box-shadow: 2px 2px 0 #211E1E; }
-    .tkt-btn:disabled { opacity: .55; cursor: default; }
-  `;
+  const reset = () => {
+    setSubject(''); setDescription(''); setType('incident'); setPriority('medium'); setAttachFiles([]);
+    setTalkedToAgentId(''); setTalkedToNote(''); setResult(null); setAttachWarn(''); setError(''); setSubjectErr('');
+    setTimeout(() => subjectRef.current && subjectRef.current.focus(), 50);
+  };
 
   if (result) {
+    const num = result.ticket_number || result.id;
+    const urgent = priority === 'high' || priority === 'critical';
+    const steps = [
+      { key: 'sent', title: 'Ticket sent', body: `Saved as ${num}.`, state: 'done' },
+      { key: 'triage', title: 'IT takes a look', body: urgent ? 'Marked urgent — it goes to the top of the queue.' : 'Someone from the IT Team picks it up and may ask a question.', state: 'current' },
+      { key: 'fix', title: 'Fixed', body: 'You’ll get a reply here and by email at every step.', state: 'todo' },
+    ];
     return (
-      <ModalShell title="Ticket created" kicker="IT Support" onClose={onClose} maxWidth={640}>
-        <style>{btnCss}</style>
-        <p style={{ fontSize: 15, color: "#211E1E", margin: "0 0 22px", lineHeight: 1.5 }}>
-          Your ticket <strong>{result.ticket_number || result.id}</strong> has been created with the IT Team — you'll get updates as it progresses.
-        </p>
-        {attachWarn && <p style={{ fontSize: 13, color: "#9A4A00", margin: "0 0 18px", lineHeight: 1.5 }}>{attachWarn}</p>}
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button className="tkt-btn is-primary" onClick={() => (onCreated ? onCreated(result) : onClose())}>View my tickets →</button>
+      <Shell title="Ticket sent" onClose={onClose} backLabel="Back" maxWidth={asPage ? 720 : 640} centered centerHead>
+        <div className="done-hero">
+          <span className="done-check" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path className="done-check-path" d="M5 12.5 10 17.5 19 7.5" /></svg>
+          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="done-what"><span>{subject.trim()}</span></div>
+            <div className="done-sub">With the IT Team{urgent ? ' · urgent' : ''}</div>
+          </div>
+          {num && (
+            <button type="button" className="done-num" title="Copy ticket number"
+              onClick={(e) => { try { navigator.clipboard.writeText(String(num)); const el = e.currentTarget; el.dataset.copied = '1'; setTimeout(() => { el.dataset.copied = ''; }, 1400); } catch {} }}>
+              <span>{num}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+            </button>
+          )}
         </div>
-      </ModalShell>
+        <div className="done-next">
+          <div className="done-next-title">What happens next</div>
+          <ol className="done-steps">
+            {steps.map((st, i) => (
+              <li key={st.key} className={'done-step is-' + st.state} style={{ '--i': i }}>
+                <span className="done-step-dot" aria-hidden="true">
+                  {st.state === 'done'
+                    ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5 10 17.5 19 7.5" /></svg>
+                    : <span />}
+                </span>
+                <span>
+                  <span className="done-step-title">{st.title}{st.state === 'current' && <span className="done-step-now">Now</span>}</span>
+                  <span className="done-step-body">{st.body}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+        {attachWarn && <p className="done-warn">{attachWarn}</p>}
+        <div className="done-actions">
+          <button className="btn btn-outline" onClick={reset}>Report something else</button>
+          <button className="btn btn-primary" onClick={() => {
+            try { if (num) window.__PORTAL_OPEN_TICKET__ = num; } catch {}
+            if (onCreated) onCreated(result); else onClose();
+          }}>View ticket →</button>
+        </div>
+      </Shell>
     );
   }
 
-  const hint = { fontSize: 12, color: "#9A8E78", margin: "-2px 0 7px", lineHeight: 1.4 };
   return (
-    <ModalShell
-      title={prefilled ? "Review & submit your ticket" : "Report an issue"}
-      kicker={prefilled ? "Pre-filled — edit anything, then send" : "Tell us what's broken and we'll route it to the right person"}
-      onClose={onClose} maxWidth={640}>
-      <style>{btnCss}</style>
-      <label style={{ ...label, marginTop: 0 }}>What's the issue?</label>
-      <input style={field} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Zoom won't open after the latest update" autoFocus />
-      <label style={label}>Tell us more</label>
-      <div style={hint}>What happened, what you expected, and anything you've already tried.</div>
-      <textarea style={{ ...field, minHeight: 150, resize: "vertical", lineHeight: 1.55 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Steps to reproduce, the exact error, when it started…" />
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 180px" }}>
-          <label style={label}>What kind?</label>
-          <select style={field} value={type} onChange={(e) => setType(e.target.value)}>
-            <option value="incident">Something's broken</option>
-            <option value="service_request">I need something</option>
-          </select>
+    <Shell title={prefilled ? "Review & send" : "Report an issue"}
+      kicker={asPage ? undefined : (prefilled ? "Pre-filled — edit anything, then send" : "Tell us what's broken")}
+      onClose={onClose} backLabel="Back" maxWidth={asPage ? 820 : 640} centered>
+      <div className={'rep-form' + (dragging ? ' is-dragging' : '')} {...dragProps} onPaste={onPaste}>
+        {dragging && (
+          <div className="rep-drop" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V4" /><path d="m6 10 6-6 6 6" /><path d="M4 20h16" /></svg>
+            Drop to attach
+          </div>
+        )}
+        {prefilled && (
+          <div className="rep-prefill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+            We filled this in from what you told us — change anything, then send.
+          </div>
+        )}
+
+        <label className="rep-label" htmlFor="rep-subject">What’s wrong?</label>
+        <input id="rep-subject" ref={subjectRef} className={'rep-input rep-input-lg' + (subjectErr ? ' has-error' : '')}
+          value={subject}
+          onChange={(e) => { setSubject(e.target.value); if (subjectErr && e.target.value.trim()) setSubjectErr(''); }}
+          onBlur={() => { if (subjectErr && subject.trim()) setSubjectErr(''); }}
+          placeholder="e.g. Zoom won’t open after the latest update" autoFocus
+          aria-invalid={!!subjectErr} aria-describedby={subjectErr ? 'rep-subject-err' : undefined} />
+        {subjectErr && <div id="rep-subject-err" className="rep-error" role="alert">{subjectErr}</div>}
+        {!subject.trim() && !prefilled && (
+          <div className="rep-shortcuts" aria-label="Common issues">
+            {REPORT_SHORTCUTS.map(({ label, subject: sub, Icon }) => (
+              <button key={label} type="button" className="rep-shortcut"
+                onClick={() => { setSubject(sub); setSubjectErr(''); setTimeout(() => descRef.current && descRef.current.focus(), 30); }}>
+                <Icon size={14} />{label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <label className="rep-label" htmlFor="rep-desc">Tell us more <span className="rep-opt">(optional)</span></label>
+        <textarea id="rep-desc" ref={descRef} className="rep-input rep-textarea" value={description} onChange={(e) => setDescription(e.target.value)}
+          placeholder="What happened, what you expected, and anything you’ve already tried. Paste a screenshot here with ⌘V." />
+
+        <div className="rep-label">What kind?</div>
+        <div className="rep-seg" role="radiogroup" aria-label="What kind">
+          {[['incident', 'Something’s broken', 'It used to work, or it errors'], ['service_request', 'I need something', 'Access, a setup, or a change']].map(([v, l, h]) => (
+            <button key={v} type="button" role="radio" aria-checked={type === v} className={'rep-seg-opt' + (type === v ? ' is-on' : '')} onClick={() => setType(v)}>
+              <span className="rep-seg-radio" aria-hidden="true" />
+              <span><span className="rep-seg-title">{l}</span><span className="rep-seg-hint">{h}</span></span>
+            </button>
+          ))}
         </div>
-        <div style={{ flex: "1 1 180px" }}>
-          <label style={label}>How urgent?</label>
-          <select style={field} value={priority} onChange={(e) => setPriority(e.target.value)}>
-            <option value="low">Low — whenever</option>
-            <option value="medium">Medium — soon</option>
-            <option value="high">High — blocking me</option>
-            <option value="critical">Critical — many people / can't work</option>
-          </select>
+        {type === 'service_request' && onBrowseCatalog && (
+          <div className="rep-nudge">
+            Asking for an app or access? It’s faster from the catalog — the right approver is added for you.
+            <button type="button" className="tkt-link" onClick={onBrowseCatalog}>Browse apps & services →</button>
+          </div>
+        )}
+
+        <div className="rep-label">How urgent?</div>
+        <div className="rep-urgency" role="radiogroup" aria-label="How urgent">
+          {URGENCY_OPTIONS.map((o) => (
+            <button key={o.value} type="button" role="radio" aria-checked={priority === o.value}
+              className={'rep-urg' + (priority === o.value ? ' is-on' : '')} onClick={() => setPriority(o.value)} style={{ '--dot': o.dot }}>
+              <span className="rep-urg-dot" aria-hidden="true" />
+              <span className="rep-urg-title">{o.label}</span>
+              <span className="rep-urg-hint">{o.hint}</span>
+            </button>
+          ))}
         </div>
-      </div>
-      <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
-      <label style={label}>Attachments <span style={{ fontWeight: 500, color: "#9A8E78" }}>(optional)</span></label>
-      <div style={hint}>A screenshot or screen recording helps us help you faster.</div>
-      <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
-      {error && <p style={{ color: "#B92323", fontSize: 13.5, margin: "16px 0 0" }}>{error}</p>}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 24, flexWrap: "wrap" }}>
-        {who && <span style={{ fontSize: 12.5, color: "#78684C", fontWeight: 600 }}>Submitting as {who}</span>}
-        <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
-          <button className="tkt-btn is-secondary" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="tkt-btn is-primary" onClick={submit} disabled={busy}>
-            {busy ? busyLabel : "Send to IT"}
+
+        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
+
+        <div className="rep-label">Screenshots & files <span className="rep-opt">(optional)</span></div>
+        <div className="rep-attach">
+          <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
+          <span className="rep-attach-hint">or drag them onto this page · paste with ⌘V</span>
+        </div>
+
+        {error && <p className="rep-error" role="alert" style={{ marginTop: 16 }}>{error}</p>}
+
+        <div className={asPage ? 'pg-actions' : 'rep-actions'}>
+          {who && <span className="rep-who">Sending as <b>{who}</b></span>}
+          <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="tkt-life-btn is-send" onClick={submit} disabled={busy} style={{ minWidth: 150 }}>
+            {busy
+              ? <span className="tkt-life-spin" aria-hidden="true" />
+              : <svg className="tkt-send-plane" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7Z" /></svg>}
+            {busy ? busyLabel : 'Send to IT'}
           </button>
         </div>
       </div>
-    </ModalShell>
+    </Shell>
   );
 }
 
@@ -8846,17 +8747,22 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, onSend }) {
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', display: 'inline-flex' }}>
-      <button onClick={() => onSend()} disabled={disabled} className="btn btn-primary"
-        style={showMenu ? { borderTopRightRadius: 0, borderBottomRightRadius: 0 } : undefined}>
-        {sending ? 'Sending…' : 'Send reply'}
-      </button>
-      {showMenu && (
-        <button type="button" aria-label="More send options" aria-expanded={open} onClick={() => setOpen((o) => !o)} disabled={disabled}
-          className="btn btn-primary"
-          style={{ marginLeft: 1, padding: '0 9px', borderTopLeftRadius: 0, borderBottomLeftRadius: 0, display: 'grid', placeItems: 'center' }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}><path d="m6 9 6 6 6-6" /></svg>
+      {/* One physical button: the send action and its ▾ options share a
+          border and a shadow, so they lift together on hover. */}
+      <div className={'tkt-split' + (disabled && !sending ? ' is-disabled' : '') + (open ? ' is-open' : '')}>
+        <button onClick={() => onSend()} disabled={disabled} className="tkt-life-btn is-send tkt-split-main" style={{ minWidth: 152 }}>
+          {sending
+            ? <span className="tkt-life-spin" aria-hidden="true" />
+            : <svg className="tkt-send-plane" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7Z" /></svg>}
+          {sending ? 'Sending…' : (reopenOnReply ? 'Send & reopen' : 'Send reply')}
         </button>
-      )}
+        {showMenu && (
+          <button type="button" aria-label="More send options" aria-expanded={open} onClick={() => setOpen((o) => !o)} disabled={disabled}
+            className="tkt-life-btn is-send tkt-split-caret">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+        )}
+      </div>
       {showMenu && open && (
         <div role="menu" style={{
           position: 'absolute', bottom: 'calc(100% + 6px)', right: 0, minWidth: 250, zIndex: 60,
@@ -8882,7 +8788,10 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, onSend }) {
   );
 }
 
-function ConversationMessage({ mine, name, time, body, children }) {
+// `files` renders under the bubble — the attachments that were sent WITH this
+// message, so "here's the screenshot" and the screenshot read as one reply.
+// `onOpenImage` makes inline images in the body open in the lightbox.
+function ConversationMessage({ mine, name, time, body, children, files, onOpenImage }) {
   const initials = mine ? ticketInitials(name) : (name && !/^it team$/i.test(name) ? ticketInitials(name) : 'IT');
   const avatar = (
     <span style={{
@@ -8906,8 +8815,11 @@ function ConversationMessage({ mine, name, time, body, children }) {
             boxShadow: '2px 2px 0 #211E1E',
             borderBottomRightRadius: mine ? 4 : 14, borderBottomLeftRadius: mine ? 14 : 4,
           }}>{looksLikeHtml(body)
-            ? <div className="rich-body" dangerouslySetInnerHTML={{ __html: sanitizeHtml(substituteDateTokens(body)) }} />
+            ? <RichBody html={body} onOpenImage={onOpenImage} />
             : linkifyText(body, '#B92323')}</div>
+        )}
+        {files && files.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, justifyContent: mine ? 'flex-end' : 'flex-start' }}>{files}</div>
         )}
       </div>
     </div>
@@ -8916,6 +8828,19 @@ function ConversationMessage({ mine, name, time, body, children }) {
 
 // Pull the active catalog items out of the /api/catalog response, tolerant of
 // the array living under catalog / items / catalog_items (or being the body).
+// Sanitized rich HTML (agent replies, email-sourced descriptions). Inline
+// images open in the lightbox on click instead of doing nothing.
+function RichBody({ html, onOpenImage, style }) {
+  const onClick = onOpenImage ? (e) => {
+    const img = e.target && e.target.tagName === 'IMG' ? e.target : null;
+    if (img && img.src) { e.preventDefault(); onOpenImage(img.src, img.alt || 'Image'); }
+  } : undefined;
+  return (
+    <div className={'rich-body' + (onOpenImage ? ' rich-body-zoom' : '')} style={style} onClick={onClick}
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(substituteDateTokens(html)) }} />
+  );
+}
+
 function catalogItemsFrom(j) {
   const arr = (j && (Array.isArray(j.catalog) ? j.catalog
     : Array.isArray(j.items) ? j.items
@@ -8926,8 +8851,9 @@ function catalogItemsFrom(j) {
 
 function isImageAttachment(a, name) {
   const mt = String((a && (a.mime_type || a.content_type || a.type)) || '').toLowerCase();
+  if (mt === 'image/svg+xml') return false; // served as a download — it can carry script
   if (mt.startsWith('image/')) return true;
-  return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)$/i.test(String(name || ''));
+  return /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i.test(String(name || ''));
 }
 
 // Load an attachment's bytes through the AUTHENTICATED fetch path (the network
@@ -8982,7 +8908,7 @@ function AttachmentItem({ name, source, size, isImage, onOpenImage }) {
   if (loading) {
     return <span style={{ ...chip, color: '#9A8E78' }}>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span><span style={{ fontSize: 11 }}>loading…</span></span>;
   }
-  const inner = <>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span>{size != null && <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(size)}</span>}{url && <span style={{ color: '#B92323', fontWeight: 800, fontSize: 11 }}>{isImage ? 'OPEN →' : 'DOWNLOAD →'}</span>}</>;
+  const inner = <>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span>{Number(size) > 0 && <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(size)}</span>}{url && <span style={{ color: '#B92323', fontWeight: 800, fontSize: 11 }}>{isImage ? 'OPEN →' : 'DOWNLOAD →'}</span>}</>;
   return url
     ? <a href={url} target="_blank" rel="noopener noreferrer" download={isImage ? undefined : name} style={chip}>{inner}</a>
     : <span style={chip} title={err ? 'Couldn’t load this attachment' : 'Open this attachment from the ticket in SliceDesk'}>{inner}</span>;
@@ -9004,21 +8930,10 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
     <div>
       <input ref={inputRef} type="file" multiple style={{ display: 'none' }}
         onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
-      <button type="button" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()}
-        onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '4px 4px 0 #211E1E'; } }}
-        onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '2px 2px 0 #211E1E'; }}
-        onMouseDown={(e) => { if (!disabled) { e.currentTarget.style.transform = 'translate(1px,1px)'; e.currentTarget.style.boxShadow = '1px 1px 0 #211E1E'; } }}
-        onMouseUp={(e) => { if (!disabled) { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '4px 4px 0 #211E1E'; } }}
-        style={{
-        display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 13px',
-        background: '#FFFFFF', color: '#211E1E', border: '1px solid #211E1E', borderRadius: 7,
-        boxShadow: '2px 2px 0 #211E1E', cursor: disabled ? 'default' : 'pointer',
-        fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12, letterSpacing: '0.03em', textTransform: 'uppercase',
-        opacity: disabled ? 0.55 : 1,
-        transition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)',
-      }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+      <button type="button" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()} className="tkt-life-btn tkt-attach-btn">
+        <svg className="tkt-attach-clip" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
         {label}
+        {(files || []).length > 0 && <span className="tkt-attach-n" aria-label={`${files.length} attached`}>{files.length}</span>}
       </button>
       {(files || []).length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
@@ -9197,7 +9112,7 @@ function TicketsBackBar({ onBack, label }) {
   return (
     <div style={{ position: 'sticky', top: 10, zIndex: 8, width: 'fit-content', marginBottom: 16 }}>
       <button onClick={onBack} className="kb-back-btn">
-        <span className="kb-back-arrow">←</span>
+        <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>
         {label}
       </button>
     </div>
@@ -9378,6 +9293,7 @@ function TicketNumber({ value, size = 13 }) {
 
 // ── Full page — tabs over My Tickets + Approvals, plus the two create paths ──
 function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) {
+  const { preview: reqStack } = useCatalogStackItems();
   const [tab, setTab] = React.useState(initialTab === 'approvals' ? 'approvals' : 'mine');
   const [query, setQuery] = React.useState('');
   // When a ticket/approval detail is open, hide the page chrome (title, tabs,
@@ -9424,11 +9340,39 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
           {/* Top bar: Back on the left, the two important actions on the right — one line. */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 22 }}>
             <button onClick={onBack} className="kb-back-btn">
-              <span className="kb-back-arrow">←</span>Back
+              <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back
             </button>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <button onClick={() => onReportIssue && onReportIssue()} className="tkt-action">Report an issue</button>
-              <button onClick={() => onRequest && onRequest()} className="tkt-action is-primary">Request something</button>
+              <button onClick={() => onReportIssue && onReportIssue()} className="tkt-action tkt-action-issue">
+                {/* Siren-style alert: the same "something's wrong" mark the
+                    issue rows use, in a circle so it sits like the app stack. */}
+                <span className="tkt-action-glyph" aria-hidden="true">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" />
+                  </svg>
+                </span>
+                Report an issue
+              </button>
+              <button onClick={() => onRequest && onRequest()} className="tkt-action is-primary tkt-action-request">
+                {/* The top catalog apps, same stack as the Help page's "Request
+                    app access" bar — says "apps & services" before you read it. */}
+                {reqStack.length > 0 ? (
+                  <span className="tkt-action-stack" aria-hidden="true">
+                    {reqStack.slice(0, 3).map((it) => (
+                      <span key={it.id} className="tkt-action-chip" title={it.name}>
+                        {it.icon_url
+                          ? <img src={it.icon_url} alt="" width="24" height="24" loading="lazy" />
+                          : <span className="tkt-action-chip-letter">{String(it.name || '?').charAt(0).toUpperCase()}</span>}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="tkt-action-glyph" aria-hidden="true">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  </span>
+                )}
+                Request something
+              </button>
             </div>
           </div>
           <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 40, fontWeight: 900, margin: 0, letterSpacing: '-0.03em', color: '#211E1E', lineHeight: 1 }}>Your tickets</h1>
@@ -9462,23 +9406,44 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
               .tkt-action.is-primary { background:#FDC831; box-shadow:3px 3px 0 #211E1E, 0 4px 10px rgba(33,30,30,.12); }
               .tkt-action.is-primary:hover { background:#FFD84D;
                 box-shadow:5px 5px 0 #211E1E, 0 12px 22px rgba(33,30,30,.18); }
+              /* Leading marks on the two actions. */
+              .tkt-action { padding-left:12px; }
+              .tkt-action-glyph { width:26px; height:26px; flex:none; display:grid; place-items:center; border-radius:50%;
+                border:1.5px solid #211E1E; background:#FFF1EF; color:#B92323;
+                transition: transform .3s cubic-bezier(.34,1.56,.64,1), background .18s ease; }
+              .tkt-action-issue:hover .tkt-action-glyph { animation: tktGlyphNudge .5s ease both; background:#FFFFFF; }
+              .tkt-action.is-primary .tkt-action-glyph { background:#211E1E; color:#FDC831; }
+              .tkt-action.is-primary:hover .tkt-action-glyph { transform: rotate(90deg); }
+              @keyframes tktGlyphNudge {
+                0% { transform: rotate(0); } 25% { transform: rotate(-12deg) scale(1.08); }
+                55% { transform: rotate(9deg) scale(1.08); } 80% { transform: rotate(-4deg); } 100% { transform: rotate(0); }
+              }
+              .tkt-action-stack { display:flex; align-items:center; flex:none; }
+              .tkt-action-chip { width:26px; height:26px; border-radius:50%; overflow:hidden; flex:none;
+                display:grid; place-items:center; background:#FFFFFF; border:1.5px solid #211E1E;
+                margin-left:-9px; box-shadow:0 1px 3px rgba(33,30,30,.25);
+                transition: transform .32s cubic-bezier(.34,1.56,.64,1); }
+              .tkt-action-chip:first-child { margin-left:0; }
+              .tkt-action-chip img { width:100%; height:100%; object-fit:cover; display:block; }
+              .tkt-action-chip-letter { font-family:'Archivo',sans-serif; font-weight:900; font-size:11px; color:#211E1E; }
+              /* Hover lifts the stack one chip after another (a wave), like the
+                 Help page bar — transform only, so the button never changes size. */
+              .tkt-action-request:hover .tkt-action-chip { transform: translateY(-3px) scale(1.08); }
+              .tkt-action-chip:nth-child(2) { transition-delay:.04s; }
+              .tkt-action-chip:nth-child(3) { transition-delay:.08s; }
+              @media (prefers-reduced-motion: reduce) {
+                .tkt-action-glyph, .tkt-action-chip { transition:none !important; animation:none !important; }
+              }
             `}</style>
-            <div className="tkt-switch" role="tablist" aria-label="Tickets view">
+            <div className="tkt-switch has-slider" role="tablist" aria-label="Tickets view">
+              <SlideIndicator activeKey={tab} radius={9} />
               <TicketsTab label="My tickets" active={tab === 'mine'} onClick={() => setTab('mine')} badge={unseen.tickets} />
               <TicketsTab label="Approvals" active={tab === 'approvals'} onClick={() => setTab('approvals')} badge={unseen.approvals} />
             </div>
             {/* Search — filters the active tab's list. */}
-            <div style={{ marginLeft: 'auto', position: 'relative', width: 'min(440px, 100%)', minWidth: 280 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={tab === 'approvals' ? 'Search approvals…' : 'Search your tickets…'}
-                style={{ width: '100%', padding: '12px 36px 12px 42px', border: '1px solid #211E1E', borderRadius: 10, background: '#FFFFFF', fontSize: 14, fontFamily: 'inherit', color: '#211E1E', boxShadow: '2px 2px 0 #211E1E', boxSizing: 'border-box', outline: 'none' }}
-              />
-              {query && (
-                <button onClick={() => setQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9A8E78', fontWeight: 900, fontSize: 13, lineHeight: 1, padding: 2 }}>✕</button>
-              )}
+            <div style={{ marginLeft: 'auto', width: 'min(440px, 100%)', minWidth: 280 }}>
+              <TicketSearchBox value={query} onChange={setQuery}
+                placeholder={tab === 'approvals' ? 'Search approvals…' : 'Search tickets, apps, numbers…'} />
             </div>
           </div>
         </div>
@@ -9487,13 +9452,112 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
 
       <div style={{ flex: 1, padding: detailOpen ? '20px 32px 64px' : '28px 32px 64px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-          {tab === 'mine'
-            ? <MyTicketsView refreshKey={refreshKey} onRefresh={refresh} onReportIssue={onReportIssue} onRequest={onRequest} query={query} onViewingChange={setDetailOpen} />
-            : <ApprovalsView refreshKey={refreshKey} onActed={refresh} query={query} onViewingChange={setDetailOpen} />}
+          {/* Keyed by tab so the incoming view fades up instead of swapping in a frame. */}
+          <div key={tab} className="tab-panel-in">
+            {tab === 'mine'
+              ? <MyTicketsView refreshKey={refreshKey} onRefresh={refresh} onReportIssue={onReportIssue} onRequest={onRequest} query={query} onQueryChange={setQuery} onViewingChange={setDetailOpen} />
+              : <ApprovalsView refreshKey={refreshKey} onActed={refresh} query={query} onViewingChange={setDetailOpen} />}
+          </div>
         </div>
       </div>
 
     </div>
+  );
+}
+
+// My Tickets / Approvals search.
+//   /  or ⌘K / Ctrl+K   focus it from anywhere on the page (not while typing)
+//   Esc                 clears it, a second Esc leaves the field
+// The field lifts on focus like the rest of the page's cards, the clear button
+// pops in only when there's something to clear, and the key hint shows only
+// while the field is idle and empty — never competing with what you typed.
+function TicketSearchBox({ value, onChange, placeholder }) {
+  const ref = React.useRef(null);
+  const [focused, setFocused] = React.useState(false);
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const a = document.activeElement;
+      const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
+      const combo = (e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K');
+      if ((e.key === '/' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) || combo) {
+        if (document.querySelector('[role="dialog"]')) return;
+        e.preventDefault();
+        if (ref.current) { ref.current.focus(); ref.current.select(); }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '');
+  return (
+    <div className={'tkt-search' + (focused ? ' is-focus' : '') + (value ? ' has-value' : '')}>
+      <svg className="tkt-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input
+        ref={ref}
+        type="search"
+        role="searchbox"
+        aria-label={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            if (value) onChange(''); else e.currentTarget.blur();
+          }
+        }}
+        placeholder={placeholder}
+        autoComplete="off"
+        spellCheck={false}
+      />
+      {value ? (
+        <button type="button" className="tkt-search-clear" onMouseDown={(e) => e.preventDefault()}
+          onClick={() => { onChange(''); if (ref.current) ref.current.focus(); }} aria-label="Clear search" title="Clear (Esc)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+      ) : !focused && (
+        <span className="tkt-search-kbd" aria-hidden="true">{isMac ? '⌘K' : 'Ctrl K'}</span>
+      )}
+    </div>
+  );
+}
+
+// The charcoal "selected" pill of a segmented tab control, as its own layer so
+// it can SLIDE to the tab you pick instead of the fill jumping between buttons.
+// Drop it inside the tablist: it measures the [aria-selected="true"] tab and
+// follows it — including when a tab's width changes (a count badge ticking
+// over) via ResizeObserver. The first placement is instant, so the pill never
+// sweeps in from the left edge on page load. The track needs `has-slider`
+// (which makes it the positioning context and hands the fill to this layer).
+function SlideIndicator({ activeKey, radius = 9 }) {
+  const ref = React.useRef(null);
+  const [box, setBox] = React.useState(null);
+  const [armed, setArmed] = React.useState(false);
+  React.useLayoutEffect(() => {
+    const track = ref.current && ref.current.parentElement;
+    if (!track) return undefined;
+    const measure = () => {
+      const tab = track.querySelector('[role="tab"][aria-selected="true"]');
+      setBox(tab ? { x: tab.offsetLeft, y: tab.offsetTop, w: tab.offsetWidth, h: tab.offsetHeight } : null);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    [...track.children].forEach((c) => ro.observe(c));
+    return () => ro.disconnect();
+  }, [activeKey]);
+  React.useEffect(() => {
+    if (!box || armed) return undefined;
+    const id = requestAnimationFrame(() => setArmed(true));
+    return () => cancelAnimationFrame(id);
+  }, [box, armed]);
+  return (
+    <span ref={ref} aria-hidden="true" className="tab-slider" style={box ? {
+      width: box.w, height: box.h, borderRadius: radius,
+      transform: `translate(${box.x}px, ${box.y}px)`,
+      transition: armed ? undefined : 'none',
+    } : { opacity: 0 }} />
   );
 }
 
@@ -9635,9 +9699,80 @@ function OnBehalfTag({ ticket, size = 11 }) {
 // back to a neutral label so every row keeps the same height even when a ticket
 // has no body text.
 function ticketBlurb(t) {
-  const raw = (t && (t.description || t.summary || '')).toString().replace(/\s+/g, ' ').trim();
+  // Descriptions from agents and email intake are HTML; the one-line blurb
+  // (and search) want the words, not the tags.
+  const raw = (t && (t.description || t.summary || '')).toString()
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#39;|&apos;/gi, "'").replace(/&quot;/gi, '"')
+    .replace(/\s+/g, ' ').trim();
   return raw || (t && t.category_name) || 'No description added.';
 }
+
+// ── Search ───────────────────────────────────────────────────────────────────
+// Every word you type has to appear somewhere on the ticket, in any order and
+// ignoring case and accents: "vpn mac" finds "Mac can't reach the VPN", and
+// "103515" finds IT-103515. The old matcher needed the whole phrase verbatim
+// and only looked at the number, subject, type and status, so searching the
+// app name, a word from the description, or who it was for found nothing.
+function foldSearch(s) {
+  return String(s == null ? '' : s).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+}
+function searchTokens(q) {
+  return foldSearch(q).split(/\s+/).filter(Boolean).slice(0, 8);
+}
+function matchesAllTokens(fields, tokens) {
+  if (!tokens.length) return true;
+  const hay = foldSearch(fields.filter(Boolean).join(' \u2002 '));
+  return tokens.every((tok) => hay.includes(tok));
+}
+function ticketSearchFields(t, appName) {
+  const num = String(t.ticket_number || '');
+  const approval = String(t.approval_status || '').toLowerCase();
+  return [
+    num, num.replace(/^[a-z]+-/i, ''),
+    t.subject, ticketBlurb(t),
+    ticketTypeMeta(t.type).label, t.type,
+    t.status, ticketBucket(t.status) === 'open' ? 'open' : 'closed',
+    approval && `approval ${approval}`, approval === 'rejected' && 'declined',
+    t.requester_name, t.submitter_name, t.requested_for && t.requested_for.name,
+    appName, t.catalog_item_name, t.category_name,
+  ];
+}
+
+// Wraps the parts of `text` that match any search token in a highlight.
+function Hl({ text, tokens }) {
+  const str = String(text == null ? '' : text);
+  if (!tokens || !tokens.length || !str) return str;
+  const esc = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).sort((a, b) => b.length - a.length);
+  const re = new RegExp('(' + esc.join('|') + ')', 'gi');
+  const parts = str.split(re);
+  if (parts.length === 1) return str;
+  return parts.map((p, i) => (i % 2 === 1 ? <mark key={i} className="tkt-hl">{p}</mark> : p));
+}
+
+// Placeholder rows in the list's exact shape, so the page doesn't jump when
+// the real ones land.
+function TicketListSkeleton({ rows = 4 }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} aria-busy="true" aria-label="Loading your tickets">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="tkt-skel-row" style={{ ...TK.card, padding: '15px 18px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', animationDelay: `${i * 70}ms` }}>
+          <span className="tkt-skel" style={{ width: 44, height: 44, borderRadius: 10 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <span className="tkt-skel" style={{ width: 150, height: 11 }} />
+            <span className="tkt-skel" style={{ width: `${62 - i * 7}%`, height: 14 }} />
+            <span className="tkt-skel" style={{ width: `${80 - i * 5}%`, height: 10 }} />
+          </div>
+          <span className="tkt-skel" style={{ width: 76, height: 22, borderRadius: 999 }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Last list we showed, so coming back to My Tickets paints instantly and
+// refreshes quietly underneath instead of flashing a loading state each visit.
+let myTicketsCache = null;
 
 // Per-ticket unseen state for the list rows. A ticket is "unseen" when IT has
 // touched it (updated_at) since you last opened its detail view — same rule as
@@ -9694,8 +9829,10 @@ function RequestedForToggle({ on, onToggle, count, unseen }) {
 }
 
 // ── My Tickets — list of the signed-in user's tickets + inline detail ────────
-function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query, onViewingChange }) {
-  const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
+function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query, onQueryChange, onViewingChange }) {
+  const [st, setSt] = React.useState(() => (myTicketsCache
+    ? { loading: false, tickets: myTicketsCache, error: null }
+    : { loading: true, tickets: [], error: null }));
   const [selTicket, setSelTicket] = React.useState(null);
   const [page, setPage] = React.useState(0);
   // Which slice of the list you're looking at. Defaults to the tickets that
@@ -9754,10 +9891,15 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
     const fetchTickets = (silent) => {
       if (!silent) setSt((s) => ({ ...s, loading: true }));
       ticketsApiJson('GET', '/api/tickets')
-        .then((j) => { if (!off) setSt({ loading: false, tickets: j.tickets || [], error: null }); })
+        .then((j) => {
+          myTicketsCache = j.tickets || [];
+          if (!off) setSt({ loading: false, tickets: myTicketsCache, error: null });
+        })
+        // A background refresh that fails keeps what's on screen.
         .catch((e) => { if (!off && !silent) setSt({ loading: false, tickets: [], error: e.message }); });
     };
-    fetchTickets(false);
+    // With a cached list on screen, refresh silently — no loading flash.
+    fetchTickets(!!myTicketsCache);
     const iv = setInterval(() => fetchTickets(true), 15000);
     return () => { off = true; clearInterval(iv); };
   }, [refreshKey]);
@@ -9766,11 +9908,15 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   // searched set — so the toggle's counts double as "your search also matches N
   // in the other view". Computed before the detail return so we can hand the
   // detail view the ordered list for prev/next navigation.
-  const q = (query || '').trim().toLowerCase();
+  // Deferred so typing stays instant even on a long list — React renders the
+  // filtered list just behind the keystrokes.
+  const deferredQuery = React.useDeferredValue(query || '');
+  const q = deferredQuery.trim().toLowerCase();
+  const tokens = React.useMemo(() => searchTokens(deferredQuery), [deferredQuery]);
   const searched = st.tickets.filter((t) => {
-    if (!q) return true;
-    const hay = [t.ticket_number, t.subject, t.type, t.status, ticketTypeMeta(t.type).label].filter(Boolean).join(' ').toLowerCase();
-    return hay.includes(q);
+    if (!tokens.length) return true;
+    const app = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null;
+    return matchesAllTokens(ticketSearchFields(t, app && (app.name || app.label)), tokens);
   });
   // "Requested for others" toggle — a hard split, not an additive filter: OFF
   // (default) shows only your own tickets, ON shows only the ones you submitted
@@ -9824,6 +9970,40 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   const pageItems = shown.slice(pageStart, pageStart + PAGE_SIZE);
   const goToPage = (p) => { setPage(Math.min(Math.max(p, 0), pageCount - 1)); scrollAppToTop(); };
 
+  // Opening a ticket remembers where you were in the list; Back puts you
+  // there again and briefly marks the row you came from, instead of dropping
+  // you at the top of the page to find your place.
+  const listScrollRef = React.useRef(0);
+  const [navDir, setNavDir] = React.useState(0);
+  const [returnedFrom, setReturnedFrom] = React.useState(null);
+  const scroller = () => (typeof document !== 'undefined' ? document.querySelector('.page-scroll') : null);
+  const openTicket = (t) => {
+    const sc = scroller();
+    listScrollRef.current = sc ? sc.scrollTop : 0;
+    setNavDir(0);
+    setReturnedFrom(null);
+    setSelTicket(t);
+    scrollAppToTop();
+  };
+  const navigateTicket = (t) => {
+    const from = shown.findIndex((x) => String(x.id) === String(selTicket && selTicket.id));
+    const to = shown.findIndex((x) => String(x.id) === String(t && t.id));
+    setNavDir(from >= 0 && to >= 0 ? (to > from ? 1 : -1) : 0);
+    setSelTicket(t);
+    scrollAppToTop();
+  };
+  const closeTicket = () => {
+    setReturnedFrom(selTicket ? selTicket.id : null);
+    setSelTicket(null);
+  };
+  React.useLayoutEffect(() => {
+    if (selTicket || returnedFrom == null) return undefined;
+    const sc = scroller();
+    if (sc) sc.scrollTop = listScrollRef.current;
+    const tm = setTimeout(() => setReturnedFrom(null), 1600);
+    return () => clearTimeout(tm);
+  }, [selTicket, returnedFrom]);
+
   // Patch one ticket in place (after a close/reopen from the detail view) so
   // the list is already correct the moment you land back on it — no stale row
   // sitting in the wrong bucket while the next poll catches up.
@@ -9833,18 +10013,22 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   };
 
   if (selTicket) return (
-    <TicketDetailView
-      key={selTicket.id}
-      id={selTicket.id}
-      initial={selTicket}
-      list={shown}
-      onNavigate={setSelTicket}
-      onTicketChanged={mergeTicket}
-      onClosed={(t) => { mergeTicket(t); setSelTicket(null); }}
-      onBack={() => setSelTicket(null)} />
+    // Keyed per ticket so each open (and each prev/next step) plays its
+    // entrance: a rise on open, a slide in the direction you moved on nav.
+    <div key={selTicket.id} className={navDir > 0 ? 'detail-in-next' : navDir < 0 ? 'detail-in-prev' : 'detail-in'}>
+      <TicketDetailView
+        key={selTicket.id}
+        id={selTicket.id}
+        initial={selTicket}
+        list={shown}
+        onNavigate={navigateTicket}
+        onTicketChanged={mergeTicket}
+        onClosed={(t) => { mergeTicket(t); closeTicket(); }}
+        onBack={closeTicket} />
+    </div>
   );
 
-  if (st.loading) return <TicketsNotice title="Loading your tickets…" />;
+  if (st.loading) return <TicketListSkeleton />;
   if (st.error) {
     return <TicketsNotice
       title="Couldn’t load your tickets"
@@ -9940,7 +10124,8 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
         }
       `}</style>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        <div className="tkt-seg" role="tablist" aria-label="Ticket state">
+        <div className="tkt-seg has-slider" role="tablist" aria-label="Ticket state">
+          <SlideIndicator activeKey={view} radius={8} />
           {[['open', 'Open', openList.length, unseenOpen], ['closed', 'Closed', closedList.length, unseenClosed]].map(([key, label, n, dot]) => {
             const active = view === key;
             return (
@@ -9968,39 +10153,82 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           <RequestedForToggle on={forOthers} onToggle={() => setForOthers((v) => !v)} count={forOthersCount} unseen={unseenIn(onBehalfList)} />
         )}
       </div>
+      {/* Keyed by the view so Open ↔ Closed (and the for-others facet) fade the
+          new list up instead of swapping it in a single frame. */}
+      <div key={view + (forOthers ? ':others' : '')} className="tab-panel-in">
+      {q && shown.length > 0 && (
+        <div className="tkt-search-summary" role="status">
+          <span><b>{shown.length}</b> {view} ticket{shown.length === 1 ? ' matches' : 's match'} “{deferredQuery.trim()}”</span>
+          {(view === 'open' ? closedList.length : openList.length) > 0 && (
+            <button type="button" className="tkt-link" onClick={() => setView(view === 'open' ? 'closed' : 'open')}>
+              +{view === 'open' ? closedList.length : openList.length} in {view === 'open' ? 'Closed' : 'Open'} →
+            </button>
+          )}
+        </div>
+      )}
       {shown.length === 0 ? (
+        q ? (
+          // A search that found nothing here says where the matches ARE, and
+          // offers the two ways out, instead of a dead end.
+          <div className="tkt-empty-search" style={{ ...TK.card }}>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /><path d="M8.5 11h5" /></svg>
+            <div className="tkt-empty-title">No {view} tickets match “{deferredQuery.trim()}”</div>
+            <div className="tkt-empty-body">
+              {(view === 'open' ? closedList.length : openList.length) > 0
+                ? `${view === 'open' ? closedList.length : openList.length} ${view === 'open' ? 'closed' : 'open'} ticket${(view === 'open' ? closedList.length : openList.length) === 1 ? '' : 's'} match${(view === 'open' ? closedList.length : openList.length) === 1 ? 'es' : ''} though.`
+                : forOthers ? 'Nothing in the tickets you requested for others, either.' : 'Try fewer words, a ticket number, or an app name.'}
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {(view === 'open' ? closedList.length : openList.length) > 0 && (
+                <button type="button" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 12.5 }}
+                  onClick={() => setView(view === 'open' ? 'closed' : 'open')}>
+                  Show {view === 'open' ? closedList.length : openList.length} {view === 'open' ? 'closed' : 'open'}
+                </button>
+              )}
+              {onQueryChange && (
+                <button type="button" className="btn btn-outline" style={{ padding: '8px 16px', fontSize: 12.5 }} onClick={() => onQueryChange('')}>
+                  Clear search
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
         <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>
-          {q
-            ? `No ${view} tickets match “${query}”.` + (view === 'open' && closedList.length ? ` ${closedList.length} closed ticket${closedList.length === 1 ? '' : 's'} match${closedList.length === 1 ? 'es' : ''} — check the Closed view.` : '')
-            : forOthers
+          {forOthers
               ? `No ${view} tickets requested for others.` + (view === 'open' && closedList.length ? ` ${closedList.length} closed one${closedList.length === 1 ? '' : 's'} — check the Closed view.` : '')
               : view === 'open'
                 ? 'Nothing open right now — you’re all caught up. Your past tickets live under Closed.'
                 : 'No closed tickets yet. Resolved and closed tickets will show up here.'}
         </div>
+        )
       ) : (
       <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {pageItems.map((t) => {
+        {pageItems.map((t, i) => {
           const unseen = ticketUnseenInfo(t, seenMap);
+          const isReturned = returnedFrom != null && String(returnedFrom) === String(t.id);
           return (
-          <button key={t.id} onClick={() => setSelTicket(t)} {...ROW_HOVER} className="tkt-row" style={{
+          <button key={t.id} onClick={() => openTicket(t)} {...ROW_HOVER}
+            className={'tkt-row tkt-row-in' + (isReturned ? ' tkt-row-returned' : '')} style={{
             ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '15px 18px',
             display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', width: '100%',
-            position: 'relative',
+            position: 'relative', animationDelay: `${Math.min(i, 8) * 28}ms`,
           }}>
             {unseen.unseen && <TicketUnseenBadge count={unseen.count} />}
             {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <TicketLeadIcon className="tkt-app-icon" ticket={t} app={c} size={44} />; })()}
             <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+              {/* Hung 3px left of the title: a filled box edge reads as indented
+                  next to bold text (whose glyphs carry side-bearing), so an
+                  exact alignment looked like the badge sat further right. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, marginLeft: -3, flexWrap: 'wrap' }}>
                 <TicketTypeBadge type={t.type} />
                 <TicketNumber value={t.ticket_number} size={12.5} />
                 <OnBehalfTag ticket={t} />
               </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><Hl text={t.subject} tokens={tokens} /></div>
               {/* One-line description so rows carry a little more context. Always
                   rendered (with a fallback) so every row stays the same height. */}
-              <div style={{ fontSize: 12.5, color: '#78684C', marginTop: 3, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ticketBlurb(t)}</div>
+              <div style={{ fontSize: 12.5, color: '#78684C', marginTop: 3, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><Hl text={ticketBlurb(t)} tokens={tokens} /></div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, whiteSpace: 'nowrap' }}>
               {(() => {
@@ -10024,26 +10252,17 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
             Showing {pageStart + 1}–{Math.min(shown.length, pageStart + PAGE_SIZE)} of {shown.length}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              className="btn btn-outline"
-              onClick={() => goToPage(safePage - 1)}
-              disabled={safePage === 0}
-              style={{ padding: '7px 13px', fontSize: 12, opacity: safePage === 0 ? 0.4 : 1, cursor: safePage === 0 ? 'default' : 'pointer' }}
-              aria-label="Previous page">← Prev</button>
+            <button className="tkt-nav-btn is-prev is-wide" onClick={() => goToPage(safePage - 1)} disabled={safePage === 0} aria-label="Previous page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Prev</button>
             <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 800, color: '#55503F', minWidth: 92, textAlign: 'center' }}>
               Page {safePage + 1} of {pageCount}
             </span>
-            <button
-              className="btn btn-outline"
-              onClick={() => goToPage(safePage + 1)}
-              disabled={safePage >= pageCount - 1}
-              style={{ padding: '7px 13px', fontSize: 12, opacity: safePage >= pageCount - 1 ? 0.4 : 1, cursor: safePage >= pageCount - 1 ? 'default' : 'pointer' }}
-              aria-label="Next page">Next →</button>
+            <button className="tkt-nav-btn is-next is-wide" onClick={() => goToPage(safePage + 1)} disabled={safePage >= pageCount - 1} aria-label="Next page">Next<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></button>
           </div>
         </div>
       )}
       </>
       )}
+      </div>
     </div>
   );
 }
@@ -10172,7 +10391,10 @@ function ApprovalsButton({ approval, ticket }) {
 }
 
 function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onTicketChanged }) {
-  const [st, setSt] = React.useState({ loading: !initial, ticket: initial || null, error: null });
+  // `full` = the complete ticket (with its conversation) has arrived. The list
+  // row we open with has no replies, so until then the conversation shows
+  // placeholders — not "No replies yet", which was briefly a lie on every open.
+  const [st, setSt] = React.useState({ loading: !initial, ticket: initial || null, error: null, full: false });
   const [reply, setReply] = React.useState('');
   const [replyFiles, setReplyFiles] = React.useState([]);
   const [sending, setSending] = React.useState(false);
@@ -10208,7 +10430,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
   const load = React.useCallback(() => {
     return ticketsApiJson('GET', '/api/tickets/' + encodeURIComponent(id))
       .then((j) => {
-        setSt({ loading: false, ticket: j, error: null });
+        setSt({ loading: false, ticket: j, error: null, full: true });
         // Mark seen so the bell stops flagging this ticket as having new activity.
         markTicketSeen(j.id != null ? j.id : id, j.updated_at || j.created_at);
         markTabSeen('tickets', j.id != null ? j.id : id, j.updated_at || j.created_at);
@@ -10399,7 +10621,15 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
   // still awaiting sign-off. null = this ticket has no approval (e.g. incidents).
   const approvalState = (approval && approval.request && approval.request.status)
     ? String(approval.request.status).toLowerCase()
-    : (isPendingApproval ? 'pending' : null);
+    : (isPendingApproval ? 'pending'
+      : (['rejected', 'auto_rejected'].includes(String((t && t.approval_status) || '').toLowerCase()) ? 'rejected' : null));
+  // Declined by the approvers. Rejection now files the ticket as 'cancelled'
+  // (caught above), but requests declined before that — or resolved by an
+  // agent afterwards — still read resolved/closed, and so got Reopen + Close.
+  // The approval is the source of truth: a declined request is final here.
+  // (approvalState falls back to the ticket's own approval_status, so this
+  // holds before the approval detail has loaded — no buttons flash up first.)
+  const isDeclined = approvalState === 'rejected' || approvalState === 'auto_rejected';
   // The requested app's icon/name, mapped from the ticket's catalog_item_id.
   const catInfo = t && t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null;
 
@@ -10408,13 +10638,31 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
   // conversation rather than a separate list. Items without a timestamp trail.
   const timeMs = (s) => { const v = s ? Date.parse(s) : NaN; return Number.isNaN(v) ? null : v; };
   const attUploader = (a) => a.uploaded_by_name || a.author_name || a.uploader_name || a.uploaded_by || '';
+  // A file sent with a reply rides under that reply's bubble; a file on its own
+  // (ticket-level upload) keeps its own bubble in the timeline.
+  const visibleCommentIds = new Set(comments.filter((c) => c && c.id != null).map((c) => String(c.id)));
+  const filesByComment = new Map();
+  const looseAttachments = [];
+  attachments.forEach((a) => {
+    const cid = a.comment_id != null ? String(a.comment_id) : null;
+    if (cid && visibleCommentIds.has(cid)) {
+      if (!filesByComment.has(cid)) filesByComment.set(cid, []);
+      filesByComment.get(cid).push(a);
+    } else {
+      looseAttachments.push(a);
+    }
+  });
+  const renderAtt = (a, i) => (
+    <AttachmentItem key={'f' + (a.id != null ? a.id : i)} name={attName(a)} source={attSource(a)} size={attSize(a)} isImage={isImageAttachment(a, attName(a))} onOpenImage={openImage} />
+  );
   const timeline = [
     ...comments.map((c, i) => ({
       kind: 'msg', tkey: 'c' + (c.id != null ? c.id : i), at: timeMs(c.created_at),
       mine: !!(me && c.author_name && c.author_name.trim() === me.trim()),
       name: c.author_name, time: c.created_at, body: c.body,
+      files: (filesByComment.get(String(c.id)) || []).map(renderAtt),
     })),
-    ...attachments.map((a, i) => {
+    ...looseAttachments.map((a, i) => {
       const up = attUploader(a);
       return {
         kind: 'att', tkey: 'a' + (a.id != null ? a.id : (a.attachment_id != null ? a.attachment_id : i)),
@@ -10438,31 +10686,59 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
   // would reflow the whole sticky bar). isCancelled → nothing; isClosed →
   // Reopen; isResolved → both; otherwise just Close.
   const closeReopenButtons = () => {
-    const base = { padding: '5px 11px', fontSize: 11, textAlign: 'center' };
-    const reopenBtn = <button key="r" className="btn btn-primary" style={{ ...base, minWidth: 84 }} disabled={!!statusBusy} onClick={() => setConfirmAction('reopen')}>{statusBusy === 'reopen' ? 'Reopening…' : 'Reopen'}</button>;
-    const closeBtn = <button key="c" className="btn btn-outline" style={{ ...base, minWidth: isPendingApproval ? 104 : 62 }} disabled={!!statusBusy} onClick={() => setConfirmAction('close')}>{statusBusy === 'close' ? (isPendingApproval ? 'Cancelling…' : 'Closing…') : (isPendingApproval ? 'Cancel request' : 'Close')}</button>;
+    // Full-size, with an icon and a label that says what it does to the
+    // ticket ("Close ticket", not a bare "Close" that read like closing the
+    // page). Fixed min-widths so the busy label never resizes the button.
+    const IconCheck = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="m8.5 12.5 2.5 2.5 4.5-5" /></svg>;
+    const IconX = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="m15 9-6 6M9 9l6 6" /></svg>;
+    const IconReopen = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>;
+    const busySpin = <span className="tkt-life-spin" aria-hidden="true" />;
+    const reopenBtn = (
+      <button key="r" className="tkt-life-btn is-primary" style={{ minWidth: 150 }} disabled={!!statusBusy} onClick={() => setConfirmAction('reopen')}>
+        {statusBusy === 'reopen' ? busySpin : IconReopen}
+        {statusBusy === 'reopen' ? 'Reopening…' : 'Reopen ticket'}
+      </button>
+    );
+    const closeBtn = (
+      <button key="c" className={'tkt-life-btn' + (isPendingApproval ? ' is-cancel' : '')} style={{ minWidth: isPendingApproval ? 168 : 146 }} disabled={!!statusBusy} onClick={() => setConfirmAction('close')}
+        title={isPendingApproval ? 'Withdraw this request' : 'Mark this ticket as done — you can reopen it later'}>
+        {statusBusy === 'close' ? busySpin : (isPendingApproval ? IconX : IconCheck)}
+        {statusBusy === 'close' ? (isPendingApproval ? 'Cancelling…' : 'Closing…') : (isPendingApproval ? 'Cancel request' : 'Close ticket')}
+      </button>
+    );
     // A cancelled request is done, in both directions, and offers nothing.
     // Reopen is deliberately NOT offered: on a declined request it would let a
     // requester walk back IT's decision, and it would leave an open ticket
     // hanging off a rejected approval. Withdrawals get the same treatment for
     // consistency — the confirm prompt already tells you to submit a new
     // request if you change your mind, which is the clean path.
-    if (isCancelled) return null;
+    if (isCancelled || isDeclined) return null;
     if (isClosed) return reopenBtn;
     if (isResolved) return [reopenBtn, closeBtn];
     return closeBtn;
   };
 
-  // Compact fixed-width arrow buttons for prev/next (disabled state only changes
-  // opacity, never width, so the bar stays put).
-  const navBtn = (enabled) => ({ minWidth: 30, padding: '4px 8px', fontSize: 13, lineHeight: 1, fontWeight: 800, textAlign: 'center', opacity: enabled ? 1 : 0.35, cursor: enabled ? 'pointer' : 'default' });
+  // ← / → (or K / J) step between tickets when you're not typing — the same
+  // thing the arrow buttons in the bar do.
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const a = document.activeElement;
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
+      if (document.querySelector('[role="dialog"], [role="menu"]')) return;
+      if ((e.key === 'ArrowLeft' || e.key === 'k') && prevTicket) { e.preventDefault(); go(prevTicket); }
+      if ((e.key === 'ArrowRight' || e.key === 'j') && nextTicket) { e.preventDefault(); go(nextTicket); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
 
   return (
     <div>
       {/* Image lightbox — opens an attachment inline (portaled to body so an
           ancestor transform can't trap the fixed overlay). Backdrop or Esc closes. */}
       {lightbox && ReactDOM.createPortal(
-        <div onClick={() => setLightbox(null)} style={{
+        <div className="overlay-in" onClick={() => setLightbox(null)} style={{
           position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(33,30,30,0.86)',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           padding: 24, gap: 12, cursor: 'zoom-out',
@@ -10470,11 +10746,14 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
           <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: 'min(92vw, 1100px)', cursor: 'default' }}>
             <span style={{ color: '#FFFDF4', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Archivo', sans-serif" }}>{lightbox.name}</span>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              <a href={lightbox.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, background: '#FFFFFF' }}>Open in new tab</a>
+              {/* Browsers refuse to open a data: URL in a new tab (inline reply images arrive as data URIs). */}
+              {!/^data:/i.test(lightbox.url) && (
+                <a href={lightbox.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, background: '#FFFFFF' }}>Open in new tab</a>
+              )}
               <button type="button" onClick={() => setLightbox(null)} className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, background: '#FFFFFF' }}>Close ✕</button>
             </div>
           </div>
-          <img src={lightbox.url} alt={lightbox.name} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(92vw, 1100px)', maxHeight: '80vh', objectFit: 'contain', borderRadius: 10, border: '1px solid #211E1E', background: '#fff', cursor: 'default' }} />
+          <img className="overlay-panel-in" src={lightbox.url} alt={lightbox.name} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(92vw, 1100px)', maxHeight: '80vh', objectFit: 'contain', borderRadius: 10, border: '1px solid #211E1E', background: '#fff', cursor: 'default' }} />
         </div>,
         document.body,
       )}
@@ -10492,7 +10771,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
         padding: '10px 14px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
-          <button onClick={onBack} className="btn btn-outline" style={{ padding: '5px 11px', fontSize: 11 }}>← Back</button>
+          <button onClick={onBack} className="kb-back-btn is-sm"><svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back</button>
           {/* Ticket identity lives in the sticky bar (cleaner than a badge row in
               the card): type, approval/work state, number. */}
           {t && (
@@ -10507,9 +10786,10 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
         {/* Right side keeps only ticket prev/next; Approvals + Close/Reopen moved
             to the top-right of the ticket card below. */}
         {navList.length > 1 && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <button onClick={() => go(prevTicket)} disabled={!prevTicket} className="btn btn-outline" style={navBtn(!!prevTicket)} title={prevTicket ? 'Previous ticket' : 'No previous ticket'} aria-label="Previous ticket">←</button>
-            <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="btn btn-outline" style={navBtn(!!nextTicket)} title={nextTicket ? 'Next ticket' : 'No next ticket'} aria-label="Next ticket">→</button>
+          <div className="tkt-nav-pair">
+            {navIdx >= 0 && <span className="tkt-nav-pos">{navIdx + 1} / {navList.length}</span>}
+            <button onClick={() => go(prevTicket)} disabled={!prevTicket} className="tkt-nav-btn is-prev" title={prevTicket ? 'Previous: ' + (prevTicket.ticket_number || '') + ' — ' + (prevTicket.subject || '') : 'No previous ticket'} aria-label="Previous ticket"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg></button>
+            <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="tkt-nav-btn is-next" title={nextTicket ? 'Next: ' + (nextTicket.ticket_number || '') + ' — ' + (nextTicket.subject || '') : 'No next ticket'} aria-label="Next ticket"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></button>
           </div>
         )}
       </div>
@@ -10550,8 +10830,11 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                   {t.created_at && <span>Opened {relativeTime(t.created_at)}</span>}
                   {t.assignments && t.assignments.length > 0 && <span>Assigned to IT</span>}
                 </div>
-                {t.description && (
-                  <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(t.description)}</p>
+                {t.description && (looksLikeHtml(t.description)
+                  // Agent- and email-raised tickets carry HTML (often with
+                  // inline screenshots); it used to print as raw markup.
+                  ? <RichBody html={t.description} onOpenImage={openImage} style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6 }} />
+                  : <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(t.description)}</p>
                 )}
               </div>
             </div>
@@ -10559,11 +10842,21 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
 
           <div style={{ ...TK.card, padding: '20px 24px' }}>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Conversation</div>
-            {timeline.length === 0 && (
-              <div style={{ fontSize: 14, color: '#9A8E78' }}>No replies yet — write the first message below and the IT Team will see it on your ticket.</div>
+            {timeline.length === 0 && !st.full && !st.error && (
+              <div aria-busy="true" aria-label="Loading the conversation">
+                {[0, 1].map((i) => (
+                  <div key={i} className="tkt-skel-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginTop: i ? 16 : 4, flexDirection: i ? 'row-reverse' : 'row', animationDelay: `${i * 90}ms` }}>
+                    <span className="tkt-skel" style={{ width: 32, height: 32, borderRadius: '50%' }} />
+                    <span className="tkt-skel" style={{ width: i ? '38%' : '56%', height: 46, borderRadius: 14 }} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {timeline.length === 0 && (st.full || st.error) && (
+              <div className="tab-panel-in" style={{ fontSize: 14, color: '#9A8E78' }}>No replies yet — write the first message below and the IT Team will see it on your ticket.</div>
             )}
             {timeline.map((it) => it.kind === 'msg' ? (
-              <ConversationMessage key={it.tkey} mine={it.mine} name={it.name} time={it.time ? relativeTime(it.time) : ''} body={it.body} />
+              <ConversationMessage key={it.tkey} mine={it.mine} name={it.name} time={it.time ? relativeTime(it.time) : ''} body={it.body} files={it.files} onOpenImage={openImage} />
             ) : (
               <ConversationMessage key={it.tkey} mine={it.mine} name={it.name || 'IT Team'} time={it.time ? relativeTime(it.time) : ''}>
                 <AttachmentItem name={attName(it.att)} source={attSource(it.att)} size={attSize(it.att)} isImage={isImageAttachment(it.att, attName(it.att))} onOpenImage={openImage} />
@@ -10574,10 +10867,16 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                 ticket in SliceDesk. */}
             <div style={{ marginTop: comments.length ? 18 : 14, borderTop: '1px solid #EFEAE0', paddingTop: 16 }}>
               {(() => {
-                const reopenOnReply = ['resolved', 'closed'].includes(String(t.status || '').toLowerCase());
+                // A declined request never reopens on a reply (the module
+                // enforces the same) — replying just asks the IT Team a question.
+                const reopenOnReply = !isDeclined && ['resolved', 'closed'].includes(String(t.status || '').toLowerCase());
                 return (
                   <>
-                    <label style={{ ...TK.label, marginTop: 0 }}>Add a reply</label>
+                    {isDeclined && (
+                      <div style={{ fontSize: 12, color: '#78684C', margin: '-2px 0 8px', fontWeight: 600 }}>
+                        This request was declined. You can still reply to ask the IT Team about it — it won’t reopen the request. Need it after all? Submit a new request.
+                      </div>
+                    )}
                     {reopenOnReply && !confirmReopen && (
                       <div style={{ fontSize: 12, color: '#78684C', margin: '-2px 0 8px', fontWeight: 600 }}>
                         This ticket is {String(t.status).toLowerCase()} — replying will reopen it.
@@ -10606,7 +10905,8 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                         <AttachmentPicker files={replyFiles} onChange={setReplyFiles} disabled={sending} />
                         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
                           <span style={{ fontSize: 11, color: '#9A8E78' }}>⌘/Ctrl + Enter</span>
-                          <ReplySend ticket={t} sending={sending} reopenOnReply={reopenOnReply}
+                          {/* No "send & resolve / raise priority" on a declined request — there's nothing to resolve. */}
+                          <ReplySend ticket={t} sending={sending} reopenOnReply={reopenOnReply || isDeclined}
                             disabled={sending || (htmlIsEmpty(reply) && replyFiles.length === 0)}
                             onSend={requestSend} />
                         </div>
@@ -10684,9 +10984,10 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
   }
 
   const q = (query || '').trim().toLowerCase();
-  const shown = !q ? st.pending : st.pending.filter((p) => {
-    const hay = [p.ticket_number, p.subject, p.requester_name, p.workflow_name, p.current_stage_name].filter(Boolean).join(' ').toLowerCase();
-    return hay.includes(q);
+  const tokens = searchTokens(query);
+  const shown = !tokens.length ? st.pending : st.pending.filter((p) => {
+    const num = String(p.ticket_number || '');
+    return matchesAllTokens([num, num.replace(/^[a-z]+-/i, ''), p.subject, p.requester_name, p.workflow_name, p.current_stage_name], tokens);
   });
 
   return (
@@ -10886,6 +11187,47 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     id: window.PORTAL_CURRENT_ID, name: window.PORTAL_CURRENT_USER, email: window.PORTAL_CURRENT_EMAIL,
   } : {}), []);
   const [ffSubject, setFfSubject] = React.useState('');
+  const catSearchRef = React.useRef(null);
+  const catGridRef = React.useRef(null);
+  // "/" or ⌘K jumps to the catalog search from anywhere on the list.
+  React.useEffect(() => {
+    if (view !== 'list') return undefined;
+    const onKey = (e) => {
+      const a = document.activeElement;
+      const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
+      if ((e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) || ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K'))) {
+        e.preventDefault();
+        if (catSearchRef.current) { catSearchRef.current.focus(); catSearchRef.current.select(); }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [view]);
+  // A custom request started from a search carries what you typed with it.
+  const openCustom = (prefill) => {
+    setErr('');
+    const t = String(prefill || '').trim();
+    if (t && !ffSubject.trim()) setFfSubject(t);
+    setView('freeform');
+  };
+  // Arrow keys move between catalog tiles like a grid; ↑ from the top row
+  // goes back to the search field.
+  const onGridKey = (e) => {
+    if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+    const grid = e.currentTarget;
+    const tiles = [...grid.querySelectorAll('.cat-tile2')];
+    const i = tiles.indexOf(document.activeElement);
+    if (i < 0) return;
+    const cols = (getComputedStyle(grid).gridTemplateColumns || '').split(' ').filter(Boolean).length || 1;
+    let next = i;
+    if (e.key === 'ArrowRight') next = i + 1;
+    if (e.key === 'ArrowLeft') next = i - 1;
+    if (e.key === 'ArrowDown') next = i + cols;
+    if (e.key === 'ArrowUp') next = i - cols;
+    e.preventDefault();
+    if (next < 0) { if (catSearchRef.current) catSearchRef.current.focus(); return; }
+    if (tiles[next]) tiles[next].focus();
+  };
   const [ffDesc, setFfDesc] = React.useState('');
   const [attachFiles, setAttachFiles] = React.useState([]);
   const [attachWarn, setAttachWarn] = React.useState('');
@@ -11128,39 +11470,100 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // Success — one or several requests may have been created (one per person).
   if (view === 'done') {
     const multi = results.length > 1;
-    const anyPending = results.some((t) => String((t && t.status) || '').toLowerCase() === 'pending');
+    const first = results[0] || null;
+    const num = (t) => (t && (t.ticket_number || t.id)) || '';
+    const isPending = (t) => String((t && t.status) || '').toLowerCase() === 'pending';
+    const anyPending = results.some(isPending);
+    const what = item ? item.name : (ffSubject || 'Your request');
+    // Back to the catalog with a clean slate — for the "and one more thing" case.
+    const requestAnother = () => {
+      setItem(null); setResponses({}); setJustification(''); setUrgency('medium');
+      setTalkedToAgentId(''); setTalkedToNote(''); setApproverOverride(null); setRequestedFor([]);
+      setAttachFiles([]); setAttachWarn(''); setFfSubject(''); setFfDesc(''); setCatQuery('');
+      setResults([]); setErr(''); setView('list');
+    };
+    const openTicket = (t) => {
+      try { if (t && num(t)) window.__PORTAL_OPEN_TICKET__ = t.ticket_number || t.id; } catch {}
+      if (onCreated) onCreated(); else onClose();
+    };
+    // What happens next, in plain words, so a request never feels like it
+    // went into a black hole. Approval only appears when there is one.
+    const steps = [
+      { key: 'sent', title: 'Request sent', body: multi ? `${results.length} tickets created, one per person.` : `Saved as ${num(first)}.`, state: 'done' },
+      ...(anyPending ? [{ key: 'approval', title: 'Approval', body: 'Your approver gets an email and a Slack message. You’ll hear as soon as they decide.', state: 'current' }] : []),
+      { key: 'setup', title: 'IT sets it up', body: anyPending ? 'Starts once it’s approved.' : 'The IT Team has it and will pick it up next.', state: anyPending ? 'todo' : 'current' },
+      { key: 'done', title: 'Ready to use', body: 'You get a notification here and by email when it’s done.', state: 'todo' },
+    ];
     return (
-      <Shell title={multi ? results.length + ' requests submitted' : 'Request submitted'} kicker="Service request" icon={item && item.icon_url} onClose={onClose} maxWidth={620}>
-        {multi ? (
-          <>
-            <p style={{ fontSize: 15, color: '#211E1E', margin: '0 0 10px', lineHeight: 1.55 }}>
-              {results.length} requests are in — one per person.
-            </p>
-            <ul style={{ margin: '0 0 14px', padding: 0, listStyle: 'none' }}>
-              {results.map((t, i) => (
-                <li key={(t && (t.id || t.ticket_number)) || i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13.5, color: '#55503F', padding: '6px 0', borderTop: i ? '1px solid #F0EBE0' : 'none' }}>
-                  <strong style={{ color: '#211E1E' }}>{(t && (t.ticket_number || t.id)) || 'Created'}</strong>
-                  {t && t._forName && <span style={{ color: '#6B5B36' }}>for {t._forName}</span>}
-                  {String((t && t.status) || '').toLowerCase() === 'pending' && <span style={{ fontSize: 11.5, color: '#9A4A00', fontWeight: 800 }}>Needs approval</span>}
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <p style={{ fontSize: 15, color: '#211E1E', margin: '0 0 8px', lineHeight: 1.55 }}>
-            Your request <strong>{results[0] && (results[0].ticket_number || results[0].id)}</strong>{results[0] && results[0]._forName ? ' for ' + results[0]._forName : ''} is in.
-          </p>
+      <Shell title={multi ? `${results.length} requests sent` : 'Request sent'} onClose={onClose} backLabel="Back" maxWidth={asPage ? 720 : 620} centered centerHead>
+        <div className="done-hero">
+          <span className="done-check" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path className="done-check-path" d="M5 12.5 10 17.5 19 7.5" /></svg>
+          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="done-what">
+              {item && item.icon_url && <img src={item.icon_url} alt="" width="22" height="22" className="done-what-icon" />}
+              <span>{what}</span>
+            </div>
+            {multi ? (
+              <div className="done-sub">For {results.length} people — each gets their own ticket.</div>
+            ) : (
+              <div className="done-sub">
+                {first && first._forName ? <>For <b>{first._forName}</b> · </> : null}
+                {anyPending ? 'Waiting for approval' : 'With the IT Team'}
+              </div>
+            )}
+          </div>
+          {!multi && first && num(first) && (
+            <button type="button" className="done-num" title="Copy ticket number"
+              onClick={(e) => { try { navigator.clipboard.writeText(String(num(first))); e.currentTarget.dataset.copied = '1'; const el = e.currentTarget; setTimeout(() => { el.dataset.copied = ''; }, 1400); } catch {} }}>
+              <span>{num(first)}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+            </button>
+          )}
+        </div>
+
+        {multi && (
+          <ul className="done-list">
+            {results.map((t, i) => (
+              <li key={num(t) || i}>
+                <button type="button" onClick={() => openTicket(t)}>
+                  <span className="done-list-num">{num(t) || 'Created'}</span>
+                  {t && t._forName && <span className="done-list-for">for {t._forName}</span>}
+                  {isPending(t) && <span className="done-list-pill">Needs approval</span>}
+                  <span className="done-list-go" aria-hidden="true">→</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
-        <p style={{ fontSize: 13.5, color: '#78684C', margin: '0 0 22px', lineHeight: 1.55 }}>
-          {multi
-            ? 'All ' + results.length + ' are saved under your My Tickets — each tagged “For ‹name›” so you can tell them apart. ' + (anyPending ? 'Some need an approval first; you’ll be notified once they’re decided.' : 'Track their progress there any time.')
-            : (anyPending
-                ? 'It needs an approval before it can be fulfilled — you’ll be notified once it’s decided, and you can track it under My Tickets.'
-                : 'You can track its progress any time under My Tickets.')}
-        </p>
-        {attachWarn && <p style={{ fontSize: 13, color: '#9A4A00', margin: '0 0 18px', lineHeight: 1.5 }}>{attachWarn}</p>}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn btn-primary" onClick={() => (onCreated ? onCreated() : onClose())}>View my tickets →</button>
+
+        <div className="done-next">
+          <div className="done-next-title">What happens next</div>
+          <ol className="done-steps">
+            {steps.map((st, i) => (
+              <li key={st.key} className={'done-step is-' + st.state} style={{ '--i': i }}>
+                <span className="done-step-dot" aria-hidden="true">
+                  {st.state === 'done'
+                    ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5 10 17.5 19 7.5" /></svg>
+                    : <span />}
+                </span>
+                <span>
+                  <span className="done-step-title">{st.title}{st.state === 'current' && <span className="done-step-now">Now</span>}</span>
+                  <span className="done-step-body">{st.body}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {attachWarn && <p className="done-warn">{attachWarn}</p>}
+
+        <div className="done-actions">
+          <button className="btn btn-outline" onClick={requestAnother}>Request something else</button>
+          {!multi && first
+            ? <button className="btn btn-primary" onClick={() => openTicket(first)}>View request →</button>
+            : <button className="btn btn-primary" onClick={() => (onCreated ? onCreated() : onClose())}>View my tickets →</button>}
         </div>
       </Shell>
     );
@@ -11169,7 +11572,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // Freeform fallback
   if (view === 'freeform') {
     return (
-      <Shell title="Request something" kicker={catalog && catalog.length ? 'Custom request' : 'Service request'} onClose={onClose} maxWidth={620}>
+      <Shell title="Custom request" onClose={catalog && catalog.length ? () => { setErr(''); setView('list'); } : onClose} backLabel={catalog && catalog.length ? 'All apps & services' : 'Back'} maxWidth={asPage ? 820 : 620} centered>
         <p style={{ fontSize: 13.5, color: '#78684C', margin: '0 0 4px', lineHeight: 1.5 }}>
           Tell us what you need access to — an app, a service, hardware, or anything else. IT will pick it up.
         </p>
@@ -11182,8 +11585,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
-          {catalog && catalog.length > 0 && <button className="btn btn-outline" onClick={() => { setErr(''); setView('list'); }} disabled={busy}>← Catalog</button>}
+        <div className={asPage ? 'pg-actions' : undefined} style={asPage ? undefined : { display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="btn btn-primary" onClick={submitFreeform} disabled={busy}>{submitLabel}</button>
         </div>
       </Shell>
@@ -11193,14 +11596,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // Item form
   if (view === 'form' && item) {
     return (
-      <Shell title={item.name} kicker="Service request" icon={item.icon_url} onClose={onClose} maxWidth={680}>
-        <button onClick={() => { setErr(''); setView('list'); }} className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, marginBottom: 14 }}>← All items</button>
-        {item.description && <p style={{ fontSize: 13.5, color: '#55503F', margin: '0 0 6px', lineHeight: 1.5 }}>{item.description}</p>}
-        {item.approval_required && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 9px', background: '#FFEFDD', color: '#9A4A00', border: '1px solid #9A4A00', borderRadius: 999, fontSize: 11, fontWeight: 800, fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 4 }}>
-            Needs approval
-          </div>
-        )}
+      <Shell title={item.name} kicker={item.category_name ? `Service request · ${item.category_name}` : 'Service request'} icon={item.icon_url} onClose={asPage ? () => { setErr(''); setView('list'); } : onClose} backLabel="All apps & services" maxWidth={asPage ? 820 : 680} centered>
         <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
         {visibleFields.map((f) => {
           // static_text is rendered copy, not an input — no label, no asterisk.
@@ -11237,7 +11633,10 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           reasonError={approverReasonErr}
         />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
+        {/* On the full page the actions ride along at the bottom of the
+            screen, so a long form never makes you scroll to find Submit. */}
+        <div className={asPage ? 'pg-actions' : undefined} style={asPage ? undefined : { display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
+          {asPage && item.approval_required && <span className="pg-actions-note">Goes for approval after you submit</span>}
           <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="btn btn-primary" onClick={submitCatalog} disabled={busy}>{submitLabel}</button>
         </div>
@@ -11247,8 +11646,20 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
 
   // Catalog list
   return (
-    <Shell title="Request something" kicker="Service catalog — access to apps & services" onClose={onClose} maxWidth={760}>
-      {catalog === null && !catErr && <div style={{ padding: '24px 4px', color: '#78684C', fontSize: 14 }}>Loading the catalog…</div>}
+    <Shell title="Request apps & services" onClose={onClose} maxWidth={asPage ? 1120 : 760} bare={asPage}>
+      {catalog === null && !catErr && (
+        <div className="cat-grid" aria-busy="true" aria-label="Loading the catalog">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="cat-tile2 tkt-skel-row" style={{ animationDelay: `${i * 40}ms`, pointerEvents: 'none' }}>
+              <span className="tkt-skel" style={{ width: 40, height: 40, borderRadius: 10 }} />
+              <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <span className="tkt-skel" style={{ width: '55%', height: 12 }} />
+                <span className="tkt-skel" style={{ width: '85%', height: 9 }} />
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
       {itemBusy && <div style={{ padding: '8px 4px', color: '#78684C', fontSize: 13 }}>Opening…</div>}
       {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '0 0 12px' }}>{err}</p>}
 
@@ -11277,6 +11688,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
       {catalog && catalog.length > 0 && (() => {
         const cats = Array.from(new Set(catalog.map((c) => c.category_name).filter(Boolean)));
         const q = catQuery.trim();
+        const qTokens = searchTokens(q);
         // Category filter first, then rank what's left. The old code did a
         // single substring test over name+description+category and kept the
         // catalog's own order, so "excel" found nothing (that alias lives in
@@ -11306,89 +11718,106 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         };
         return (
         <>
-          {/* Search */}
-          <div style={{ position: 'relative', marginBottom: cats.length > 1 ? 12 : 16 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-            <input value={catQuery} onChange={(e) => setCatQuery(e.target.value)} placeholder="Search apps & services…" autoFocus
-              style={{ width: '100%', padding: '12px 32px 12px 36px', border: '1px solid #211E1E', borderRadius: 8, background: '#FFFFFF', fontSize: 16, fontFamily: 'inherit', color: '#211E1E', boxShadow: '2px 2px 0 #211E1E', boxSizing: 'border-box', outline: 'none' }} />
-            {catQuery && <button onClick={() => setCatQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9A8E78', fontWeight: 900, fontSize: 14, lineHeight: 1, padding: 2 }}>✕</button>}
-          </div>
-          {/* Category filter */}
-          {cats.length > 1 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-              {chip('all', 'All')}
-              {cats.map((c) => chip(c, c))}
-            </div>
-          )}
-          {/* Most popular — top requested apps, shown on the default view */}
-          {popular.length > 0 && (
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 11, fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#78684C', marginBottom: 9 }}>Most popular</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-                {popular.map((it) => (
-                  <button key={'pop-' + it.id} onClick={() => pickItem(it)} disabled={itemBusy}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '4px 4px 0 #211E1E'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '2px 2px 0 #211E1E'; }}
-                    style={{ ...TK.card, boxShadow: '2px 2px 0 #211E1E', textAlign: 'left', cursor: 'pointer', padding: '12px 13px', display: 'flex', alignItems: 'center', gap: 9, transition: TK.rowTransition }}>
-                    {it.icon_url
-                      ? <img src={it.icon_url} alt="" width="24" height="24" style={{ borderRadius: 6, objectFit: 'contain', flexShrink: 0 }} />
-                      : <span style={{ width: 24, height: 24, borderRadius: 6, background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif", fontSize: 12, flexShrink: 0 }}>{String(it.name || '?').charAt(0)}</span>}
-                    <span style={{ fontWeight: 800, fontSize: 13, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
-                  </button>
-                ))}
+          {/* Search and the custom-request way out stay pinned while you scroll. */}
+          <div className={asPage ? 'cat-bar is-sticky' : 'cat-bar'}>
+            <div className="cat-bar-row">
+              <div className={'cat-search' + (catQuery ? ' has-value' : '')}>
+                <svg className="cat-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                <input ref={catSearchRef} type="search" value={catQuery} onChange={(e) => setCatQuery(e.target.value)}
+                  placeholder={`Search ${catalog.length} apps, services & hardware…`} autoFocus autoComplete="off" spellCheck={false}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape' && catQuery) { e.preventDefault(); setCatQuery(''); }
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (shown.length > 0) pickItem(shown[0]); else if (q) openCustom(q);
+                    }
+                    if (e.key === 'ArrowDown') {
+                      const first = catGridRef.current && catGridRef.current.querySelector('.cat-tile2');
+                      if (first) { e.preventDefault(); first.focus(); }
+                    }
+                  }}
+                  aria-label="Search apps and services" aria-describedby={q ? 'cat-search-hint' : undefined} />
+                {catQuery ? (
+                  <>
+                    <span className="cat-search-count" aria-live="polite">{shown.length} {shown.length === 1 ? 'result' : 'results'}</span>
+                    <button className="tkt-search-clear" onClick={() => { setCatQuery(''); if (catSearchRef.current) catSearchRef.current.focus(); }} aria-label="Clear search" title="Clear (Esc)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
+                  </>
+                ) : <span className="tkt-search-kbd" aria-hidden="true">/</span>}
               </div>
-            </div>
-          )}
-          {/* Service catalog — the full list. Labelled on the default view so it
-              reads as a section under "Most popular"; plain results when searching. */}
-          {(!q && catFilter === 'all' && shown.length > 0) && (
-            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 11, fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#78684C', marginBottom: 9 }}>Service catalog</div>
-          )}
-          {shown.length === 0 ? (
-            <div style={{ ...TK.card, padding: '22px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: 14, color: '#211E1E', fontWeight: 700, marginBottom: 6 }}>Nothing matches “{catQuery}”{catFilter !== 'all' ? ` in ${catFilter}` : ''}.</div>
-              <div style={{ fontSize: 13, color: '#78684C', marginBottom: 14 }}>Try a different search, or ask for it directly.</div>
-              <button className="btn btn-primary" onClick={() => { setErr(''); setView('freeform'); }}>Make a custom request</button>
-            </div>
-          ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-            {shown.map((it) => (
-              <button key={it.id} className="cat-tile" onClick={() => pickItem(it)} disabled={itemBusy}
-                /* Lift, deepen the shadow, and grow a hair. The lift and the
-                   hard-shadow step are this design's own language; the 1.5%
-                   scale is what makes it read as the card coming toward you
-                   rather than just sliding. Any more and the text visibly
-                   resamples. */
-                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translate(-2px,-2px) scale(1.015)'; e.currentTarget.style.boxShadow = '5px 5px 0 #211E1E'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '2px 2px 0 #211E1E'; }}
-                style={{
-                ...TK.card, boxShadow: '2px 2px 0 #211E1E', textAlign: 'left', cursor: 'pointer', padding: '14px 16px',
-                display: 'flex', flexDirection: 'column', gap: 6, minHeight: 96, transition: TK.rowTransition,
-              }}>
-                {/* 26 → 36. The logo is how people find the thing they want —
-                    most of them are scanning for the 1Password or Figma mark,
-                    not reading the names — and at 26px a detailed logo was
-                    resolving to a smudge. The fallback initial grows with it
-                    so a catalog with mixed icon coverage stays on one grid. */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                  {it.icon_url
-                    ? <img className="cat-tile-icon" src={it.icon_url} alt="" width="36" height="36" style={{ borderRadius: 8, objectFit: 'contain', display: 'block' }} />
-                    : <span className="cat-tile-icon" style={{ width: 36, height: 36, borderRadius: 8, background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif", fontSize: 17 }}>{String(it.name || '?').charAt(0)}</span>}
-                  <span style={{ fontWeight: 800, fontSize: 14, color: '#211E1E', letterSpacing: '-0.01em' }}>{it.name}</span>
-                </div>
-                {it.description && <span style={{ fontSize: 12, color: '#78684C', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{it.description}</span>}
-                <span style={{ marginTop: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {it.category_name && <span style={{ fontSize: 10.5, color: '#9A8E78', fontWeight: 600 }}>{it.category_name}</span>}
-                  {it.approval_required && <span style={{ fontSize: 9.5, color: '#9A4A00', fontWeight: 800, fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>· Needs approval</span>}
+              <button className="cat-custom" onClick={() => openCustom(q)} title="Can’t find it? Describe what you need and IT will sort it out">
+                <span className="cat-custom-plus" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg></span>
+                <span className="cat-custom-text">
+                  <span className="cat-custom-title">Custom request</span>
+                  <span className="cat-custom-sub">Not in the list?</span>
                 </span>
               </button>
-            ))}
+            </div>
+            {/* Once you've typed, the line under the field says what Enter will do. */}
+            {q && (
+            <div id="cat-search-hint" className="cat-hint" aria-live="polite">
+              {shown.length > 0 ? (
+                <>
+                  <span><kbd className="cat-kbd">↵</kbd> opens <b>{shown[0].name}</b></span>
+                  <span className="cat-hint-sep" aria-hidden="true">·</span>
+                  <span><kbd className="cat-kbd">↓</kbd> browse</span>
+                  <span className="cat-hint-sep" aria-hidden="true">·</span>
+                  <span><kbd className="cat-kbd">esc</kbd> clear</span>
+                  <button className="tkt-link cat-hint-ask" onClick={() => openCustom(q)}>Not it? Ask IT for “{q}” →</button>
+                </>
+              ) : (
+                <span>No match — <kbd className="cat-kbd">↵</kbd> sends “{q}” to IT as a custom request</span>
+              )}
+            </div>
+            )}
           </div>
+          {/* Most popular — top requested apps, shown on the default view */}
+          {popular.length > 0 && (
+            <section style={{ marginBottom: 20 }}>
+              <div className="cat-section">Most popular</div>
+              <div className="cat-grid" onKeyDown={onGridKey}>{popular.map((it, i) => (
+              <button key={'pop-' + it.id} className="cat-tile2" onClick={() => pickItem(it)} disabled={itemBusy}
+                style={{ animationDelay: `${Math.min(i, 12) * 22}ms` }} title={it.description ? `${it.name} — ${it.description}` : it.name}>
+                {it.icon_url
+                  ? <img className="cat-tile2-icon" src={it.icon_url} alt="" width="40" height="40" loading="lazy" />
+                  : <span className="cat-tile2-icon is-letter">{String(it.name || '?').charAt(0)}</span>}
+                <span className="cat-tile2-text">
+                  <span className="cat-tile2-name"><Hl text={it.name} tokens={qTokens} /></span>
+                  <span className="cat-tile2-desc">
+                    {it.description ? <Hl text={it.description} tokens={qTokens} /> : (it.category_name || 'Request access')}
+                  </span>
+                </span>
+                <span className="cat-tile2-go" aria-hidden="true">→</span>
+              </button>
+            ))}</div>
+            </section>
           )}
-          <div style={{ marginTop: 22, padding: '15px 20px', ...TK.card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 15, color: '#211E1E', fontWeight: 700, letterSpacing: '-0.01em' }}>Don’t see what you need?</span>
-            <button className="btn btn-primary" onClick={() => { setErr(''); setView('freeform'); }}>Make a custom request →</button>
-          </div>
+          {(!q && catFilter === 'all' && shown.length > 0) && <div className="cat-section">All apps & services</div>}
+          {shown.length === 0 ? (
+            <div className="tkt-empty-search" style={{ ...TK.card }}>
+              <div className="tkt-empty-title">Nothing matches “{catQuery}”{catFilter !== 'all' ? ` in ${catFilter}` : ''}</div>
+              <div className="tkt-empty-body">Try another word or the app’s name — or just ask for it, and IT will sort out the details.</div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button className="btn btn-primary" onClick={() => openCustom(q)}>Ask IT for “{q}”</button>
+                <button className="btn btn-outline" onClick={() => { setCatQuery(''); if (catSearchRef.current) catSearchRef.current.focus(); }}>Clear search</button>
+              </div>
+            </div>
+          ) : (
+            <div key={catFilter + '|' + q} ref={catGridRef} className="cat-grid" onKeyDown={onGridKey}>{shown.map((it, i) => (
+              <button key={it.id} className="cat-tile2" onClick={() => pickItem(it)} disabled={itemBusy}
+                style={{ animationDelay: `${Math.min(i, 12) * 22}ms` }} title={it.description ? `${it.name} — ${it.description}` : it.name}>
+                {it.icon_url
+                  ? <img className="cat-tile2-icon" src={it.icon_url} alt="" width="40" height="40" loading="lazy" />
+                  : <span className="cat-tile2-icon is-letter">{String(it.name || '?').charAt(0)}</span>}
+                <span className="cat-tile2-text">
+                  <span className="cat-tile2-name"><Hl text={it.name} tokens={qTokens} /></span>
+                  <span className="cat-tile2-desc">
+                    {it.description ? <Hl text={it.description} tokens={qTokens} /> : (it.category_name || 'Request access')}
+                  </span>
+                </span>
+                <span className="cat-tile2-go" aria-hidden="true">→</span>
+              </button>
+            ))}</div>
+          )}
         </>
         );
       })()}
@@ -14014,7 +14443,7 @@ function EmailProvisionBlock({
         borderRadius: 6,
         boxShadow: showError ? "2px 2px 0 #B92323" : "none",
         overflow: "hidden",
-        transition: "all .15s ease",
+        transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
       }}>
         <input
           value={handle}
@@ -14068,7 +14497,7 @@ function EmailProvisionBlock({
                 fontFamily: "'Archivo', monospace",
                 fontSize: 11.5, fontWeight: 700,
                 color: "#211E1E",
-                transition: "all .12s ease",
+                transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "#FDC831";
@@ -14536,7 +14965,7 @@ function HireSwitcherBar({ hires, currentIdx, onSwitchHire, step }) {
                 fontFamily: "'Archivo', sans-serif",
                 fontSize: 12, fontWeight: 800,
                 cursor: active ? "default" : "pointer",
-                transition: "all .15s ease",
+                transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
               }}>
               <span style={{
                 fontFamily: "'Archivo', monospace",
@@ -14678,7 +15107,7 @@ function StepOrg({ form, patch, errors = {}, firstHire, isFirst = true, hires = 
           border: errors.location ? "2px solid #B92323" : "2px solid transparent",
           borderRadius: 8,
           boxShadow: errors.location ? "2px 2px 0 #B92323" : "none",
-          transition: "all .2s ease",
+          transition: "transform .2s ease, box-shadow .2s ease, background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease",
           animation: errors.location ? "shake .4s ease-in-out" : "none",
         }}>
           {errors.location && (
@@ -14700,7 +15129,7 @@ function StepOrg({ form, patch, errors = {}, firstHire, isFirst = true, hires = 
                 fontFamily: "'Archivo', sans-serif",
                 cursor: "pointer",
                 textAlign: "left",
-                transition: "all .2s ease",
+                transition: "transform .2s ease, box-shadow .2s ease, background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease",
               }}>
               <CountryFlag country={l.country} size={20} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -14844,7 +15273,7 @@ function HireRail({ hires, currentIdx, onSwitchHire }) {
               transformOrigin: "left center",
               cursor: active ? "default" : "pointer",
               textAlign: "left",
-              transition: "all .15s ease",
+              transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
               fontFamily: "'Archivo', sans-serif",
               overflow: "hidden",
             }}>
@@ -15281,7 +15710,7 @@ function AppRow({ app, onRemove }) {
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 900, fontSize: 12,
             lineHeight: 1,
-            transition: "all .15s ease",
+            transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
           }}
           onMouseEnter={e => { e.currentTarget.style.background = "#B92323"; e.currentTarget.style.color = "#FFFFFF"; e.currentTarget.style.borderColor = "#B92323"; }}
           onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#211E1E"; e.currentTarget.style.borderColor = "rgba(33,30,30,0.4)"; }}
@@ -15385,7 +15814,7 @@ function AppTile({ app, selected, onToggle }) {
         boxShadow: selected ? "1px 1px 0 #211E1E" : "none",
         cursor: app.essential ? "default" : "pointer",
         textAlign: "left",
-        transition: "all .2s ease",
+        transition: "transform .2s ease, box-shadow .2s ease, background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease",
         opacity: app.essential ? 0.92 : 1,
         position: "relative",
         minWidth: 0,
@@ -15598,7 +16027,7 @@ function HWTile({ item, selected, onSelect, radio, wide, small, category }) {
         boxShadow: selected ? "2px 2px 0 #211E1E" : "none",
         cursor: "pointer",
         textAlign: "left",
-        transition: "all .2s ease",
+        transition: "transform .2s ease, box-shadow .2s ease, background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease",
       }}>
       <div style={{
         width: radio ? 20 : 20, height: 20,
@@ -16500,7 +16929,7 @@ function OnbInput({ label, labelBadge, value, onChange, placeholder, type = "tex
         border: `2px solid ${borderColor}`,
         borderRadius: 6,
         boxShadow: (focus || showError) ? `3px 3px 0 ${shadowColor}` : "none",
-        transition: "all .15s ease",
+        transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
       }}>
         <input
           type={type} value={value} onChange={(e) => onChange(e.target.value)}
@@ -16574,7 +17003,7 @@ function OnbSelect({ label, labelBadge, value, options, onChange, placeholder, d
           color: current ? "#211E1E" : "#78684C",
           textAlign: "left", cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.6 : 1,
-          transition: "all .15s ease",
+          transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
         }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
           {current?.icon}
@@ -17520,7 +17949,7 @@ function UnvisitedHiresModal({ unvisited, totalHires, onCancel, onJumpTo, onConf
                 border: "1px solid #211E1E", borderRadius: 6,
                 fontFamily: "'Archivo', sans-serif",
                 cursor: "pointer", textAlign: "left",
-                transition: "all .15s ease",
+                transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
               }}
               onMouseEnter={e => { e.currentTarget.style.background = "#FFF9E6"; e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "#FFFFFF"; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
@@ -18945,22 +19374,7 @@ function SubmissionSuccess({ summary, onBackToRoster, onOpenApproval, onStartAno
       {/* Top bar — minimal: just a back affordance. The success state is
           the whole point of this screen, so we keep chrome out of the way. */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32, gap: 16 }}>
-        <button onClick={onBackToRoster}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "7px 12px 7px 10px",
-            background: "#FFFFFF", border: "1px solid #211E1E",
-            borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 11.5,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            color: "#211E1E", cursor: "pointer",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; e.currentTarget.style.transform = "translate(-1px,-1px)"; }}
-          onMouseLeave={e => { e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E"; e.currentTarget.style.transform = "none"; }}
-        >
-          <span style={{ fontSize: 14 }}>←</span> Back to roster
-        </button>
+        <button onClick={onBackToRoster} className="kb-back-btn"><svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back to roster</button>
         <div style={{
           fontFamily: "'Archivo', monospace",
           fontSize: 10.5, fontWeight: 700, color: "#5A5755",
@@ -19941,7 +20355,7 @@ function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
             fontSize: 12, fontWeight: 900, letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: submitting ? "not-allowed" : "pointer",
             boxShadow: submitting ? "none" : "2px 2px 0 #211E1E",
-            transition: "all .12s ease",
+            transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
           }}>
             {submitting ? "Filing…" : (isBulk ? `Yes, file ${drafts.length} offboardings` : "Yes, file offboarding")}
           </button>
@@ -20188,13 +20602,13 @@ function OfbRemoveDraftModal({ draft, idx, onCancel, onConfirm }) {
     : `Card ${idx + 1}`;
 
   return ReactDOM.createPortal((
-    <div style={{
+    <div className="overlay-in" style={{
       position: "fixed", inset: 0, zIndex: 100,
       background: "rgba(33,30,30,0.55)",
       display: "grid", placeItems: "center",
       padding: 24,
     }} onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()} style={{
+      <div className="overlay-panel-in" onClick={(e) => e.stopPropagation()} style={{
         width: "min(440px, 100%)",
         background: "#FFFFFF",
         border: "1px solid #211E1E", borderRadius: 12,
@@ -20534,7 +20948,7 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
                 boxShadow: selected ? "2px 2px 0 #211E1E" : "none",
                 cursor: "pointer",
                 display: "flex", alignItems: "center", gap: 14,
-                transition: "all .12s ease",
+                transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
                 position: "relative",
               }}
               onMouseEnter={(e) => {
@@ -20718,7 +21132,7 @@ function OfbStepWhen({ draft, patch, errors }) {
                   gridTemplateColumns: "auto 1fr",
                   alignItems: "center",
                   gap: 10,
-                  transition: "all .12s ease",
+                  transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
                 }}
                 onMouseEnter={(e) => {
                   if (!selected) {
@@ -21203,7 +21617,7 @@ function RetShipInput({ label, value, onChange, placeholder, type = "text", requ
         border: `2px solid ${borderColor}`,
         borderRadius: 6,
         boxShadow: shadow,
-        transition: "all .15s ease",
+        transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
       }}>
         <input
           type={type} value={value}
@@ -21288,7 +21702,7 @@ function OfbStepAccess({ draft, patch, patchHardware }) {
                 border: `2px solid ${on ? "#B92323" : "rgba(33,30,30,0.25)"}`,
                 borderRadius: 6,
                 cursor: "pointer",
-                transition: "all .15s ease",
+                transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
                 opacity: on ? 1 : 0.65,
               }}>
                 <img src={`https://www.google.com/s2/favicons?sz=32&domain=${a.favicon}`}
@@ -21724,11 +22138,11 @@ function OfbDetailModal({ ofb, slicer, onClose }) {
   }, [onClose]);
 
   return ReactDOM.createPortal((
-    <div onClick={onClose} style={{
+    <div className="overlay-in" onClick={onClose} style={{
       position: "fixed", inset: 0, background: "rgba(33,30,30,0.55)",
       display: "grid", placeItems: "center", zIndex: 1000, padding: 24,
     }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
+      <div className="overlay-panel-in" onClick={(e) => e.stopPropagation()} style={{
         maxWidth: 760, width: "100%", maxHeight: "90vh",
         display: "flex", flexDirection: "column", overflow: "hidden",
         background: "#FFFFFF",
@@ -22896,7 +23310,7 @@ function HistoryChip({ label, count, active, onClick, tone, icon }) {
       fontFamily: "'Archivo', sans-serif",
       fontSize: 11.5, fontWeight: 800, letterSpacing: "0.02em",
       cursor: "pointer",
-      transition: "all .12s ease",
+      transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
     }}>
       {icon && <span style={{ color: active ? "#FDC831" : (tone || "#211E1E"), fontSize: 12 }}>{icon}</span>}
       {label}
@@ -23352,7 +23766,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
           <button onClick={onBack} className="kb-back-btn" style={{ marginBottom: 22 }}>
-            <span className="kb-back-arrow">←</span>Back
+            <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back
           </button>
           <h1 style={{
             fontFamily: "'Archivo', sans-serif",
@@ -23402,7 +23816,10 @@ function KnowledgePage({ onBack, onOpenGuide }) {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
               </button>
             )}
-            <button type="submit" className="btn btn-primary" style={{ padding: "12px 20px" }}>Search</button>
+            <button type="submit" className="btn btn-primary btn-go-search" style={{ padding: "12px 20px" }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              Search
+            </button>
           </form>
           <style>{`
             .kb-search-form:hover {
@@ -23798,13 +24215,13 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
   const submit = (e) => { e.preventDefault(); if (!valid) return; onSubmit(); };
 
   return ReactDOM.createPortal(
-    <div onClick={onClose} style={{
+    <div className="overlay-in" onClick={onClose} style={{
       position: "fixed", inset: 0, zIndex: 2147483600,
       background: "rgba(33,30,30,0.55)",
       backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
       display: "grid", placeItems: "center", padding: 24,
     }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
+      <div className="overlay-panel-in" onClick={(e) => e.stopPropagation()} style={{
         width: "min(540px, 100%)",
         background: "#F7F4EF",
         border: "1px solid #211E1E", borderRadius: 16,
@@ -24031,7 +24448,7 @@ function StatusPage({ onBack }) {
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
           <button onClick={onBack} className="kb-back-btn" style={{ marginBottom: 22 }}>
-            <span className="kb-back-arrow">←</span>Back
+            <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back
           </button>
           <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 24, alignItems: "center" }}>
           <div style={{
