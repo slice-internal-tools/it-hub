@@ -271,6 +271,16 @@ for (const [ticketId, itemId] of [[90008, 502], [90004, 511], [90006, 504], [900
   if (t) t.catalog_item_id = itemId;
 }
 
+// People directory for local search.
+const devPeople = [
+  { id: 'u-jane', name: 'Jane Doe', email: 'jane.doe@local', title: 'Engineering Manager' },
+  { id: 'u-arben', name: 'Arben Krasniqi', email: 'arben@local', title: 'Backend Engineer' },
+  { id: 'u-elira', name: 'Elira Hoxha', email: 'elira@local', title: 'Product Designer' },
+  { id: 'u-marcus', name: 'Marcus Reed', email: 'marcus.reed@local', title: 'IT Support' },
+  { id: 'u-priya', name: 'Priya Nair', email: 'priya.nair@local', title: 'Finance Lead' },
+  { id: 'u-dana', name: 'Dana Brooks', email: 'dana.brooks@local', title: 'IT Support Lead' },
+];
+
 const findTicket = (idOrNum) => {
   const key = decodeURIComponent(String(idOrNum));
   return tickets.find((t) => String(t.id) === key || String(t.ticket_number) === key);
@@ -404,6 +414,25 @@ export function handleDevTicket(method, subPath, body) {
     return ok({ status: 'created', ticket: t }, 201);
   }
 
+  // GET /users?q=  (people search for "request for someone else" / change approver)
+  if (method === 'GET' && parts[0] === 'users' && parts.length === 1) {
+    const q = (params.get('q') || '').toLowerCase();
+    const list = devPeople.filter((u) => !q || [u.name, u.email, u.title].join(' ').toLowerCase().includes(q));
+    return ok({ users: list.slice(0, Number(params.get('limit')) || 20) });
+  }
+  // GET /catalog/:id/approval-preview — approval-required items route to the
+  // requester's manager, and that stage can be changed.
+  if (method === 'GET' && parts[0] === 'catalog' && parts[2] === 'approval-preview') {
+    const it = catalogItems.find((c) => String(c.id) === decodeURIComponent(parts[1]));
+    if (!it) return notFound();
+    if (!it.approval_required) return ok({ requires_approval: false });
+    return ok({
+      requires_approval: true,
+      workflow: { name: 'Manager approval' },
+      stages: [{ order: 1, name: 'Manager approval', overridable: true,
+        approvers: [{ user_id: 'u-jane', name: 'Jane Doe', email: 'jane.doe@local' }] }],
+    });
+  }
   // GET /agents/directory
   if (method === 'GET' && parts[0] === 'agents' && parts[1] === 'directory') {
     return ok({ agents: agentsDirectory });

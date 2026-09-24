@@ -12080,33 +12080,97 @@ function approverInitials(value) {
 // shouldn't compete with the primary path.
 function changeBtn(label, onClick, { quiet = false } = {}) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translate(-1px,-1px)'; e.currentTarget.style.boxShadow = '3px 3px 0 #211E1E'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = quiet ? 'none' : '2px 2px 0 #211E1E'; }}
-      onMouseDown={(e) => { e.currentTarget.style.transform = 'translate(1px,1px)'; e.currentTarget.style.boxShadow = '1px 1px 0 #211E1E'; }}
-      onMouseUp={(e) => { e.currentTarget.style.transform = 'translate(-1px,-1px)'; e.currentTarget.style.boxShadow = '3px 3px 0 #211E1E'; }}
-      style={{
-        flexShrink: 0,
-        display: 'inline-flex', alignItems: 'center', gap: 5,
-        padding: '6px 11px', borderRadius: 999, cursor: 'pointer',
-        border: '1px solid ' + (quiet ? '#C9C0AB' : '#211E1E'),
-        background: quiet ? 'transparent' : '#FFFDF4',
-        boxShadow: quiet ? 'none' : '2px 2px 0 #211E1E',
-        color: quiet ? '#78684C' : '#211E1E',
-        fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 10.5,
-        letterSpacing: '0.04em', textTransform: 'uppercase',
-        transition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)',
-      }}
-    >
+    <button type="button" onClick={onClick} className={'ap-change' + (quiet ? ' is-quiet' : '')}>
       {/* Two-arrow swap glyph — says "route this elsewhere" faster than the
-          label alone, and keeps the button legible at this size. */}
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          label alone. It swings when hovered. */}
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5" />
       </svg>
       {label}
     </button>
+  );
+}
+
+// Find-a-person search shared by "Request this for someone else" and
+// "Change approver". Focuses itself, searches as you type (debounced),
+// drops the results open with a short animation, highlights what you typed,
+// and is fully keyboard-driven: ↑ ↓ to move, Enter to pick, Esc to back out.
+function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoFocus = true }) {
+  const [q, setQ] = React.useState('');
+  const [results, setResults] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const [active, setActive] = React.useState(0);
+  const inputRef = React.useRef(null);
+  const listId = React.useId ? React.useId() : 'people-list';
+
+  React.useEffect(() => { if (autoFocus) { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 40); return () => clearTimeout(id); } return undefined; }, [autoFocus]);
+  React.useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) { setResults([]); setLoading(false); setErr(''); return undefined; }
+    let off = false; setLoading(true); setErr('');
+    const h = setTimeout(() => {
+      ticketsApiJson('GET', '/api/users?q=' + encodeURIComponent(term))
+        .then((j) => { if (!off) { setResults(Array.isArray(j.users) ? j.users : []); setActive(0); } })
+        .catch((e) => { if (!off) { setResults([]); setErr(e.message || 'Couldn’t search people.'); } })
+        .finally(() => { if (!off) setLoading(false); });
+    }, 220);
+    return () => { off = true; clearTimeout(h); };
+  }, [q]);
+
+  const shown = results.filter((u) => !(exclude && exclude(u))).slice(0, limit);
+  const open = q.trim().length >= 2;
+  const tokens = searchTokens(q);
+  const pick = (u) => { if (!u) return; onPick(u); setQ(''); setResults([]); };
+  const onKey = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, Math.max(shown.length - 1, 0))); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter') { if (open && shown[active]) { e.preventDefault(); pick(shown[active]); } }
+    else if (e.key === 'Escape') {
+      e.preventDefault(); e.stopPropagation();
+      if (q) { setQ(''); setResults([]); } else if (onEscape) onEscape();
+    }
+  };
+
+  return (
+    <div className="ps">
+      <div className={'ps-field' + (open ? ' is-open' : '')}>
+        <svg className="ps-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} placeholder={placeholder}
+          role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
+          aria-activedescendant={open && shown[active] ? `${listId}-${active}` : undefined} autoComplete="off" spellCheck={false} />
+        {loading && <span className="tkt-life-spin ps-spin" aria-hidden="true" />}
+      </div>
+      {open && (
+        <div className="ps-drop" id={listId} role="listbox">
+          {loading && shown.length === 0 && (
+            <>{[0, 1, 2].map((i) => (
+              <div key={i} className="ps-row is-skel" style={{ animationDelay: `${i * 50}ms` }}>
+                <span className="tkt-skel" style={{ width: 28, height: 28, borderRadius: '50%' }} />
+                <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span className="tkt-skel" style={{ width: '45%', height: 10 }} />
+                  <span className="tkt-skel" style={{ width: '70%', height: 8 }} />
+                </span>
+              </div>
+            ))}</>
+          )}
+          {shown.map((u, i) => (
+            <button key={u.id} id={`${listId}-${i}`} type="button" role="option" aria-selected={i === active}
+              className={'ps-row' + (i === active ? ' is-active' : '')} style={{ animationDelay: `${i * 30}ms` }}
+              onMouseEnter={() => setActive(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(u)}>
+              <span className="ps-avatar">{approverInitials(u.name || u.email)}</span>
+              <span className="ps-text">
+                <span className="ps-name"><Hl text={u.name || u.email || u.id} tokens={tokens} /></span>
+                {(u.email || u.title) && <span className="ps-meta"><Hl text={[u.title, u.email].filter(Boolean).join(' · ')} tokens={tokens} /></span>}
+              </span>
+              <span className="ps-enter" aria-hidden="true">↵</span>
+            </button>
+          ))}
+          {!loading && shown.length === 0 && !err && <div className="ps-empty">No one matches “{q.trim()}”.</div>}
+          {err && <div className="ps-empty is-err">{err}</div>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -12128,9 +12192,6 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
   const [preview, setPreview] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [picking, setPicking] = React.useState(false);
-  const [q, setQ] = React.useState('');
-  const [results, setResults] = React.useState([]);
-  const [searching, setSearching] = React.useState(false);
 
   // Approval routes on the BENEFICIARY's manager, so an on-behalf request must
   // preview against them, not the submitter. Serialised the same way the submit
@@ -12164,19 +12225,6 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
     return () => { off = true; };
   }, [itemId, targetKey]);
 
-  React.useEffect(() => {
-    const term = q.trim();
-    if (term.length < 2) { setResults([]); setSearching(false); return; }
-    let off = false; setSearching(true);
-    const h = setTimeout(() => {
-      ticketsApiJson('GET', '/api/users?q=' + encodeURIComponent(term))
-        .then((j) => { if (!off) setResults(Array.isArray(j.users) ? j.users.slice(0, 6) : []); })
-        .catch(() => { if (!off) setResults([]); })
-        .finally(() => { if (!off) setSearching(false); });
-    }, 250);
-    return () => { off = true; clearTimeout(h); };
-  }, [q]);
-
   if (loading) {
     return <p style={{ fontSize: 12.5, color: '#78684C', margin: '18px 0 0' }}>Checking who needs to approve this…</p>;
   }
@@ -12197,7 +12245,7 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
       user_id: String(u.id), name: u.name || u.email || String(u.id), email: u.email || '',
       reason: (override && override.reason) || auto, auto: !!auto,
     });
-    setPicking(false); setQ(''); setResults([]);
+    setPicking(false);
   };
 
   const stages = preview.stages || [];
@@ -12259,7 +12307,7 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                 <div style={{ minWidth: 0, flex: 1 }}>
                   {multiStage && <p style={{ fontSize: 11.5, fontWeight: 700, color: '#55503F', margin: '0 0 5px' }}>{stage.name}</p>}
 
-                  {rows.length === 0 ? (
+                  {changeable && picking ? null : rows.length === 0 ? (
                     // Nobody resolved. On a changeable stage this is the whole
                     // reason the feature exists, so lead with the action instead
                     // of hiding it behind a link.
@@ -12285,7 +12333,8 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                     const subEmail = a.email && a.email !== a.name ? a.email : '';
                     return (
                       <div
-                        key={a.user_id}
+                        key={a.chosen ? 'chosen-' + (override && override.user_id) : a.user_id}
+                        className={'ap-row' + (a.chosen ? ' is-chosen' : '')}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 11,
                           border: '1px solid ' + (a.chosen ? '#211E1E' : (a.account_disabled ? '#E39C9C' : (a.unavailable ? '#E4C868' : '#E6DFCF'))),
@@ -12317,7 +12366,7 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                             </p>
                           )}
                           {a.chosen && (
-                            <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "'Archivo', sans-serif", fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
+                            <span className="ap-picked" style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "'Archivo', sans-serif", fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
                               You picked this
                             </span>
                           )}
@@ -12356,32 +12405,14 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                   )}
 
                   {changeable && picking && (
-                    <div style={{ position: 'relative', marginTop: 8 }}>
-                      <input
-                        autoFocus
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                        placeholder="Who should approve this? Name or email…"
-                        style={TK.field}
-                      />
-                      {q.trim().length >= 2 && (
-                        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30, background: '#fff', border: '1px solid #211E1E', borderRadius: 8, boxShadow: '3px 3px 0 #211E1E', overflow: 'hidden', maxHeight: 210, overflowY: 'auto' }}>
-                          {searching && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>Searching…</div>}
-                          {!searching && results.map((u) => (
-                            <button key={u.id} type="button" onClick={() => pick(u)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: '1px solid #F0EBE0', background: '#fff', cursor: 'pointer' }}>
-                              <span style={{ flexShrink: 0, width: 26, height: 26, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 900 }}>
-                                {approverInitials(u.name || u.email)}
-                              </span>
-                              <span style={{ minWidth: 0 }}>
-                                <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: '#211E1E' }}>{u.name || u.email || u.id}</span>
-                                {(u.email || u.title) && <span style={{ display: 'block', fontSize: 11.5, color: '#78684C' }}>{[u.title, u.email].filter(Boolean).join(' · ')}</span>}
-                              </span>
-                            </button>
-                          ))}
-                          {!searching && results.length === 0 && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>No matches.</div>}
-                        </div>
-                      )}
-                      <button type="button" onClick={() => { setPicking(false); setQ(''); }} style={{ ...textActionBtn, color: '#78684C', marginTop: 7 }}>Cancel</button>
+                    <div className="ap-pick">
+                      <div className="ap-pick-head">
+                        <span>Choose who approves this</span>
+                        <button type="button" className="ap-pick-cancel" onClick={() => setPicking(false)}>Cancel</button>
+                      </div>
+                      <PeopleSearch placeholder="Search by name or email…" limit={6}
+                        onPick={pick} onEscape={() => setPicking(false)} />
+                      <p className="ap-pick-hint">They get the approval instead, and your usual approver is told why.</p>
                     </div>
                   )}
                 </div>
@@ -12396,7 +12427,7 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
           the approval audit trail AND into the notice sent to the manager who
           would otherwise have been asked. */}
       {override && (
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0EBE0' }}>
+        <div className="ap-reason" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0EBE0' }}>
           <label style={{ ...TK.label, marginTop: 0 }}>
             {override.auto ? 'Reason recorded on the ticket' : 'Why are you changing the approver?'} <span style={{ color: '#B92323' }}>*</span>
           </label>
@@ -12474,15 +12505,10 @@ function TalkedToAgentPicker({ value, onChange, note, onNoteChange }) {
 function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   // Tolerate the older single-object/null shape in case a caller isn't updated.
   const people = Array.isArray(value) ? value : (value ? [value] : []);
-  const [q, setQ] = React.useState('');
-  const [results, setResults] = React.useState([]);
-  const [loading, setLoading] = React.useState(false);
-  const [err, setErr] = React.useState('');
   // Has the requester said "this isn't for me"? Distinct from an empty list:
   // pressing the button drops them from the list AND opens the search, and we
   // need to tell that apart from a list that merely happens to be empty.
   const [forOthers, setForOthers] = React.useState(people.length > 0 && !people.some((p) => self && String(p.id) === String(self.id)));
-  const searchRef = React.useRef(null);
 
   const selfId = self && self.id != null ? String(self.id) : '';
   const has = (id) => people.some((p) => String(p.id) === String(id));
@@ -12503,30 +12529,16 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   // of that state rather than a decoration standing in for it.
   const collapsed = !forOthers && people.length === 0;
 
-  React.useEffect(() => {
-    const term = q.trim();
-    if (term.length < 2) { setResults([]); setLoading(false); return; }
-    let off = false; setLoading(true); setErr('');
-    const h = setTimeout(() => {
-      ticketsApiJson('GET', '/api/users?q=' + encodeURIComponent(term))
-        .then((j) => { if (!off) setResults(Array.isArray(j.users) ? j.users.slice(0, 8) : []); })
-        .catch((e) => { if (!off) { setResults([]); setErr(e.message || 'Couldn’t search people.'); } })
-        .finally(() => { if (!off) setLoading(false); });
-    }, 250);
-    return () => { off = true; clearTimeout(h); };
-  }, [q]);
-
   const add = (u) => {
-    if (u.id == null || has(u.id)) { setQ(''); setResults([]); return; }
+    if (u.id == null || has(u.id)) return;
     onChange([...people, { id: u.id, name: u.name, email: u.email }]);
-    setQ(''); setResults([]);
   };
   const remove = (id) => {
     const next = people.filter((p) => String(p.id) !== String(id));
     onChange(next);
     // Emptied it out entirely → fall back to the quiet "for you" default rather
     // than leaving a bare search box with no stated recipient.
-    if (next.length === 0) { setForOthers(false); setQ(''); setResults([]); }
+    if (next.length === 0) setForOthers(false);
   };
   // ⚠️ "for someone else, nobody picked yet" is an INCOMPLETE state, not "for
   // me". The wire format uses [] for "for me", so without telling the parent, a
@@ -12539,9 +12551,8 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   const startForOthers = () => {
     setForOthers(true);
     onChange([]);                 // you are out the moment you say it isn't for you
-    setTimeout(() => searchRef.current && searchRef.current.focus(), 0);
   };
-  const backToMe = () => { setForOthers(false); onChange([]); setQ(''); setResults([]); };
+  const backToMe = () => { setForOthers(false); onChange([]); };
 
   const ini = (v) => {
     const raw = String(v || '').trim();
@@ -12563,7 +12574,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   // ── Default: it's for you. A statement, not a control. ──
   if (collapsed) {
     return (
-      <div style={{ marginBottom: 4 }}>
+      <div key="me" className="rfp-swap" style={{ marginBottom: 4 }}>
         <label style={{ ...TK.label, marginBottom: 9 }}>Requesting for</label>
         {/* flexWrap + the ellipsised middle block keep the button on the row: a
             long name can never push it off, and under ~380px it drops to its own
@@ -12576,14 +12587,8 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
             </p>
             {self && self.email && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: '#78684C', ...ell }}>{self.email}</p>}
           </span>
-          <button
-            type="button"
-            onClick={startForOthers}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translate(-1px,-1px)'; e.currentTarget.style.boxShadow = '4px 4px 0 #211E1E'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '3px 3px 0 #211E1E'; }}
-            style={{ flexShrink: 0, maxWidth: '100%', display: 'inline-flex', alignItems: 'center', gap: 7, border: '1px solid #211E1E', background: '#FFFDF4', boxShadow: '3px 3px 0 #211E1E', borderRadius: 9, padding: '9px 13px', fontFamily: 'inherit', fontSize: 12, fontWeight: 800, color: '#211E1E', whiteSpace: 'nowrap', cursor: 'pointer', transition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)' }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <button type="button" onClick={startForOthers} className="rfp-btn">
+            <svg className="rfp-btn-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" />
             </svg>
             Request this for someone else
@@ -12594,10 +12599,9 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   }
 
   // ── Someone else (or several). ──
-  const shown = results.filter((u) => !has(u.id));
   const n = people.length;
   return (
-    <div style={{ marginBottom: 4 }}>
+    <div key="others" className="rfp-swap" style={{ marginBottom: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
         <label style={{ ...TK.label, marginTop: 0, marginBottom: 0 }}>Who is this for?</label>
         {n > 1 && (
@@ -12619,7 +12623,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
             const isSelf = selfId && String(p.id) === selfId;
             const only = n === 1;
             return (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 11px', borderTop: '1px solid #F0EBE0' }}>
+              <div key={p.id} className="rfp-person" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 11px', borderTop: '1px solid #F0EBE0' }}>
                 {avatar(p.name || p.email, 30)}
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, ...ell }}>{p.name || p.email || p.id}{isSelf ? youTag : null}</p>
@@ -12628,10 +12632,11 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
                 <button
                   type="button"
                   onClick={() => remove(p.id)}
-                  disabled={only}
-                  title={only ? 'Remove this and the request goes back to being for you' : 'Remove ' + (p.name || p.email)}
-                  style={{ flexShrink: 0, border: '1px solid #C9C0AB', background: 'transparent', borderRadius: 999, padding: '4px 9px', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#78684C', cursor: only ? 'pointer' : 'pointer', opacity: 1 }}
+                  title={only ? 'Remove, and the request goes back to being for you' : 'Remove ' + (p.name || p.email)}
+                  className="rfp-remove"
+                  aria-label={'Remove ' + (p.name || p.email)}
                 >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
                   Remove
                 </button>
               </div>
@@ -12640,34 +12645,18 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
         </div>
       )}
 
-      <div style={{ position: 'relative', marginTop: n > 0 ? 9 : 0 }}>
-        <input
-          ref={searchRef}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+      <div style={{ marginTop: n > 0 ? 9 : 0 }}>
+        <PeopleSearch
+          key={n}
           placeholder={n > 0 ? 'Add another person…' : 'Search by name or email…'}
-          style={TK.field}
-        />
-        {q.trim().length >= 2 && (
-          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30, background: '#fff', border: '1px solid #211E1E', borderRadius: 8, boxShadow: '3px 3px 0 #211E1E', overflow: 'hidden', maxHeight: 248, overflowY: 'auto' }}>
-            {loading && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>Searching…</div>}
-            {!loading && shown.map((u) => (
-              <button key={u.id} type="button" onClick={() => add(u)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: '1px solid #F0EBE0', background: '#fff', cursor: 'pointer' }}>
-                {avatar(u.name || u.email, 26)}
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: '#211E1E', ...ell }}>{u.name || u.email || u.id}</span>
-                  {(u.email || u.title) && <span style={{ display: 'block', fontSize: 11.5, color: '#78684C', ...ell }}>{[u.title, u.email].filter(Boolean).join(' · ')}</span>}
-                </span>
-              </button>
-            ))}
-            {!loading && shown.length === 0 && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>No matches.</div>}
-          </div>
-        )}
-        {err && <p style={{ color: '#B92323', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+          exclude={(u) => has(u.id)}
+          onPick={add}
+          onEscape={n === 0 ? backToMe : undefined} />
       </div>
 
       {n === 0 ? (
-        <div style={{ border: '1px dashed #C9C0AB', borderRadius: 10, padding: 13, textAlign: 'center', background: '#FCFBF7', marginTop: 9 }}>
+        <div className="rfp-empty" style={{ border: '1px dashed #C9C0AB', borderRadius: 10, padding: 13, textAlign: 'center', background: '#FCFBF7', marginTop: 9 }}>
+          <svg className="rfp-empty-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></svg>
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Nobody chosen yet</p>
           <span style={{ display: 'block', marginTop: 2, fontSize: 11.5, color: '#78684C' }}>Start typing a name above to find them.</span>
         </div>
