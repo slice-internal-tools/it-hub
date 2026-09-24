@@ -266,8 +266,8 @@
   .cdlg-error { margin: 12px 0 0; font-size: 13px; font-weight: 600; color: #B92323; }
   .cdlg-actions { display: flex; gap: 10px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
   .cdlg-actions .tkt-life-btn { flex: 1 1 140px; }
-  .cdlg-confirm.tone-ok { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 #FDC831, 3px 3px 0 1px #211E1E; }
-  .cdlg-confirm.tone-ok:hover:not(:disabled) { background: #2E2A28; box-shadow: 5px 5px 0 #FDC831, 5px 5px 0 1px #211E1E; }
+  .cdlg-confirm.tone-ok { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 rgba(33,30,30,.3); }
+  .cdlg-confirm.tone-ok:hover:not(:disabled) { background: #2E2A28; box-shadow: 5px 5px 0 rgba(33,30,30,.3); }
   .cdlg-confirm.tone-danger { background: #B92323; color: #FFFFFF; }
   .cdlg-confirm.tone-danger:hover:not(:disabled) { background: #9E1B1B; }
   .cdlg-confirm.tone-accent { background: #FDC831; }
@@ -300,20 +300,21 @@
   .tkt-life-btn:disabled { cursor: default; opacity: .75; }
   .tkt-life-btn:focus-visible { outline: 3px solid rgba(33,30,30,.35); outline-offset: 2px; }
   /* Send reply: the dark variant, and the split with its ▾ options. */
-  /* Dark buttons cast a CHEESE shadow, not a charcoal one — a black shadow
-     under a black button merged into one heavy blob. */
-  .tkt-life-btn.is-send { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 #FDC831, 3px 3px 0 1px #211E1E; }
-  .tkt-life-btn.is-send:hover:not(:disabled) { box-shadow: 5px 5px 0 #FDC831, 5px 5px 0 1px #211E1E; }
-  .tkt-life-btn.is-send:active:not(:disabled) { box-shadow: 1px 1px 0 #FDC831, 1px 1px 0 1px #211E1E; }
+  /* Dark buttons cast a soft, translucent charcoal shadow: a solid black
+     one merged with the button into one heavy blob, and a cheese one with a
+     dark edge read as a separate block behind it. */
+  .tkt-life-btn.is-send { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 rgba(33,30,30,.3); }
+  .tkt-life-btn.is-send:hover:not(:disabled) { box-shadow: 5px 5px 0 rgba(33,30,30,.3); }
+  .tkt-life-btn.is-send:active:not(:disabled) { box-shadow: 1px 1px 0 rgba(33,30,30,.3); }
   .tkt-life-btn.is-send:hover:not(:disabled) { background: #2E2A28; }
   .tkt-life-btn.is-send:hover:not(:disabled) .tkt-send-plane { transform: translate(3px, -3px) rotate(-6deg); }
   .tkt-life-btn.is-send:disabled { background: #8A8480; color: #F4EEE0; border-color: #8A8480; opacity: 1; box-shadow: 2px 2px 0 rgba(33,30,30,.25); }
   .tkt-split {
-    display: inline-flex; border-radius: 10px; box-shadow: 3px 3px 0 #FDC831, 3px 3px 0 1px #211E1E;
+    display: inline-flex; border-radius: 10px; box-shadow: 3px 3px 0 rgba(33,30,30,.3);
     transition: transform .18s var(--ease), box-shadow .18s var(--ease);
   }
-  .tkt-split:hover:not(.is-disabled), .tkt-split.is-open { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 #FDC831, 5px 5px 0 1px #211E1E; }
-  .tkt-split:active:not(.is-disabled) { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #FDC831, 1px 1px 0 1px #211E1E; }
+  .tkt-split:hover:not(.is-disabled), .tkt-split.is-open { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 rgba(33,30,30,.3); }
+  .tkt-split:active:not(.is-disabled) { transform: translate(1px, 1px); box-shadow: 1px 1px 0 rgba(33,30,30,.3); }
   .tkt-split.is-disabled { box-shadow: 2px 2px 0 rgba(33,30,30,.25); }
   .tkt-split > .tkt-life-btn, .tkt-split > .tkt-life-btn:hover:not(:disabled), .tkt-split > .tkt-life-btn:active:not(:disabled) { box-shadow: none; transform: none; }
   .tkt-split-main:not(:only-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
@@ -961,12 +962,12 @@
   }
   /* Primary / outline buttons — the same family as the lifecycle and Back
      buttons: 10px corners, a hard offset shadow, lift on hover, press in.
-     Dark buttons cast a CHEESE shadow (with a hairline edge) so they never
-     read as black-on-black. */
+     Dark buttons cast a soft translucent shadow so they never read as a
+     black-on-black blob or a detached block. */
   .btn-primary {
     background: #211E1E; color: #FDC831;
     border: 1px solid #211E1E;
-    box-shadow: 3px 3px 0 #FDC831, 3px 3px 0 1px #211E1E;
+    box-shadow: 3px 3px 0 rgba(33,30,30,.3);
     border-radius: 10px;
     font-family: 'Archivo', sans-serif;
     font-weight: 800;
@@ -977,9 +978,9 @@
   .btn-primary:hover:not(:disabled) {
     transform: translate(-2px, -2px);
     background: #2E2A28;
-    box-shadow: 5px 5px 0 #FDC831, 5px 5px 0 1px #211E1E;
+    box-shadow: 5px 5px 0 rgba(33,30,30,.3);
   }
-  .btn-primary:active:not(:disabled) { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #FDC831, 1px 1px 0 1px #211E1E; transition-duration: .08s; }
+  .btn-primary:active:not(:disabled) { transform: translate(1px, 1px); box-shadow: 1px 1px 0 rgba(33,30,30,.3); transition-duration: .08s; }
   .btn-ghost { color: var(--ink-2); }
   .btn-ghost:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
   .btn-outline {
@@ -1342,13 +1343,13 @@
     transition: transform .18s var(--ease), box-shadow .18s var(--ease), background-color .18s var(--ease), color .18s var(--ease);
   }
   .pg-actions .btn-outline, .done-actions .btn-outline, .rep-actions .btn-outline { background: #FFFFFF; color: #211E1E; }
-  .pg-actions .btn-primary, .done-actions .btn-primary, .rep-actions .btn-primary { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 #FDC831, 3px 3px 0 1px #211E1E; }
+  .pg-actions .btn-primary, .done-actions .btn-primary, .rep-actions .btn-primary { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 rgba(33,30,30,.3); }
   .pg-actions .btn:hover:not(:disabled), .done-actions .btn:hover:not(:disabled), .rep-actions .btn:hover:not(:disabled) {
     transform: translate(-2px, -2px); box-shadow: 5px 5px 0 #211E1E;
   }
   .pg-actions .btn-outline:hover:not(:disabled), .done-actions .btn-outline:hover:not(:disabled), .rep-actions .btn-outline:hover:not(:disabled) { background: #FFF3C4; }
-  .pg-actions .btn-primary:hover:not(:disabled), .done-actions .btn-primary:hover:not(:disabled), .rep-actions .btn-primary:hover:not(:disabled) { background: #2E2A28; box-shadow: 5px 5px 0 #FDC831, 5px 5px 0 1px #211E1E; }
-  .pg-actions .btn-primary:active:not(:disabled), .done-actions .btn-primary:active:not(:disabled), .rep-actions .btn-primary:active:not(:disabled) { box-shadow: 1px 1px 0 #FDC831, 1px 1px 0 1px #211E1E; }
+  .pg-actions .btn-primary:hover:not(:disabled), .done-actions .btn-primary:hover:not(:disabled), .rep-actions .btn-primary:hover:not(:disabled) { background: #2E2A28; box-shadow: 5px 5px 0 rgba(33,30,30,.3); }
+  .pg-actions .btn-primary:active:not(:disabled), .done-actions .btn-primary:active:not(:disabled), .rep-actions .btn-primary:active:not(:disabled) { box-shadow: 1px 1px 0 rgba(33,30,30,.3); }
   .pg-actions .btn:active:not(:disabled), .done-actions .btn:active:not(:disabled), .rep-actions .btn:active:not(:disabled) {
     transform: translate(1px, 1px); box-shadow: 1px 1px 0 #211E1E; transition-duration: .08s;
   }
