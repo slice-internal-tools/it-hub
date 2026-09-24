@@ -234,6 +234,53 @@
     will-change: transform, width;
   }
 
+  /* Confirmation dialog (close / cancel / reopen a ticket). */
+  .cdlg-backdrop {
+    position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 20px;
+    background: rgba(33,30,30,.46); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    animation: cdlgFade .2s ease-out both;
+  }
+  .cdlg-backdrop.is-closing { animation: cdlgFadeOut .17s ease-in both; }
+  .cdlg-panel {
+    width: min(440px, 100%); box-sizing: border-box; padding: 26px 26px 22px; text-align: center;
+    background: #FFFFFF; border: 1.5px solid #211E1E; border-radius: 18px;
+    box-shadow: 5px 5px 0 #211E1E, 0 30px 60px -20px rgba(33,30,30,.45);
+    animation: cdlgPop .34s cubic-bezier(.2,1.25,.35,1) both;
+  }
+  .cdlg-panel.is-closing { animation: cdlgOut .17s ease-in both; }
+  .cdlg-icon {
+    width: 58px; height: 58px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center;
+    border: 1.5px solid #211E1E; box-shadow: 3px 3px 0 #211E1E;
+    animation: tktPop .45s cubic-bezier(.34,1.56,.64,1) .08s both;
+  }
+  .tone-ok .cdlg-icon { background: #D4F4D4; color: #0A6B30; }
+  .tone-danger .cdlg-icon { background: #FFE4E2; color: #B92323; }
+  .tone-accent .cdlg-icon { background: #FDC831; color: #211E1E; }
+  .cdlg-check { stroke-dasharray: 24; stroke-dashoffset: 24; animation: doneDraw .4s .3s var(--ease) forwards; }
+  .cdlg-kicker {
+    font: 800 10.5px 'Archivo', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #78684C;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px;
+  }
+  .cdlg-title { margin: 0; font: 900 22px/1.15 'Archivo', sans-serif; letter-spacing: -0.02em; color: #211E1E; text-wrap: balance; }
+  .cdlg-body { margin: 10px auto 0; max-width: 34ch; font-size: 14.5px; line-height: 1.5; color: #4A3F2E; }
+  .cdlg-error { margin: 12px 0 0; font-size: 13px; font-weight: 600; color: #B92323; }
+  .cdlg-actions { display: flex; gap: 10px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+  .cdlg-actions .tkt-life-btn { flex: 1 1 140px; }
+  .cdlg-confirm.tone-ok { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 rgba(33,30,30,.3); }
+  .cdlg-confirm.tone-ok:hover:not(:disabled) { background: #2E2A28; box-shadow: 5px 5px 0 rgba(33,30,30,.3); }
+  .cdlg-confirm.tone-danger { background: #B92323; color: #FFFFFF; }
+  .cdlg-confirm.tone-danger:hover:not(:disabled) { background: #9E1B1B; }
+  .cdlg-confirm.tone-accent { background: #FDC831; }
+  .cdlg-confirm.tone-accent:hover:not(:disabled) { background: #FFD84D; }
+  .cdlg-actions .tkt-life-btn:focus-visible { outline: 3px solid rgba(33,30,30,.35); outline-offset: 3px; }
+  @keyframes cdlgFade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes cdlgFadeOut { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes cdlgPop { from { opacity: 0; transform: translateY(14px) scale(.92); } to { opacity: 1; transform: none; } }
+  @keyframes cdlgOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(6px) scale(.97); } }
+  @media (prefers-reduced-motion: reduce) {
+    .cdlg-backdrop, .cdlg-panel, .cdlg-icon, .cdlg-check { animation: none; stroke-dashoffset: 0; }
+  }
+
   /* Ticket lifecycle actions (Close ticket / Cancel request / Reopen ticket). */
   .tkt-life-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -253,20 +300,21 @@
   .tkt-life-btn:disabled { cursor: default; opacity: .75; }
   .tkt-life-btn:focus-visible { outline: 3px solid rgba(33,30,30,.35); outline-offset: 2px; }
   /* Send reply: the dark variant, and the split with its ▾ options. */
-  /* Dark buttons cast a CHEESE shadow, not a charcoal one — a black shadow
-     under a black button merged into one heavy blob. */
-  .tkt-life-btn.is-send { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 #FDC831, 3px 3px 0 1px #211E1E; }
-  .tkt-life-btn.is-send:hover:not(:disabled) { box-shadow: 5px 5px 0 #FDC831, 5px 5px 0 1px #211E1E; }
-  .tkt-life-btn.is-send:active:not(:disabled) { box-shadow: 1px 1px 0 #FDC831, 1px 1px 0 1px #211E1E; }
+  /* Dark buttons cast a soft, translucent charcoal shadow: a solid black
+     one merged with the button into one heavy blob, and a cheese one with a
+     dark edge read as a separate block behind it. */
+  .tkt-life-btn.is-send { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 rgba(33,30,30,.3); }
+  .tkt-life-btn.is-send:hover:not(:disabled) { box-shadow: 5px 5px 0 rgba(33,30,30,.3); }
+  .tkt-life-btn.is-send:active:not(:disabled) { box-shadow: 1px 1px 0 rgba(33,30,30,.3); }
   .tkt-life-btn.is-send:hover:not(:disabled) { background: #2E2A28; }
   .tkt-life-btn.is-send:hover:not(:disabled) .tkt-send-plane { transform: translate(3px, -3px) rotate(-6deg); }
   .tkt-life-btn.is-send:disabled { background: #8A8480; color: #F4EEE0; border-color: #8A8480; opacity: 1; box-shadow: 2px 2px 0 rgba(33,30,30,.25); }
   .tkt-split {
-    display: inline-flex; border-radius: 10px; box-shadow: 3px 3px 0 #FDC831, 3px 3px 0 1px #211E1E;
+    display: inline-flex; border-radius: 10px; box-shadow: 3px 3px 0 rgba(33,30,30,.3);
     transition: transform .18s var(--ease), box-shadow .18s var(--ease);
   }
-  .tkt-split:hover:not(.is-disabled), .tkt-split.is-open { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 #FDC831, 5px 5px 0 1px #211E1E; }
-  .tkt-split:active:not(.is-disabled) { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #FDC831, 1px 1px 0 1px #211E1E; }
+  .tkt-split:hover:not(.is-disabled), .tkt-split.is-open { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 rgba(33,30,30,.3); }
+  .tkt-split:active:not(.is-disabled) { transform: translate(1px, 1px); box-shadow: 1px 1px 0 rgba(33,30,30,.3); }
   .tkt-split.is-disabled { box-shadow: 2px 2px 0 rgba(33,30,30,.25); }
   .tkt-split > .tkt-life-btn, .tkt-split > .tkt-life-btn:hover:not(:disabled), .tkt-split > .tkt-life-btn:active:not(:disabled) { box-shadow: none; transform: none; }
   .tkt-split-main:not(:only-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
@@ -303,11 +351,19 @@
   .pg-shell { background: #FDC831; }
   /* 1120 of content + the 32px gutters — the same column as My Tickets and
      the Help page, so Back and titles line up across every page. */
-  .pg-inner { width: 100%; max-width: calc(1120px + 64px); margin: 0 auto; padding: 26px 32px 72px; box-sizing: border-box; }
+  .pg-topbar { width: 100%; max-width: calc(1120px + 64px); margin: 0 auto; padding: 16px 32px 0; box-sizing: border-box; }
+  .pg-inner { width: 100%; max-width: calc(1120px + 64px); margin: 0 auto; padding: 14px 32px 72px; box-sizing: border-box; }
+  /* Centred pages on wide screens: Back sits in the free space left of the
+     column, level with the title, so the whole page starts higher. Below
+     1180px there's no room beside the column and it stacks above instead. */
+  @media (min-width: 1180px) {
+    .pg-topbar.is-beside { height: 0; overflow: visible; position: relative; z-index: 2; }
+    .pg-topbar.is-beside + .pg-inner { padding-top: 16px; }
+  }
   .pg-inner.is-centered { margin: 0 auto; }
   .pg-inner.is-center-head .pg-head { align-items: center; text-align: center; }
   .pg-inner.is-center-head .pg-titlerow { justify-content: center; }
-  .pg-head { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+  .pg-head { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
   .pg-titlerow { display: flex; align-items: center; gap: 14px; min-width: 0; }
   .pg-logo {
     width: 56px; height: 56px; flex: none; border-radius: 14px; display: grid; place-items: center; overflow: hidden;
@@ -483,6 +539,17 @@
     background: rgba(253,200,49,.92); backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
   }
   .cat-bar-row { display: flex; gap: 10px; align-items: stretch; }
+  /* Stuck: slimmer bar while scrolling, like the Help page's mini search. */
+  .cat-bar.is-sticky { transition: padding .22s var(--ease), box-shadow .22s var(--ease); }
+  .cat-bar.is-stuck { padding-top: 8px; padding-bottom: 8px; box-shadow: 0 1px 0 rgba(33,30,30,.18), 0 8px 18px -12px rgba(33,30,30,.35); }
+  .cat-search, .cat-custom { transition: height .22s var(--ease), transform .22s var(--ease), box-shadow .22s var(--ease), background-color .2s var(--ease); }
+  .cat-bar.is-stuck .cat-search { height: 44px; border-radius: 12px; border-width: 1px; box-shadow: 2px 2px 0 #211E1E; }
+  .cat-bar.is-stuck .cat-search:focus-within { box-shadow: 3px 3px 0 #211E1E; transform: translate(-1px, -1px); }
+  .cat-bar.is-stuck .cat-search input { font-size: 14.5px; }
+  .cat-bar.is-stuck .cat-custom { height: 44px; border-radius: 12px; padding: 0 14px 0 8px; }
+  .cat-bar.is-stuck .cat-custom-plus { width: 26px; height: 26px; border-radius: 8px; }
+  .cat-bar.is-stuck .cat-custom-sub { display: none; }
+  .cat-bar.is-stuck .cat-hint { margin-top: 8px; min-height: 0; }
   .cat-search {
     flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 12px 0 18px; box-sizing: border-box;
     background: #FFFFFF; border: 1.5px solid #211E1E; border-radius: 16px;
@@ -586,7 +653,8 @@
   .cat-tile2:hover .cat-tile2-go, .cat-tile2:focus-visible .cat-tile2-go { opacity: 1; transform: none; }
 
   @media (max-width: 640px) {
-    .pg-inner { padding: 18px 16px 56px; }
+    .pg-topbar { padding: 12px 16px 0; }
+    .pg-inner { padding: 12px 16px 56px; }
     .pg-title { font-size: 28px; }
     .cat-bar.is-sticky { margin: 0 -16px 14px; padding: 10px 16px; }
     .cat-custom { padding: 0 12px; }
@@ -894,12 +962,12 @@
   }
   /* Primary / outline buttons — the same family as the lifecycle and Back
      buttons: 10px corners, a hard offset shadow, lift on hover, press in.
-     Dark buttons cast a CHEESE shadow (with a hairline edge) so they never
-     read as black-on-black. */
+     Dark buttons cast a soft translucent shadow so they never read as a
+     black-on-black blob or a detached block. */
   .btn-primary {
     background: #211E1E; color: #FDC831;
     border: 1px solid #211E1E;
-    box-shadow: 3px 3px 0 #FDC831, 3px 3px 0 1px #211E1E;
+    box-shadow: 3px 3px 0 rgba(33,30,30,.3);
     border-radius: 10px;
     font-family: 'Archivo', sans-serif;
     font-weight: 800;
@@ -910,9 +978,9 @@
   .btn-primary:hover:not(:disabled) {
     transform: translate(-2px, -2px);
     background: #2E2A28;
-    box-shadow: 5px 5px 0 #FDC831, 5px 5px 0 1px #211E1E;
+    box-shadow: 5px 5px 0 rgba(33,30,30,.3);
   }
-  .btn-primary:active:not(:disabled) { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #FDC831, 1px 1px 0 1px #211E1E; transition-duration: .08s; }
+  .btn-primary:active:not(:disabled) { transform: translate(1px, 1px); box-shadow: 1px 1px 0 rgba(33,30,30,.3); transition-duration: .08s; }
   .btn-ghost { color: var(--ink-2); }
   .btn-ghost:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
   .btn-outline {
@@ -1275,13 +1343,13 @@
     transition: transform .18s var(--ease), box-shadow .18s var(--ease), background-color .18s var(--ease), color .18s var(--ease);
   }
   .pg-actions .btn-outline, .done-actions .btn-outline, .rep-actions .btn-outline { background: #FFFFFF; color: #211E1E; }
-  .pg-actions .btn-primary, .done-actions .btn-primary, .rep-actions .btn-primary { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 #FDC831, 3px 3px 0 1px #211E1E; }
+  .pg-actions .btn-primary, .done-actions .btn-primary, .rep-actions .btn-primary { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 rgba(33,30,30,.3); }
   .pg-actions .btn:hover:not(:disabled), .done-actions .btn:hover:not(:disabled), .rep-actions .btn:hover:not(:disabled) {
     transform: translate(-2px, -2px); box-shadow: 5px 5px 0 #211E1E;
   }
   .pg-actions .btn-outline:hover:not(:disabled), .done-actions .btn-outline:hover:not(:disabled), .rep-actions .btn-outline:hover:not(:disabled) { background: #FFF3C4; }
-  .pg-actions .btn-primary:hover:not(:disabled), .done-actions .btn-primary:hover:not(:disabled), .rep-actions .btn-primary:hover:not(:disabled) { background: #2E2A28; box-shadow: 5px 5px 0 #FDC831, 5px 5px 0 1px #211E1E; }
-  .pg-actions .btn-primary:active:not(:disabled), .done-actions .btn-primary:active:not(:disabled), .rep-actions .btn-primary:active:not(:disabled) { box-shadow: 1px 1px 0 #FDC831, 1px 1px 0 1px #211E1E; }
+  .pg-actions .btn-primary:hover:not(:disabled), .done-actions .btn-primary:hover:not(:disabled), .rep-actions .btn-primary:hover:not(:disabled) { background: #2E2A28; box-shadow: 5px 5px 0 rgba(33,30,30,.3); }
+  .pg-actions .btn-primary:active:not(:disabled), .done-actions .btn-primary:active:not(:disabled), .rep-actions .btn-primary:active:not(:disabled) { box-shadow: 1px 1px 0 rgba(33,30,30,.3); }
   .pg-actions .btn:active:not(:disabled), .done-actions .btn:active:not(:disabled), .rep-actions .btn:active:not(:disabled) {
     transform: translate(1px, 1px); box-shadow: 1px 1px 0 #211E1E; transition-duration: .08s;
   }

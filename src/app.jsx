@@ -8084,6 +8084,72 @@ function ReturnToHRModal({ onCancel, onConfirm }) {
 // ============================================================================
 // SHARED MODAL SHELL + BUTTON STYLES
 // ============================================================================
+// "Are you sure?" for actions that change a ticket (close / cancel / reopen).
+// Springs in over a blurred backdrop with a toned icon, animates out on
+// Cancel/Esc and after a successful confirm, focuses the confirm button (so
+// Enter confirms), keeps Tab inside the dialog and hands focus back to
+// whatever opened it.
+//   tone: 'ok' (green) | 'danger' (red) | 'accent' (cheese)
+//   onConfirm: async → truthy when it worked (the dialog then closes itself)
+function ConfirmDialog({ kicker, title, body, tone = 'ok', icon, confirmLabel, busyLabel, busy, error, onConfirm, onDone }) {
+  const [closing, setClosing] = React.useState(false);
+  const panelRef = React.useRef(null);
+  const confirmRef = React.useRef(null);
+  const openerRef = React.useRef(typeof document !== 'undefined' ? document.activeElement : null);
+  const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const titleId = React.useId ? React.useId() : 'confirm-title';
+
+  const finish = React.useCallback(() => {
+    setClosing(true);
+    setTimeout(() => {
+      onDone && onDone();
+      const el = openerRef.current;
+      if (el && el.focus && document.contains(el)) el.focus();
+    }, reduce ? 0 : 170);
+  }, [onDone, reduce]);
+
+  React.useEffect(() => { const id = setTimeout(() => confirmRef.current && confirmRef.current.focus(), 60); return () => clearTimeout(id); }, []);
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !busy && !closing) { e.preventDefault(); finish(); }
+      if (e.key === 'Tab' && panelRef.current) {
+        const f = [...panelRef.current.querySelectorAll('button:not([disabled])')];
+        if (!f.length) return;
+        const i = f.indexOf(document.activeElement);
+        if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+        else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [busy, closing, finish]);
+
+  const confirm = async () => {
+    if (busy || closing) return;
+    const ok = await onConfirm();
+    if (ok) finish();
+  };
+
+  return ReactDOM.createPortal((
+    <div className={'cdlg-backdrop' + (closing ? ' is-closing' : '')} onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) finish(); }}>
+      <div ref={panelRef} role="alertdialog" aria-modal="true" aria-labelledby={titleId} className={'cdlg-panel tone-' + tone + (closing ? ' is-closing' : '')}>
+        <span className="cdlg-icon" aria-hidden="true">{icon}</span>
+        {kicker && <div className="cdlg-kicker">{kicker}</div>}
+        <h2 id={titleId} className="cdlg-title">{title}</h2>
+        {body && <p className="cdlg-body">{body}</p>}
+        {error && <p className="cdlg-error" role="alert">{error}</p>}
+        <div className="cdlg-actions">
+          <button type="button" className="tkt-life-btn" onClick={finish} disabled={!!busy}>Cancel</button>
+          <button type="button" ref={confirmRef} className={'tkt-life-btn cdlg-confirm tone-' + tone} onClick={confirm} disabled={!!busy} style={{ minWidth: 168 }}>
+            {busy ? <span className="tkt-life-spin" aria-hidden="true" /> : null}
+            {busy ? busyLabel : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  ), document.body);
+}
+
 function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) {
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -8165,11 +8231,15 @@ function PageShell({ title, kicker, subtitle, onClose, children, icon, backLabel
     //              Back and the title on the card's own left edge (forms);
     //              `centerHead` also centres the header (confirmations)
     <div className="page pg-shell">
+      {/* Back always sits top-left on the page's full column — the same spot as
+          on My Tickets — even when the form below is a narrower centred column. */}
+      <div className={'pg-topbar' + (centered ? ' is-beside' : '')}>
+        <button onClick={onClose} className="kb-back-btn pg-back">
+          <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>{backLabel}
+        </button>
+      </div>
       <div className={'pg-inner' + (centered ? ' is-centered' : '') + (centerHead ? ' is-center-head' : '')} style={centered ? { maxWidth: `calc(${maxWidth}px + 64px)` } : undefined}>
         <header className="pg-head">
-          <button onClick={onClose} className="kb-back-btn pg-back">
-            <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>{backLabel}
-          </button>
           <div className="pg-titlerow">
             {logo}
             <div style={{ minWidth: 0 }}>
@@ -10920,33 +10990,33 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
 
           {/* Close / reopen confirmation — "are you sure?" before changing the
               ticket's lifecycle, in both directions. */}
-          {confirmAction && (
-            <ModalShell
-              title={confirmAction === 'reopen' ? 'Reopen this ticket?' : (isPendingApproval ? 'Cancel this request?' : 'Close this ticket?')}
-              kicker={t.ticket_number}
-              maxWidth={460}
-              onClose={() => { if (!statusBusy) setConfirmAction(''); }}>
-              <p style={{ fontSize: 14, color: '#4A3F2E', lineHeight: 1.6, margin: '0 0 18px' }}>
-                {confirmAction === 'reopen'
-                  ? 'This moves the ticket back to open and lets the IT Team know you still need help.'
-                  : (isPendingApproval
-                    ? 'This withdraws your request. You can submit a new one later if you change your mind.'
-                    : 'You can reopen it anytime if you still need help.')}
-              </p>
-              {statusErr && <p style={{ color: '#B92323', fontSize: 13, margin: '0 0 12px' }}>{statusErr}</p>}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <button onClick={() => setConfirmAction('')} disabled={!!statusBusy} style={btnSecondary}>Cancel</button>
-                <button
-                  onClick={async () => { const ok = await changeStatus(confirmAction); if (ok) setConfirmAction(''); }}
-                  disabled={!!statusBusy}
-                  style={{ ...btnPrimary, opacity: statusBusy ? 0.6 : 1, cursor: statusBusy ? 'default' : 'pointer' }}>
-                  {statusBusy === 'reopen' ? 'Reopening…'
-                    : statusBusy === 'close' ? (isPendingApproval ? 'Cancelling…' : 'Closing…')
-                    : (confirmAction === 'reopen' ? 'Reopen ticket' : (isPendingApproval ? 'Cancel request' : 'Close ticket'))}
-                </button>
-              </div>
-            </ModalShell>
-          )}
+          {confirmAction && (() => {
+            const reopening = confirmAction === 'reopen';
+            const cancelling = !reopening && isPendingApproval;
+            const icon = reopening
+              ? <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
+              : cancelling
+                ? <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                : <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><path className="cdlg-check" d="M5 12.5 10 17.5 19 7.5" /></svg>;
+            return (
+              <ConfirmDialog
+                kicker={[t.ticket_number, t.subject].filter(Boolean).join(' · ')}
+                title={reopening ? 'Reopen this ticket?' : cancelling ? 'Cancel this request?' : 'Close this ticket?'}
+                body={reopening
+                  ? 'It moves back to open and the IT Team is told you still need help.'
+                  : cancelling
+                    ? 'This withdraws your request. You can submit a new one any time if you change your mind.'
+                    : 'Glad it’s sorted. You can reopen it any time if the problem comes back.'}
+                tone={reopening ? 'accent' : cancelling ? 'danger' : 'ok'}
+                icon={icon}
+                confirmLabel={reopening ? 'Reopen ticket' : cancelling ? 'Cancel request' : 'Close ticket'}
+                busyLabel={reopening ? 'Reopening…' : cancelling ? 'Cancelling…' : 'Closing…'}
+                busy={!!statusBusy}
+                error={statusErr}
+                onConfirm={() => changeStatus(confirmAction)}
+                onDone={() => setConfirmAction('')} />
+            );
+          })()}
         </>
       )}
     </div>
@@ -11189,6 +11259,20 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const [ffSubject, setFfSubject] = React.useState('');
   const catSearchRef = React.useRef(null);
   const catGridRef = React.useRef(null);
+  // The pinned search bar slims down once the page scrolls under it (same
+  // idea as the Help page's mini search) — full size at the top, compact
+  // while browsing. A zero-height sentinel just above the bar tells us when
+  // it has become stuck.
+  const catBarSentinelRef = React.useRef(null);
+  const [catBarStuck, setCatBarStuck] = React.useState(false);
+  React.useEffect(() => {
+    const el = catBarSentinelRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const root = document.querySelector('.page-scroll');
+    const io = new IntersectionObserver(([entry]) => setCatBarStuck(!entry.isIntersecting), { root, threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [view, catalog]);
   // "/" or ⌘K jumps to the catalog search from anywhere on the list.
   React.useEffect(() => {
     if (view !== 'list') return undefined;
@@ -11572,7 +11656,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // Freeform fallback
   if (view === 'freeform') {
     return (
-      <Shell title="Custom request" onClose={catalog && catalog.length ? () => { setErr(''); setView('list'); } : onClose} backLabel={catalog && catalog.length ? 'All apps & services' : 'Back'} maxWidth={asPage ? 820 : 620} centered>
+      <Shell title="Custom request" onClose={catalog && catalog.length ? () => { setErr(''); setView('list'); } : onClose} backLabel="Back" maxWidth={asPage ? 820 : 620} centered>
         <p style={{ fontSize: 13.5, color: '#78684C', margin: '0 0 4px', lineHeight: 1.5 }}>
           Tell us what you need access to — an app, a service, hardware, or anything else. IT will pick it up.
         </p>
@@ -11596,7 +11680,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // Item form
   if (view === 'form' && item) {
     return (
-      <Shell title={item.name} kicker={item.category_name ? `Service request · ${item.category_name}` : 'Service request'} icon={item.icon_url} onClose={asPage ? () => { setErr(''); setView('list'); } : onClose} backLabel="All apps & services" maxWidth={asPage ? 820 : 680} centered>
+      <Shell title={item.name} kicker={item.category_name ? `Service request · ${item.category_name}` : 'Service request'} icon={item.icon_url} onClose={asPage ? () => { setErr(''); setView('list'); } : onClose} backLabel="Back" maxWidth={asPage ? 820 : 680} centered>
         <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
         {visibleFields.map((f) => {
           // static_text is rendered copy, not an input — no label, no asterisk.
@@ -11719,7 +11803,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         return (
         <>
           {/* Search and the custom-request way out stay pinned while you scroll. */}
-          <div className={asPage ? 'cat-bar is-sticky' : 'cat-bar'}>
+          {asPage && <div ref={catBarSentinelRef} aria-hidden="true" style={{ height: 1, marginBottom: -1 }} />}
+          <div className={asPage ? 'cat-bar is-sticky' + (catBarStuck ? ' is-stuck' : '') : 'cat-bar'}>
             <div className="cat-bar-row">
               <div className={'cat-search' + (catQuery ? ' has-value' : '')}>
                 <svg className="cat-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
