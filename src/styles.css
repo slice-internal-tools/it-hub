@@ -234,6 +234,113 @@
     will-change: transform, width;
   }
 
+  /* ── People search (Request for someone else, Change approver) ───────── */
+  .ps { position: relative; }
+  .ps-field {
+    display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px; box-sizing: border-box;
+    background: #FFFFFF; border: 1.5px solid #211E1E; border-radius: 11px; color: #9A8E78;
+    transition: box-shadow .18s var(--ease), color .18s var(--ease), border-radius .18s var(--ease);
+  }
+  .ps-field:focus-within { box-shadow: 3px 3px 0 #211E1E; color: #211E1E; }
+  .ps-icon { flex: none; transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
+  .ps-field:focus-within .ps-icon { transform: scale(1.1) rotate(-8deg); }
+  .ps-field input { flex: 1; min-width: 0; height: 100%; border: none; outline: none; background: transparent; font: inherit; font-size: 14.5px; color: #211E1E; }
+  .ps-field input::placeholder { color: #A89C84; }
+  .ps-spin { width: 14px; height: 14px; color: #9A8E78; }
+  .ps-drop {
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; padding: 5px;
+    background: #FFFFFF; border: 1px solid #211E1E; border-radius: 12px;
+    box-shadow: 4px 4px 0 #211E1E, 0 16px 34px -14px rgba(33,30,30,.35);
+    max-height: 280px; overflow-y: auto; overscroll-behavior: contain;
+    transform-origin: top center; animation: psDrop .2s cubic-bezier(.2,1.2,.4,1) both;
+  }
+  @keyframes psDrop { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }
+  .ps-row {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 9px; border: none; border-radius: 9px;
+    background: transparent; cursor: pointer; text-align: left; font-family: inherit; color: #211E1E;
+    animation: tktRowIn .24s var(--ease) backwards; transition: background-color .12s var(--ease);
+  }
+  .ps-row.is-active { background: #FFF3C4; }
+  .ps-row.is-skel { cursor: default; }
+  .ps-avatar {
+    width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center;
+    background: #211E1E; color: #FDC831; font: 900 11px/1 'Archivo', sans-serif;
+    transition: transform .25s cubic-bezier(.34,1.56,.64,1);
+  }
+  .ps-row.is-active .ps-avatar { transform: scale(1.08); }
+  .ps-text { flex: 1; min-width: 0; }
+  .ps-name { display: block; font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ps-meta { display: block; font-size: 11.5px; color: #78684C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ps-enter {
+    flex: none; opacity: 0; transform: translateX(-4px); font-size: 12px; font-weight: 800; color: #78684C;
+    padding: 1px 6px; border: 1px solid rgba(33,30,30,.25); border-radius: 5px; background: #FFFFFF;
+    transition: opacity .15s var(--ease), transform .2s var(--ease);
+  }
+  .ps-row.is-active .ps-enter { opacity: 1; transform: none; }
+  .ps-empty { padding: 12px 10px; font-size: 13px; color: #78684C; }
+  .ps-empty.is-err { color: #B92323; font-weight: 600; }
+
+  /* Requested for: swapping between "for you" and "for someone else". */
+  .rfp-swap { animation: rfpSwap .3s var(--ease) both; }
+  @keyframes rfpSwap { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .rfp-btn {
+    flex: none; max-width: 100%; display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px;
+    background: #FFFFFF; color: #211E1E; border: 1px solid #211E1E; border-radius: 10px; box-shadow: 3px 3px 0 #211E1E;
+    font: 800 12px 'Archivo', sans-serif; white-space: nowrap; cursor: pointer;
+    transition: transform .18s var(--ease), box-shadow .18s var(--ease), background-color .18s var(--ease);
+  }
+  .rfp-btn:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 #211E1E; background: #FFF3C4; }
+  .rfp-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #211E1E; }
+  .rfp-btn:focus-visible { outline: 3px solid rgba(33,30,30,.35); outline-offset: 2px; }
+  .rfp-btn-icon { transition: transform .35s cubic-bezier(.34,1.56,.64,1); }
+  .rfp-btn:hover .rfp-btn-icon { transform: scale(1.15) rotate(-6deg); }
+  .rfp-person { animation: rfpPerson .32s cubic-bezier(.2,1.2,.4,1) backwards; }
+  @keyframes rfpPerson { from { opacity: 0; transform: translateY(-6px) scale(.98); background: #FFF3C4; } to { opacity: 1; transform: none; background: transparent; } }
+  .rfp-remove {
+    flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    border: 1px solid #C9C0AB; background: transparent; color: #78684C;
+    font: 800 10px 'Archivo', sans-serif; letter-spacing: .04em; text-transform: uppercase;
+    transition: background-color .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease);
+  }
+  .rfp-remove:hover, .rfp-remove:focus-visible { background: #FFF1EF; border-color: #B92323; color: #B92323; outline: none; }
+  .rfp-empty { animation: rfpSwap .3s var(--ease) .05s both; }
+  .rfp-empty-icon { display: block; margin: 0 auto 6px; animation: rfpNudge 2.4s ease-in-out 1s infinite; }
+  @keyframes rfpNudge { 0%, 70%, 100% { transform: none; } 80% { transform: translateY(-2px); } 90% { transform: translateY(1px); } }
+
+  /* Approval: Change / Undo, the picker panel, the chosen approver. */
+  .ap-change {
+    flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 10px; cursor: pointer;
+    background: #FFFFFF; color: #211E1E; border: 1px solid #211E1E; box-shadow: 2px 2px 0 #211E1E;
+    font: 800 10.5px 'Archivo', sans-serif; letter-spacing: .04em; text-transform: uppercase;
+    transition: transform .18s var(--ease), box-shadow .18s var(--ease), background-color .18s var(--ease);
+  }
+  .ap-change svg { transition: transform .4s cubic-bezier(.34,1.56,.64,1); }
+  .ap-change:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 #211E1E; background: #FFF3C4; }
+  .ap-change:hover svg { transform: rotate(180deg); }
+  .ap-change:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #211E1E; }
+  .ap-change.is-quiet { box-shadow: none; border-color: #C9C0AB; color: #78684C; background: transparent; }
+  .ap-change.is-quiet:hover { box-shadow: none; transform: none; background: #F4EEE0; color: #211E1E; }
+  .ap-change:focus-visible { outline: 3px solid rgba(33,30,30,.35); outline-offset: 2px; }
+  .ap-pick {
+    padding: 12px; border-radius: 12px; background: #FFFBEA; border: 1px solid #E8D48A;
+    animation: rfpSwap .28s var(--ease) both;
+  }
+  .ap-pick-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+  .ap-pick-head span { font: 800 12.5px 'Archivo', sans-serif; color: #211E1E; }
+  .ap-pick-cancel { border: none; background: none; padding: 2px 4px; cursor: pointer; font: 700 12px 'Archivo', sans-serif; color: #78684C; }
+  .ap-pick-cancel:hover { color: #211E1E; text-decoration: underline; }
+  .ap-pick-hint { margin: 8px 0 0; font-size: 11.5px; color: #8A7040; line-height: 1.45; }
+  .ap-row { animation: tktRowIn .28s var(--ease) backwards; }
+  .ap-row.is-chosen { animation: apChosen .45s cubic-bezier(.2,1.2,.4,1) backwards; }
+  @keyframes apChosen { from { opacity: 0; transform: scale(.96); box-shadow: 0 0 0 4px rgba(253,200,49,.8); } to { opacity: 1; transform: none; box-shadow: 0 0 0 0 rgba(253,200,49,0); } }
+  .ap-picked { animation: tktPop .4s cubic-bezier(.34,1.56,.64,1) .15s both; }
+  .ap-reason { animation: rfpSwap .3s var(--ease) .1s both; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ps-drop, .ps-row, .rfp-swap, .rfp-person, .rfp-empty, .rfp-empty-icon, .ap-pick, .ap-row, .ap-row.is-chosen, .ap-picked, .ap-reason { animation: none; }
+    .ps-field, .ps-icon, .ps-avatar, .ps-enter, .rfp-btn, .rfp-btn-icon, .ap-change, .ap-change svg { transition: none; }
+  }
+
   /* Confirmation dialog (close / cancel / reopen a ticket). */
   .cdlg-backdrop {
     position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 20px;
@@ -531,25 +638,41 @@
     .done-check-path { animation: none; stroke-dashoffset: 0; }
   }
 
-  /* Catalog: pinned search / filter bar */
+  /* Catalog: pinned search / filter bar
+     - Solid page yellow, painted edge to edge by ::before. It used to be 92%
+       see-through with a blur + saturate filter, which made the band a
+       different yellow from the page (and tinted by the tiles under it), and
+       the filter re-rendered on every scroll frame over a large grid.
+     - When stuck it slims down, and grows its bottom margin by exactly the
+       height it lost, so the page's height never changes. Shrinking without
+       that compensation shortened the page; near the bottom the browser
+       pulled the scroll position back up, the bar un-stuck, grew, and the
+       two states fought each other — the flicker while scrolling. */
   .cat-bar { margin-bottom: 16px; }
   .cat-bar.is-sticky {
-    position: sticky; top: 0; z-index: 10;
-    margin: 0 -32px 16px; padding: 12px 32px 12px;
-    background: rgba(253,200,49,.92); backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
+    position: sticky; top: 0; z-index: 10; isolation: isolate;
+    margin: 0 -32px 16px; padding: 12px 32px;
+    background: transparent;
+    transition: padding .22s var(--ease), margin .22s var(--ease);
+  }
+  .cat-bar.is-sticky::before {
+    content: ""; position: absolute; z-index: -1; top: 0; bottom: 0;
+    left: calc(50% - 50vw); right: calc(50% - 50vw);
+    background: #FDC831;
+    box-shadow: 0 1px 0 rgba(33,30,30,0), 0 10px 18px -14px rgba(33,30,30,0);
+    transition: box-shadow .22s var(--ease);
   }
   .cat-bar-row { display: flex; gap: 10px; align-items: stretch; }
-  /* Stuck: slimmer bar while scrolling, like the Help page's mini search. */
-  .cat-bar.is-sticky { transition: padding .22s var(--ease), box-shadow .22s var(--ease); }
-  .cat-bar.is-stuck { padding-top: 8px; padding-bottom: 8px; box-shadow: 0 1px 0 rgba(33,30,30,.18), 0 8px 18px -12px rgba(33,30,30,.35); }
+  /* Stuck: 58 → 44 (−14) and 12+12 → 8+8 (−8) = 22px lost, given back below. */
+  .cat-bar.is-stuck { padding-top: 8px; padding-bottom: 8px; margin-bottom: calc(16px + 22px); }
+  .cat-bar.is-stuck::before { box-shadow: 0 1px 0 rgba(33,30,30,.16), 0 10px 18px -14px rgba(33,30,30,.4); }
   .cat-search, .cat-custom { transition: height .22s var(--ease), transform .22s var(--ease), box-shadow .22s var(--ease), background-color .2s var(--ease); }
-  .cat-bar.is-stuck .cat-search { height: 44px; border-radius: 12px; border-width: 1px; box-shadow: 2px 2px 0 #211E1E; }
+  .cat-bar.is-stuck .cat-search { height: 44px; border-radius: 12px; box-shadow: 2px 2px 0 #211E1E; }
   .cat-bar.is-stuck .cat-search:focus-within { box-shadow: 3px 3px 0 #211E1E; transform: translate(-1px, -1px); }
   .cat-bar.is-stuck .cat-search input { font-size: 14.5px; }
   .cat-bar.is-stuck .cat-custom { height: 44px; border-radius: 12px; padding: 0 14px 0 8px; }
   .cat-bar.is-stuck .cat-custom-plus { width: 26px; height: 26px; border-radius: 8px; }
   .cat-bar.is-stuck .cat-custom-sub { display: none; }
-  .cat-bar.is-stuck .cat-hint { margin-top: 8px; min-height: 0; }
   .cat-search {
     flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 12px 0 18px; box-sizing: border-box;
     background: #FFFFFF; border: 1.5px solid #211E1E; border-radius: 16px;
@@ -657,6 +780,7 @@
     .pg-inner { padding: 12px 16px 56px; }
     .pg-title { font-size: 28px; }
     .cat-bar.is-sticky { margin: 0 -16px 14px; padding: 10px 16px; }
+    .cat-bar.is-stuck { padding-top: 8px; padding-bottom: 8px; margin-bottom: calc(14px + 12px); }
     .cat-custom { padding: 0 12px; }
     .cat-custom-sub { display: none; }
     .cat-search { height: 52px; }
