@@ -234,6 +234,53 @@
     will-change: transform, width;
   }
 
+  /* Confirmation dialog (close / cancel / reopen a ticket). */
+  .cdlg-backdrop {
+    position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 20px;
+    background: rgba(33,30,30,.46); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    animation: cdlgFade .2s ease-out both;
+  }
+  .cdlg-backdrop.is-closing { animation: cdlgFadeOut .17s ease-in both; }
+  .cdlg-panel {
+    width: min(440px, 100%); box-sizing: border-box; padding: 26px 26px 22px; text-align: center;
+    background: #FFFFFF; border: 1.5px solid #211E1E; border-radius: 18px;
+    box-shadow: 5px 5px 0 #211E1E, 0 30px 60px -20px rgba(33,30,30,.45);
+    animation: cdlgPop .34s cubic-bezier(.2,1.25,.35,1) both;
+  }
+  .cdlg-panel.is-closing { animation: cdlgOut .17s ease-in both; }
+  .cdlg-icon {
+    width: 58px; height: 58px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center;
+    border: 1.5px solid #211E1E; box-shadow: 3px 3px 0 #211E1E;
+    animation: tktPop .45s cubic-bezier(.34,1.56,.64,1) .08s both;
+  }
+  .tone-ok .cdlg-icon { background: #D4F4D4; color: #0A6B30; }
+  .tone-danger .cdlg-icon { background: #FFE4E2; color: #B92323; }
+  .tone-accent .cdlg-icon { background: #FDC831; color: #211E1E; }
+  .cdlg-check { stroke-dasharray: 24; stroke-dashoffset: 24; animation: doneDraw .4s .3s var(--ease) forwards; }
+  .cdlg-kicker {
+    font: 800 10.5px 'Archivo', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #78684C;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px;
+  }
+  .cdlg-title { margin: 0; font: 900 22px/1.15 'Archivo', sans-serif; letter-spacing: -0.02em; color: #211E1E; text-wrap: balance; }
+  .cdlg-body { margin: 10px auto 0; max-width: 34ch; font-size: 14.5px; line-height: 1.5; color: #4A3F2E; }
+  .cdlg-error { margin: 12px 0 0; font-size: 13px; font-weight: 600; color: #B92323; }
+  .cdlg-actions { display: flex; gap: 10px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+  .cdlg-actions .tkt-life-btn { flex: 1 1 140px; }
+  .cdlg-confirm.tone-ok { background: #211E1E; color: #FDC831; box-shadow: 3px 3px 0 #FDC831, 3px 3px 0 1px #211E1E; }
+  .cdlg-confirm.tone-ok:hover:not(:disabled) { background: #2E2A28; box-shadow: 5px 5px 0 #FDC831, 5px 5px 0 1px #211E1E; }
+  .cdlg-confirm.tone-danger { background: #B92323; color: #FFFFFF; }
+  .cdlg-confirm.tone-danger:hover:not(:disabled) { background: #9E1B1B; }
+  .cdlg-confirm.tone-accent { background: #FDC831; }
+  .cdlg-confirm.tone-accent:hover:not(:disabled) { background: #FFD84D; }
+  .cdlg-actions .tkt-life-btn:focus-visible { outline: 3px solid rgba(33,30,30,.35); outline-offset: 3px; }
+  @keyframes cdlgFade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes cdlgFadeOut { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes cdlgPop { from { opacity: 0; transform: translateY(14px) scale(.92); } to { opacity: 1; transform: none; } }
+  @keyframes cdlgOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(6px) scale(.97); } }
+  @media (prefers-reduced-motion: reduce) {
+    .cdlg-backdrop, .cdlg-panel, .cdlg-icon, .cdlg-check { animation: none; stroke-dashoffset: 0; }
+  }
+
   /* Ticket lifecycle actions (Close ticket / Cancel request / Reopen ticket). */
   .tkt-life-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
