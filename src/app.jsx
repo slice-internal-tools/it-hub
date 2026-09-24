@@ -11257,6 +11257,17 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     id: window.PORTAL_CURRENT_ID, name: window.PORTAL_CURRENT_USER, email: window.PORTAL_CURRENT_EMAIL,
   } : {}), []);
   const [ffSubject, setFfSubject] = React.useState('');
+  // Bumped on every Submit press so a repeated error still shakes.
+  const [errTick, setErrTick] = React.useState(0);
+  // The form's error, shown in the pinned action bar right beside Submit (on
+  // the full page) — where you're looking when it fails — instead of above
+  // the bar where it was easy to miss.
+  const barError = (text) => text ? (
+    <span key={text + ':' + errTick} className="pg-actions-error" role="alert">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4.5" /><path d="M12 16h.01" /></svg>
+      {text}
+    </span>
+  ) : null;
   const catSearchRef = React.useRef(null);
   const catGridRef = React.useRef(null);
   // The pinned search bar slims down once the page scrolls under it (same
@@ -11668,10 +11679,11 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
-        {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
+        {err && !asPage && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
         <div className={asPage ? 'pg-actions' : undefined} style={asPage ? undefined : { display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
+          {asPage && barError(err)}
           <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={submitFreeform} disabled={busy}>{submitLabel}</button>
+          <button className="btn btn-primary" onClick={() => { setErrTick((t) => t + 1); submitFreeform(); }} disabled={busy}>{submitLabel}</button>
         </div>
       </Shell>
     );
@@ -11716,13 +11728,16 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           onBlockedChange={setApprovalBlocked}
           reasonError={approverReasonErr}
         />
-        {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
+        {err && !asPage && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
         {/* On the full page the actions ride along at the bottom of the
-            screen, so a long form never makes you scroll to find Submit. */}
+            screen, so a long form never makes you scroll to find Submit —
+            and a failed submit says why right beside the button. */}
         <div className={asPage ? 'pg-actions' : undefined} style={asPage ? undefined : { display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
-          {asPage && item.approval_required && <span className="pg-actions-note">Goes for approval after you submit</span>}
+          {asPage && (err
+            ? barError(err)
+            : (item.approval_required && <span className="pg-actions-note">Goes for approval after you submit</span>))}
           <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={submitCatalog} disabled={busy}>{submitLabel}</button>
+          <button className="btn btn-primary" onClick={() => { setErrTick((t) => t + 1); submitCatalog(); }} disabled={busy}>{submitLabel}</button>
         </div>
       </Shell>
     );
