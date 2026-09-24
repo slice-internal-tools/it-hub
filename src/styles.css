@@ -303,11 +303,12 @@
   .pg-shell { background: #FDC831; }
   /* 1120 of content + the 32px gutters — the same column as My Tickets and
      the Help page, so Back and titles line up across every page. */
-  .pg-inner { width: 100%; max-width: calc(1120px + 64px); margin: 0 auto; padding: 26px 32px 72px; box-sizing: border-box; }
+  .pg-topbar { width: 100%; max-width: calc(1120px + 64px); margin: 0 auto; padding: 16px 32px 0; box-sizing: border-box; }
+  .pg-inner { width: 100%; max-width: calc(1120px + 64px); margin: 0 auto; padding: 14px 32px 72px; box-sizing: border-box; }
   .pg-inner.is-centered { margin: 0 auto; }
   .pg-inner.is-center-head .pg-head { align-items: center; text-align: center; }
   .pg-inner.is-center-head .pg-titlerow { justify-content: center; }
-  .pg-head { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+  .pg-head { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
   .pg-titlerow { display: flex; align-items: center; gap: 14px; min-width: 0; }
   .pg-logo {
     width: 56px; height: 56px; flex: none; border-radius: 14px; display: grid; place-items: center; overflow: hidden;
@@ -597,7 +598,8 @@
   .cat-tile2:hover .cat-tile2-go, .cat-tile2:focus-visible .cat-tile2-go { opacity: 1; transform: none; }
 
   @media (max-width: 640px) {
-    .pg-inner { padding: 18px 16px 56px; }
+    .pg-topbar { padding: 12px 16px 0; }
+    .pg-inner { padding: 12px 16px 56px; }
     .pg-title { font-size: 28px; }
     .cat-bar.is-sticky { margin: 0 -16px 14px; padding: 10px 16px; }
     .cat-custom { padding: 0 12px; }

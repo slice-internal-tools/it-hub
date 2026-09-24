@@ -8165,11 +8165,15 @@ function PageShell({ title, kicker, subtitle, onClose, children, icon, backLabel
     //              Back and the title on the card's own left edge (forms);
     //              `centerHead` also centres the header (confirmations)
     <div className="page pg-shell">
+      {/* Back always sits top-left on the page's full column — the same spot as
+          on My Tickets — even when the form below is a narrower centred column. */}
+      <div className="pg-topbar">
+        <button onClick={onClose} className="kb-back-btn pg-back">
+          <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>{backLabel}
+        </button>
+      </div>
       <div className={'pg-inner' + (centered ? ' is-centered' : '') + (centerHead ? ' is-center-head' : '')} style={centered ? { maxWidth: `calc(${maxWidth}px + 64px)` } : undefined}>
         <header className="pg-head">
-          <button onClick={onClose} className="kb-back-btn pg-back">
-            <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>{backLabel}
-          </button>
           <div className="pg-titlerow">
             {logo}
             <div style={{ minWidth: 0 }}>
