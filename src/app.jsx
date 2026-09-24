@@ -8167,7 +8167,7 @@ function PageShell({ title, kicker, subtitle, onClose, children, icon, backLabel
     <div className="page pg-shell">
       {/* Back always sits top-left on the page's full column — the same spot as
           on My Tickets — even when the form below is a narrower centred column. */}
-      <div className="pg-topbar">
+      <div className={'pg-topbar' + (centered ? ' is-beside' : '')}>
         <button onClick={onClose} className="kb-back-btn pg-back">
           <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>{backLabel}
         </button>
@@ -11590,7 +11590,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // Freeform fallback
   if (view === 'freeform') {
     return (
-      <Shell title="Custom request" onClose={catalog && catalog.length ? () => { setErr(''); setView('list'); } : onClose} backLabel={catalog && catalog.length ? 'All apps & services' : 'Back'} maxWidth={asPage ? 820 : 620} centered>
+      <Shell title="Custom request" onClose={catalog && catalog.length ? () => { setErr(''); setView('list'); } : onClose} backLabel="Back" maxWidth={asPage ? 820 : 620} centered>
         <p style={{ fontSize: 13.5, color: '#78684C', margin: '0 0 4px', lineHeight: 1.5 }}>
           Tell us what you need access to — an app, a service, hardware, or anything else. IT will pick it up.
         </p>
@@ -11614,7 +11614,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // Item form
   if (view === 'form' && item) {
     return (
-      <Shell title={item.name} kicker={item.category_name ? `Service request · ${item.category_name}` : 'Service request'} icon={item.icon_url} onClose={asPage ? () => { setErr(''); setView('list'); } : onClose} backLabel="All apps & services" maxWidth={asPage ? 820 : 680} centered>
+      <Shell title={item.name} kicker={item.category_name ? `Service request · ${item.category_name}` : 'Service request'} icon={item.icon_url} onClose={asPage ? () => { setErr(''); setView('list'); } : onClose} backLabel="Back" maxWidth={asPage ? 820 : 680} centered>
         <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
         {visibleFields.map((f) => {
           // static_text is rendered copy, not an input — no label, no asterisk.

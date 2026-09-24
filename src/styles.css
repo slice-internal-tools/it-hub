@@ -305,6 +305,13 @@
      the Help page, so Back and titles line up across every page. */
   .pg-topbar { width: 100%; max-width: calc(1120px + 64px); margin: 0 auto; padding: 16px 32px 0; box-sizing: border-box; }
   .pg-inner { width: 100%; max-width: calc(1120px + 64px); margin: 0 auto; padding: 14px 32px 72px; box-sizing: border-box; }
+  /* Centred pages on wide screens: Back sits in the free space left of the
+     column, level with the title, so the whole page starts higher. Below
+     1180px there's no room beside the column and it stacks above instead. */
+  @media (min-width: 1180px) {
+    .pg-topbar.is-beside { height: 0; overflow: visible; position: relative; z-index: 2; }
+    .pg-topbar.is-beside + .pg-inner { padding-top: 16px; }
+  }
   .pg-inner.is-centered { margin: 0 auto; }
   .pg-inner.is-center-head .pg-head { align-items: center; text-align: center; }
   .pg-inner.is-center-head .pg-titlerow { justify-content: center; }
