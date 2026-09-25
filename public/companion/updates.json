@@ -5,6 +5,10 @@
         {
           "version": "1.4.0",
           "update_link": "https://slicedesk.slice.services/portal/companion/slicedesk-companion-1.4.0-firefox.xpi"
+        },
+        {
+          "version": "1.5.0",
+          "update_link": "https://slicedesk.slice.services/portal/companion/slicedesk-companion-1.5.0-firefox.xpi"
         }
       ]
     }
