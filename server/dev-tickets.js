@@ -240,7 +240,10 @@ function makePng(w, h, [r, g, b]) {
   const raw = Buffer.concat(Array.from({ length: h }, () => row));
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
+let devAttSeq = 8000;
+const devAttBytes = new Map();
 export function devAttachmentBytes(attId) {
+  if (devAttBytes.has(String(attId))) return devAttBytes.get(String(attId));
   for (const t of tickets) {
     const a = (t.attachments || []).find((x) => String(x.id) === String(attId));
     if (!a) continue;
@@ -343,6 +346,19 @@ export function handleDevTicket(method, subPath, body) {
     tickets.unshift(t);
     return ok({ status: 'created', ticket: t }, 201);
   }
+  // POST /tickets/:id/attachments — store in memory (bytes kept for preview)
+  if (method === 'POST' && parts[0] === 'tickets' && parts[2] === 'attachments') {
+    const t = findTicket(parts[1]);
+    if (!t) return notFound();
+    if (!body || !body.file_name || !body.content_base64) return { ok: false, status: 400, data: { error: 'file_name and content_base64 are required' } };
+    t.attachments = t.attachments || [];
+    const buf = Buffer.from(body.content_base64, 'base64');
+    const a = { id: ++devAttSeq, ticket_id: t.id, comment_id: null, file_name: body.file_name, mime_type: body.mime_type || 'application/octet-stream',
+      file_size: buf.length, uploaded_by: body.uploaded_by, uploaded_by_name: body.uploaded_by_name, created_at: new Date().toISOString() };
+    devAttBytes.set(String(a.id), { buffer: buf, mime: a.mime_type });
+    t.attachments.push(a);
+    return ok(a, 201);
+  }
   // POST /tickets/:id/comments
   if (method === 'POST' && parts[0] === 'tickets' && parts[2] === 'comments') {
     const t = findTicket(parts[1]);
@@ -355,6 +371,11 @@ export function handleDevTicket(method, subPath, body) {
       is_internal: !!body.is_internal,
       created_at: ts,
     };
+    // Link files uploaded just before, like the real module does.
+    (Array.isArray(body.attachment_ids) ? body.attachment_ids : []).forEach((id) => {
+      const a = (t.attachments || []).find((x) => String(x.id) === String(id) && x.comment_id == null);
+      if (a) a.comment_id = c.id;
+    });
     t.comments.push(c);
     t.updated_at = ts;
     return ok({ status: 'ok', comment: c }, 201);
