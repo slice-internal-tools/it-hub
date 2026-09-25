@@ -11652,7 +11652,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     try {
       const { created, attachWarned } = await fanOut((target) =>
         ticketsApiJson('POST', '/api/tickets', {
-          subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: 'medium',
+          // The same "How urgent?" as a catalog item; Critical alerts the team.
+          subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: urgency,
           ...(target ? { requested_for: target } : {}),
           ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
         }));
@@ -11798,6 +11799,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         <label style={TK.label}>Any details? (optional)</label>
         <textarea style={{ ...TK.field, minHeight: 120, resize: 'vertical' }} value={ffDesc} onChange={(e) => setFfDesc(e.target.value)} placeholder="Why you need it, which team, how soon…" />
         <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
+        <UrgencyPicker value={urgency} onChange={setUrgency} labelStyle={TK.label} />
         <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
