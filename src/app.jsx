@@ -8091,7 +8091,7 @@ function ReturnToHRModal({ onCancel, onConfirm }) {
 // whatever opened it.
 //   tone: 'ok' (green) | 'danger' (red) | 'accent' (cheese)
 //   onConfirm: async → truthy when it worked (the dialog then closes itself)
-function ConfirmDialog({ kicker, title, body, tone = 'ok', icon, confirmLabel, busyLabel, busy, error, onConfirm, onDone }) {
+function ConfirmDialog({ kicker, title, body, tone = 'ok', icon, confirmLabel, cancelLabel = 'Cancel', busyLabel, busy, error, onConfirm, onDone }) {
   const [closing, setClosing] = React.useState(false);
   const panelRef = React.useRef(null);
   const confirmRef = React.useRef(null);
@@ -8111,7 +8111,9 @@ function ConfirmDialog({ kicker, title, body, tone = 'ok', icon, confirmLabel, b
   React.useEffect(() => { const id = setTimeout(() => confirmRef.current && confirmRef.current.focus(), 60); return () => clearTimeout(id); }, []);
   React.useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape' && !busy && !closing) { e.preventDefault(); finish(); }
+      // Escape belongs to the dialog: it's usually open over a modal that also
+      // closes on Escape (ModalShell), and one press must not close both.
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (!busy && !closing) finish(); return; }
       if (e.key === 'Tab' && panelRef.current) {
         const f = [...panelRef.current.querySelectorAll('button:not([disabled])')];
         if (!f.length) return;
@@ -8120,8 +8122,9 @@ function ConfirmDialog({ kicker, title, body, tone = 'ok', icon, confirmLabel, b
         else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
       }
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    // Capture on window runs before ModalShell's document listener.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [busy, closing, finish]);
 
   const confirm = async () => {
@@ -8139,7 +8142,7 @@ function ConfirmDialog({ kicker, title, body, tone = 'ok', icon, confirmLabel, b
         {body && <p className="cdlg-body">{body}</p>}
         {error && <p className="cdlg-error" role="alert">{error}</p>}
         <div className="cdlg-actions">
-          <button type="button" className="tkt-life-btn" onClick={finish} disabled={!!busy}>Cancel</button>
+          <button type="button" className="tkt-life-btn" onClick={finish} disabled={!!busy}>{cancelLabel}</button>
           <button type="button" ref={confirmRef} className={'tkt-life-btn cdlg-confirm tone-' + tone} onClick={confirm} disabled={!!busy} style={{ minWidth: 168 }}>
             {busy ? <span className="tkt-life-spin" aria-hidden="true" /> : null}
             {busy ? busyLabel : confirmLabel}
@@ -8299,6 +8302,13 @@ const URGENCY_OPTIONS = [
 // posts an urgent-help alert to the IT Team's Slack channel (ticket module,
 // services/urgentAlerts.js), and says so before they submit.
 function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle }) {
+  // Critical interrupts the whole team, so picking it asks once. Saying no
+  // leaves the previous choice in place.
+  const [asking, setAsking] = React.useState(false);
+  const pick = (v) => {
+    if (v === 'critical' && value !== 'critical') { setAsking(true); return; }
+    onChange(v);
+  };
   return (
     <>
       <div className={labelStyle ? undefined : 'rep-label'} style={labelStyle}>{label}</div>
@@ -8306,7 +8316,7 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle }) {
         {URGENCY_OPTIONS.map((o) => (
           <button key={o.value} type="button" role="radio" aria-checked={value === o.value}
             data-level={o.value}
-            className={'rep-urg' + (value === o.value ? ' is-on' : '')} onClick={() => onChange(o.value)} style={{ '--dot': o.dot }}>
+            className={'rep-urg' + (value === o.value ? ' is-on' : '')} onClick={() => pick(o.value)} style={{ '--dot': o.dot }}>
             <span className="rep-urg-dot" aria-hidden="true" />
             <span className="rep-urg-title">{o.label}</span>
             <span className="rep-urg-hint">{o.hint}</span>
@@ -8318,6 +8328,18 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle }) {
           <span aria-hidden="true">🚨</span>
           <span>The IT Team gets an alert on Slack as soon as you send this, so someone picks it up right away.</span>
         </div>
+      )}
+      {asking && (
+        <ConfirmDialog
+          kicker="Critical"
+          title="Is this really critical?"
+          body="Critical alerts the whole IT Team on Slack right away. Use it when you can’t work at all, or many people are affected. For anything else, High still goes to the top of the queue."
+          tone="danger"
+          icon={<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>}
+          confirmLabel="Yes, it’s critical"
+          cancelLabel="Not critical"
+          onConfirm={() => { onChange('critical'); return true; }}
+          onDone={() => setAsking(false)} />
       )}
     </>
   );
