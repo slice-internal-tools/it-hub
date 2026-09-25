@@ -278,6 +278,33 @@
   }
   .ps-row.is-active .ps-enter { opacity: 1; transform: none; }
   .ps-empty { padding: 12px 10px; font-size: 13px; color: #78684C; }
+
+  /* "Already talked to an agent?" — AgentCombobox, built on the .ps-* search. */
+  .ag-field { cursor: pointer; color: #9A8E78; transition: box-shadow .18s var(--ease), transform .18s var(--ease), background-color .15s var(--ease); }
+  .ag-field:hover { background: #FFFCF0; box-shadow: 2px 2px 0 #211E1E; transform: translate(-1px, -1px); }
+  .ag-field:focus-visible { outline: none; box-shadow: 3px 3px 0 #211E1E; color: #211E1E; }
+  .ag-field.is-loading { cursor: progress; }
+  .ag-field.is-loading:hover { background: #FFFFFF; box-shadow: none; transform: none; }
+  .ag-placeholder { flex: 1; min-width: 0; font-size: 14.5px; color: #78684C; }
+  .ag-value { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 700; color: #211E1E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: agIn .22s var(--ease) both; }
+  .ag-avatar { width: 26px; height: 26px; font-size: 10px; animation: agPop .3s cubic-bezier(.34,1.56,.64,1) both; }
+  .ag-chev { flex: none; color: #78684C; transition: transform .22s cubic-bezier(.34,1.56,.64,1); }
+  .ag-open .ag-chev { transform: rotate(180deg); color: #211E1E; }
+  .ag-clear {
+    flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 50%;
+    border: 1px solid transparent; background: #F4EEE0; color: #78684C; cursor: pointer;
+    transition: background-color .15s var(--ease), color .15s var(--ease), transform .2s cubic-bezier(.34,1.56,.64,1);
+  }
+  .ag-clear:hover, .ag-clear:focus-visible { background: #FFF1EF; color: #B92323; border-color: #B92323; transform: rotate(90deg); outline: none; }
+  .ag-drop { max-height: 264px; }
+  .ps-row.is-chosen { background: #FFFBEA; }
+  .ps-row.is-chosen.is-active { background: #FFF3C4; }
+  .ps-row.ag-none { border-bottom: 1px dashed #E4DDCD; border-radius: 9px 9px 4px 4px; margin-bottom: 3px; }
+  .ag-avatar-none { background: #F4EEE0; color: #78684C; }
+  .ag-tick { flex: none; color: #0A8A3E; animation: agPop .28s cubic-bezier(.34,1.56,.64,1) both; }
+  .ag-note { margin-top: 8px; animation: rfpSwap .3s var(--ease) both; }
+  @keyframes agIn { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+  @keyframes agPop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
   .ps-empty.is-err { color: #B92323; font-weight: 600; }
 
   /* Requested for: swapping between "for you" and "for someone else". */
@@ -337,8 +364,8 @@
   .ap-reason { animation: rfpSwap .3s var(--ease) .1s both; }
 
   @media (prefers-reduced-motion: reduce) {
-    .ps-drop, .ps-row, .rfp-swap, .rfp-person, .rfp-empty, .rfp-empty-icon, .ap-pick, .ap-row, .ap-row.is-chosen, .ap-picked, .ap-reason { animation: none; }
-    .ps-field, .ps-icon, .ps-avatar, .ps-enter, .rfp-btn, .rfp-btn-icon, .ap-change, .ap-change svg { transition: none; }
+    .ps-drop, .ps-row, .ag-value, .ag-avatar, .ag-tick, .ag-note, .rfp-swap, .rfp-person, .rfp-empty, .rfp-empty-icon, .ap-pick, .ap-row, .ap-row.is-chosen, .ap-picked, .ap-reason { animation: none; }
+    .ps-field, .ps-icon, .ps-avatar, .ps-enter, .ag-field, .ag-chev, .ag-clear, .rfp-btn, .rfp-btn-icon, .ap-change, .ap-change svg { transition: none; }
   }
 
   /* Confirmation dialog (close / cancel / reopen a ticket). */
@@ -566,11 +593,15 @@
     background: #F4EEE0; font-size: 13px; color: #4A3F2E; animation: tktRowIn .25s var(--ease) both;
   }
   .rep-urgency { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  /* Compact: dot and name share a line, the hint sits under the name. */
-  .rep-urg { display: grid; grid-template-columns: 8px 1fr; column-gap: 8px; row-gap: 1px; align-items: center; padding: 8px 11px; border-radius: 10px; }
-  .rep-urg-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot) 18%, transparent); }
-  .rep-urg-title { font-size: 13.5px; font-weight: 800; line-height: 1.25; }
-  .rep-urg-hint { grid-column: 2; font-size: 11.5px; color: #78684C; line-height: 1.3; }
+  /* One line: signal bars + name. The hint lives in the tooltip (title).
+     Bars match the ticket system's PrioritySignal (sm): 5/8/11/14px, 3px wide. */
+  .rep-urg { align-items: center; justify-content: center; gap: 8px; padding: 9px 12px; border-radius: 10px; }
+  .rep-urg-bars { display: inline-flex; align-items: flex-end; gap: 2.5px; height: 14px; flex: none; }
+  .rep-urg-bars i { width: 3px; border-radius: 1.5px; background: #E4DDCD; transition: background-color .15s var(--ease); }
+  .rep-urg-bars i:nth-child(1) { height: 5px; } .rep-urg-bars i:nth-child(2) { height: 8px; }
+  .rep-urg-bars i:nth-child(3) { height: 11px; } .rep-urg-bars i:nth-child(4) { height: 14px; }
+  .rep-urg-bars i.is-lit { background: var(--dot); }
+  .rep-urg-title { font-size: 13.5px; font-weight: 800; line-height: 1.2; }
   .rep-urg.is-on[data-level="critical"] { border-color: #8A1E17; background: #FFF1EF; box-shadow: 3px 3px 0 #8A1E17; }
   .rep-urg.is-on[data-level="critical"] .rep-urg-title { color: #8A1E17; }
   .rep-crit-note {

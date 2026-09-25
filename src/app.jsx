@@ -8315,11 +8315,13 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle }) {
       <div className="rep-urgency" role="radiogroup" aria-label={label}>
         {URGENCY_OPTIONS.map((o) => (
           <button key={o.value} type="button" role="radio" aria-checked={value === o.value}
-            data-level={o.value}
+            data-level={o.value} title={o.hint}
             className={'rep-urg' + (value === o.value ? ' is-on' : '')} onClick={() => pick(o.value)} style={{ '--dot': o.dot }}>
-            <span className="rep-urg-dot" aria-hidden="true" />
+            {/* Signal bars, as in the ticket system: 1 bar Low … 4 bars Critical. */}
+            <span className="rep-urg-bars" aria-hidden="true">
+              {[0, 1, 2, 3].map((i) => <i key={i} className={i <= URGENCY_OPTIONS.indexOf(o) ? 'is-lit' : ''} />)}
+            </span>
             <span className="rep-urg-title">{o.label}</span>
-            <span className="rep-urg-hint">{o.hint}</span>
           </button>
         ))}
       </div>
@@ -12593,10 +12595,7 @@ function TalkedToAgentPicker({ value, onChange, note, onNoteChange }) {
   return (
     <>
       <label style={TK.label}>Already talked to an agent?</label>
-      <select style={TK.field} value={value} onChange={(e) => onChange(e.target.value)} disabled={agents === null}>
-        <option value="">{agents === null ? 'Loading agents…' : 'No one yet'}</option>
-        {(agents || []).map((a) => <option key={a.user_id} value={a.user_id}>{a.display_name || a.user_id}</option>)}
-      </select>
+      <AgentCombobox agents={agents} value={value} onChange={onChange} />
       {/* The note only exists once someone is picked — asking what you
           discussed before you've said who you discussed it with is noise on a
           form most people leave alone entirely.
@@ -12607,7 +12606,7 @@ function TalkedToAgentPicker({ value, onChange, note, onNoteChange }) {
           prevent. 500 to match the server's cap, so the browser stops you
           rather than the server silently truncating. */}
       {value && (
-        <div style={{ marginTop: 8 }}>
+        <div className="ag-note" key={value}>
           <textarea
             value={note || ''}
             onChange={(e) => onNoteChange && onNoteChange(e.target.value)}
@@ -12623,6 +12622,137 @@ function TalkedToAgentPicker({ value, onChange, note, onNoteChange }) {
       )}
       {err && <p style={{ color: '#9A4A00', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
     </>
+  );
+}
+
+// Search-and-pick for "Already talked to an agent?". Closed, it reads like a
+// field: "No one yet", or the chosen agent with their initials and a clear
+// button. Click or start typing and it opens into a search over the agent
+// list (a dozen or so people, filtered in the browser, so no waiting), with
+// "No one yet" always first. Same look and keyboard as PeopleSearch:
+// ↑ ↓ to move, Enter to pick, Esc to close, click outside to close.
+function AgentCombobox({ agents, value, onChange }) {
+  const [open, setOpen] = React.useState(false);
+  const [q, setQ] = React.useState('');
+  const [active, setActive] = React.useState(0);
+  const wrapRef = React.useRef(null);
+  const inputRef = React.useRef(null);
+  const listRef = React.useRef(null);
+  const listId = React.useId ? React.useId() : 'agent-list';
+  const loading = agents === null;
+  const list = agents || [];
+  const chosen = list.find((a) => String(a.user_id) === String(value)) || null;
+  const nameOf = (a) => a.display_name || a.user_id;
+
+  const tokens = searchTokens(q);
+  const term = q.trim().toLowerCase();
+  const matches = term
+    ? list.filter((a) => nameOf(a).toLowerCase().split(/\s+/).some((w) => w.startsWith(term)) || nameOf(a).toLowerCase().includes(term))
+    : list;
+  // Row 0 is "No one yet" unless they're searching for someone.
+  const rows = term ? matches : [{ user_id: '', none: true }, ...matches];
+
+  const openList = () => {
+    if (loading) return;
+    setOpen(true); setQ('');
+    const cur = rows.findIndex((r) => String(r.user_id) === String(value || ''));
+    setActive(cur >= 0 ? cur : 0);
+    setTimeout(() => inputRef.current && inputRef.current.focus(), 0);
+  };
+  const close = (refocus) => { setOpen(false); setQ(''); if (refocus && wrapRef.current) { const b = wrapRef.current.querySelector('.ag-field'); b && b.focus(); } };
+  const pick = (r) => { onChange(r && !r.none ? String(r.user_id) : ''); close(true); };
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) close(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+  React.useEffect(() => { setActive(0); }, [q]);
+  React.useEffect(() => {
+    const el = listRef.current && listRef.current.querySelector('.ps-row.is-active');
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+  }, [active, open]);
+
+  const onKey = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, Math.max(rows.length - 1, 0))); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (rows[active]) pick(rows[active]); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); }
+    else if (e.key === 'Tab') close(false);
+  };
+  // Typing on the closed field opens it with that letter already in.
+  const onFieldKey = (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openList(); }
+    else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); openList(); setQ(e.key); }
+  };
+
+  const Chevron = <svg className="ag-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>;
+
+  return (
+    <div className="ps ag" ref={wrapRef}>
+      {open ? (
+        <div className="ps-field is-open ag-open">
+          <svg className="ps-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+          <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey}
+            placeholder={chosen ? nameOf(chosen) : 'Search agents by name…'}
+            role="combobox" aria-expanded="true" aria-controls={listId} aria-autocomplete="list"
+            aria-activedescendant={rows[active] ? `${listId}-${active}` : undefined} autoComplete="off" spellCheck={false} />
+          {Chevron}
+        </div>
+      ) : (
+        <div className={'ps-field ag-field' + (chosen ? ' has-value' : '') + (loading ? ' is-loading' : '')}
+          role="combobox" tabIndex={loading ? -1 : 0} aria-expanded="false" aria-haspopup="listbox" aria-disabled={loading || undefined}
+          onClick={openList} onKeyDown={onFieldKey}>
+          {chosen ? (
+            <>
+              <span className="ps-avatar ag-avatar">{approverInitials(nameOf(chosen))}</span>
+              <span className="ag-value">{nameOf(chosen)}</span>
+              <button type="button" className="ag-clear" aria-label="Clear — no one yet"
+                onClick={(e) => { e.stopPropagation(); onChange(''); }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </>
+          ) : (
+            <>
+              <svg className="ps-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
+              <span className="ag-placeholder">{loading ? 'Loading agents…' : 'No one yet'}</span>
+            </>
+          )}
+          {loading ? <span className="tkt-life-spin ps-spin" aria-hidden="true" /> : Chevron}
+        </div>
+      )}
+
+      {open && (
+        <div className="ps-drop ag-drop" id={listId} role="listbox" ref={listRef}>
+          {rows.map((r, i) => {
+            const selected = String(r.user_id) === String(value || '');
+            return (
+              <button key={r.user_id || 'none'} id={`${listId}-${i}`} type="button" role="option" aria-selected={selected}
+                className={'ps-row' + (i === active ? ' is-active' : '') + (selected ? ' is-chosen' : '') + (r.none ? ' ag-none' : '')}
+                style={{ animationDelay: `${Math.min(i, 8) * 22}ms` }}
+                onMouseEnter={() => setActive(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(r)}>
+                {r.none ? (
+                  <span className="ps-avatar ag-avatar-none" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" /></svg>
+                  </span>
+                ) : (
+                  <span className="ps-avatar">{approverInitials(nameOf(r))}</span>
+                )}
+                <span className="ps-text">
+                  <span className="ps-name">{r.none ? 'No one yet' : <Hl text={nameOf(r)} tokens={tokens} />}</span>
+                  {r.none && <span className="ps-meta">Anyone on the IT Team can pick it up</span>}
+                </span>
+                {selected
+                  ? <svg className="ag-tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                  : <span className="ps-enter" aria-hidden="true">↵</span>}
+              </button>
+            );
+          })}
+          {rows.length === 0 && <div className="ps-empty">No agent matches “{q.trim()}”.</div>}
+        </div>
+      )}
+    </div>
   );
 }
 
