@@ -601,9 +601,12 @@ app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
 // final say; we just forward the requested level.
 app.post('/api/tickets/:id/priority', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const priority = String((req.body && req.body.priority) || '').toLowerCase();
-  if (!['low', 'medium', 'high', 'urgent'].includes(priority)) {
-    return res.status(400).json({ error: 'priority must be low, medium, high, or urgent.' });
+  // The four levels the ticket module keeps SLAs for. 'urgent' is what older
+  // portal builds sent from the escalate menu; it lands as 'critical'.
+  let priority = String((req.body && req.body.priority) || '').toLowerCase();
+  if (priority === 'urgent') priority = 'critical';
+  if (!['low', 'medium', 'high', 'critical'].includes(priority)) {
+    return res.status(400).json({ error: 'priority must be low, medium, high, or critical.' });
   }
   try {
     const own = await readOwnTicket(u, req.params.id);

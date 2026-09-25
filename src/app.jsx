@@ -1285,7 +1285,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
 // mime type so Firefox opens its install prompt. Bump the version here when a
 // new signed file is dropped into that folder (see public/companion/README.md).
 const COMPANION_CHROME_URL = "https://chromewebstore.google.com/detail/slicedesk-companion/fnagjegbeojhopjbcfmjlcoidkiplnla";
-const COMPANION_FIREFOX_VERSION = "1.4.0";
+const COMPANION_FIREFOX_VERSION = "1.5.0";
 const COMPANION_FIREFOX_URL = `${import.meta.env.BASE_URL}companion/slicedesk-companion-${COMPANION_FIREFOX_VERSION}-firefox.xpi`;
 
 // The browsers' real logos (public/companion/logos/, the official SVGs), not
@@ -8294,6 +8294,35 @@ const URGENCY_OPTIONS = [
   { value: 'critical', label: 'Critical', hint: 'Many people / can’t work', dot: '#8A1E17' },
 ];
 
+// "How urgent?" — the same four tap-to-pick buttons on the issue form and on
+// every catalog request, so a requester never meets two vocabularies. Critical
+// posts an urgent-help alert to the IT Team's Slack channel (ticket module,
+// services/urgentAlerts.js), and says so before they submit.
+function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle }) {
+  return (
+    <>
+      <div className={labelStyle ? undefined : 'rep-label'} style={labelStyle}>{label}</div>
+      <div className="rep-urgency" role="radiogroup" aria-label={label}>
+        {URGENCY_OPTIONS.map((o) => (
+          <button key={o.value} type="button" role="radio" aria-checked={value === o.value}
+            data-level={o.value}
+            className={'rep-urg' + (value === o.value ? ' is-on' : '')} onClick={() => onChange(o.value)} style={{ '--dot': o.dot }}>
+            <span className="rep-urg-dot" aria-hidden="true" />
+            <span className="rep-urg-title">{o.label}</span>
+            <span className="rep-urg-hint">{o.hint}</span>
+          </button>
+        ))}
+      </div>
+      {value === 'critical' && (
+        <div className="rep-crit-note" role="note">
+          <span aria-hidden="true">🚨</span>
+          <span>The IT Team gets an alert on Slack as soon as you send this, so someone picks it up right away.</span>
+        </div>
+      )}
+    </>
+  );
+}
+
 function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrowseCatalog }) {
   const Shell = asPage ? PageShell : ModalShell;
   const [subject, setSubject] = React.useState(draft.subject || "");
@@ -8377,7 +8406,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
     const urgent = priority === 'high' || priority === 'critical';
     const steps = [
       { key: 'sent', title: 'Ticket sent', body: `Saved as ${num}.`, state: 'done' },
-      { key: 'triage', title: 'IT takes a look', body: urgent ? 'Marked urgent — it goes to the top of the queue.' : 'Someone from the IT Team picks it up and may ask a question.', state: 'current' },
+      { key: 'triage', title: 'IT takes a look', body: priority === 'critical' ? 'Marked critical — the IT Team has been alerted on Slack.' : urgent ? 'Marked urgent — it goes to the top of the queue.' : 'Someone from the IT Team picks it up and may ask a question.', state: 'current' },
       { key: 'fix', title: 'Fixed', body: 'You’ll get a reply here and by email at every step.', state: 'todo' },
     ];
     return (
@@ -8485,17 +8514,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
           </div>
         )}
 
-        <div className="rep-label">How urgent?</div>
-        <div className="rep-urgency" role="radiogroup" aria-label="How urgent">
-          {URGENCY_OPTIONS.map((o) => (
-            <button key={o.value} type="button" role="radio" aria-checked={priority === o.value}
-              className={'rep-urg' + (priority === o.value ? ' is-on' : '')} onClick={() => setPriority(o.value)} style={{ '--dot': o.dot }}>
-              <span className="rep-urg-dot" aria-hidden="true" />
-              <span className="rep-urg-title">{o.label}</span>
-              <span className="rep-urg-hint">{o.hint}</span>
-            </button>
-          ))}
-        </div>
+        <UrgencyPicker value={priority} onChange={setPriority} />
 
         <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
 
@@ -8869,7 +8888,7 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, onSend }) {
   const Check = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>;
   const items = [{ key: 'resolve', label: 'Send & mark resolved', tint: '#0A8A3E', icon: Check, opts: { resolve: true } }];
   if (pr === 'low' || pr === 'medium') items.push({ key: 'high', label: 'Send & raise priority to High', tint: '#B5830F', icon: ArrowUp, opts: { priority: 'high' } });
-  if (pr === 'low' || pr === 'medium' || pr === 'high') items.push({ key: 'urgent', label: 'Send & raise priority to Urgent', tint: '#B92323', icon: ArrowUp, opts: { priority: 'urgent' } });
+  if (pr === 'low' || pr === 'medium' || pr === 'high') items.push({ key: 'critical', label: 'Send & raise priority to Critical', tint: '#B92323', icon: ArrowUp, opts: { priority: 'critical' } });
   const showMenu = !reopenOnReply && items.length > 0;
 
   const choose = (opts) => { setOpen(false); onSend(opts); };
@@ -11665,7 +11684,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     const steps = [
       { key: 'sent', title: 'Request sent', body: multi ? `${results.length} tickets created, one per person.` : `Saved as ${num(first)}.`, state: 'done' },
       ...(anyPending ? [{ key: 'approval', title: 'Approval', body: 'Your approver gets an email and a Slack message. You’ll hear as soon as they decide.', state: 'current' }] : []),
-      { key: 'setup', title: 'IT sets it up', body: anyPending ? 'Starts once it’s approved.' : 'The IT Team has it and will pick it up next.', state: anyPending ? 'todo' : 'current' },
+      { key: 'setup', title: 'IT sets it up', body: anyPending ? 'Starts once it’s approved.' : urgency === 'critical' ? 'Marked critical — the IT Team has been alerted on Slack.' : 'The IT Team has it and will pick it up next.', state: anyPending ? 'todo' : 'current' },
       { key: 'done', title: 'Ready to use', body: 'You get a notification here and by email when it’s done.', state: 'todo' },
     ];
     return (
@@ -11788,12 +11807,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         })}
         <label style={TK.label}>Justification{item.justify_required ? ' *' : ' (optional)'}</label>
         <textarea style={{ ...TK.field, minHeight: 70, resize: 'vertical' }} value={justification} onChange={(e) => setJustification(e.target.value)} placeholder={item.justify_required ? 'Let us know why you need this…' : 'Why you need this… (optional)'} />
-        <label style={TK.label}>Urgency</label>
-        <select style={TK.field} value={urgency} onChange={(e) => setUrgency(e.target.value)}>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
+        <UrgencyPicker value={urgency} onChange={setUrgency} labelStyle={TK.label} />
         <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
