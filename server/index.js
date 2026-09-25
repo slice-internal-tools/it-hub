@@ -531,23 +531,32 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
     // reply on the ticket they opened (attributed to them, as themselves).
     const own = await readOwnTicket(u, req.params.id);
     if (own.error) return res.status(own.status).json({ error: own.error });
+    // Files the requester uploaded just before this reply (ids from
+    // POST /api/tickets/:id/attachments) — the module links them to the new
+    // comment so the IT Team sees them under it.
+    const attachmentIds = Array.isArray(req.body.attachment_ids)
+      ? req.body.attachment_ids.slice(0, 20).map((x) => String(x)).filter((x) => /^\d+$/.test(x))
+      : [];
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/comments`, {
       body: String(body).slice(0, 8000),
       author_id: u.id,
       author_name: u.name,
       is_internal: false,
+      ...(attachmentIds.length ? { attachment_ids: attachmentIds } : {}),
     });
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    // Reopen-on-reply: a reply to a resolved/closed ticket reopens it (standard
-    // helpdesk behaviour). Best-effort — never fail the reply over it.
-    let reopened = false;
-    const prev = String(look.data.status || '').toLowerCase();
-    if (prev === 'resolved' || prev === 'closed') {
-      try {
-        const pr = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { status: 'open' });
-        reopened = pr.ok;
-      } catch (e) { console.warn('[tickets.comment] reopen-on-reply failed:', e.message); }
-    }
+    // ⚠️ This line used to read `look.data.status` after `look` was renamed
+    // away, so every reply threw AFTER the comment was saved: the browser got
+    // an error, and the files that were meant to follow never uploaded — the
+    // "Added an attachment" comment with no attachment.
+    //
+    // Reopen-on-reply is the module's job (its comment endpoint reopens a
+    // resolved/closed ticket and deliberately leaves a DECLINED request alone),
+    // so no second PATCH here — that one reopened declined requests too. We
+    // only report whether it will have happened.
+    const prev = String(own.ticket.status || '').toLowerCase();
+    const declined = ['rejected', 'auto_rejected'].includes(String(own.ticket.approval_status || '').toLowerCase());
+    const reopened = (prev === 'resolved' || prev === 'closed') && !declined;
     res.json({ ...(data && typeof data === 'object' ? data : {}), reopened });
   } catch (err) {
     ticketProxyError(res, err, 'tickets.comment');
@@ -577,7 +586,6 @@ app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
   try {
     const own = await readOwnTicket(u, req.params.id);
     if (own.error) return res.status(own.status).json({ error: own.error });
-    const look = { data: own.ticket };
     const { ok, status, data } = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { status: target });
     if (!ok || data.status === 'rejected' || data.status === 'error') {
       return res.status(ok ? 400 : status).json({ error: data.error || `Ticket service returned ${status}` });
@@ -600,7 +608,6 @@ app.post('/api/tickets/:id/priority', requireSliceUser, async (req, res) => {
   try {
     const own = await readOwnTicket(u, req.params.id);
     if (own.error) return res.status(own.status).json({ error: own.error });
-    const look = { data: own.ticket };
     const { ok, status, data } = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { priority });
     if (!ok || data.status === 'rejected' || data.status === 'error') {
       return res.status(ok ? 400 : status).json({ error: data.error || `Ticket service returned ${status}` });
@@ -626,7 +633,6 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   try {
     const own = await readOwnTicket(u, req.params.id);
     if (own.error) return res.status(own.status).json({ error: own.error });
-    const look = { data: own.ticket };
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/attachments`, {
       file_name: String(file_name).slice(0, 255),
       mime_type: mime_type || 'application/octet-stream',

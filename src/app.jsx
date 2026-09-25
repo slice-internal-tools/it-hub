@@ -8322,7 +8322,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
   const addFiles = (list) => {
     const incoming = Array.from(list || []).filter(Boolean);
     if (!incoming.length) return;
-    const tooBig = incoming.find((f) => f.size > MAX_ATTACH_BYTES);
+    const tooBig = incoming.find((f) => f.size > MAX_ATTACH_BYTES && !(/^image\/(png|jpe?g|webp)$/i.test(f.type || '') && f.size <= 60 * 1024 * 1024));
     if (tooBig) { setError('“' + (tooBig.name || 'That file') + '” is over 12 MB — attach a smaller file.'); return; }
     setError('');
     setAttachFiles((prev) => [...prev, ...incoming.map((f, i) => (f.name && f.name !== 'image.png') ? f
@@ -8356,7 +8356,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
       if (attachFiles.length && (data.id || data.ticket_number)) {
         setBusyLabel("Uploading files…");
         try { await uploadAttachments(data.id || data.ticket_number, attachFiles); }
-        catch (e) { setAttachWarn("Your ticket was created, but an attachment didn’t upload: " + (e.message || "error") + ". You can re-add it from the ticket."); }
+        catch (e) { setAttachWarn("Your ticket was created. " + (e.message || "An attachment didn’t upload.") + " You can add it from the ticket."); }
       }
       setResult(data);
     } catch (e) {
@@ -8596,11 +8596,70 @@ function fileToAttachment(file) {
 }
 
 // Upload a list of Files to a ticket, one at a time (the API takes one per call).
-async function uploadAttachments(ticketId, files) {
-  for (const f of files || []) {
-    const att = await fileToAttachment(f);
-    await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(ticketId) + '/attachments', att);
+// Big screenshots are the usual attachment, and a phone or Retina capture is
+// easily several MB — which, base64-encoded into a JSON body, is more than a
+// proxy between us and the ticket system will accept. So large raster images
+// are resized (longest side ≤ 2560px) and re-encoded as a high-quality JPEG
+// in the browser before upload; a typical screenshot lands well under 1 MB and
+// stays perfectly legible. Transparent areas are flattened onto white. Anything
+// that isn't a large PNG/JPEG/WebP (or that wouldn't come out smaller) is sent
+// untouched.
+const SHRINK_OVER_BYTES = 700 * 1024;
+// Aim well under 1 MB once base64'd (~×1.37), the tightest proxy limit
+// we're likely to meet, without making screenshot text hard to read.
+const SHRINK_TARGET_BYTES = 650 * 1024;
+const SHRINK_MAX_SIDE = 2560;
+async function shrinkImageForUpload(file) {
+  if (!file || !/^image\/(png|jpe?g|webp)$/i.test(file.type || '') || file.size <= SHRINK_OVER_BYTES) return file;
+  try {
+    const bitmap = await (window.createImageBitmap ? createImageBitmap(file) : Promise.reject(new Error('no bitmap')));
+    const encode = async (side, quality) => {
+      const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height));
+      const w = Math.max(1, Math.round(bitmap.width * scale));
+      const h = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      return new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality));
+    };
+    // Step quality down first (text stays crisp), then size, stopping at the
+    // first result under the target.
+    let blob = null;
+    for (const [side, quality] of [[SHRINK_MAX_SIDE, 0.86], [SHRINK_MAX_SIDE, 0.78], [2200, 0.74], [1920, 0.7], [1600, 0.68]]) {
+      blob = await encode(side, quality);
+      if (blob && blob.size <= SHRINK_TARGET_BYTES) break;
+    }
+    if (bitmap.close) bitmap.close();
+    if (!blob || blob.size >= file.size) return file;
+    const base = String(file.name || 'image').replace(/\.[a-z0-9]+$/i, '');
+    return new File([blob], base + '.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+  } catch {
+    return file;
   }
+}
+
+// Upload files to a ticket, one by one. Returns [{ id, name }] for what was
+// created (the name as stored — a shrunk screenshot becomes .jpg).
+// A failure says which file and why in plain words (a 413 means the network
+// path refused the size, not that the file is bad).
+async function uploadAttachments(ticketId, files) {
+  const ids = [];
+  for (const original of files || []) {
+    const f = await shrinkImageForUpload(original);
+    const att = await fileToAttachment(f);
+    try {
+      const res = await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(ticketId) + '/attachments', att);
+      if (res && res.id != null) ids.push({ id: res.id, name: res.file_name || f.name });
+    } catch (e) {
+      const why = e.status === 413 ? 'it’s too large to send — try a smaller file or a screenshot of part of the screen' : (e.message || 'upload failed');
+      const err = new Error(`“${original.name}” didn’t upload: ${why}.`);
+      err.uploadedIds = ids;
+      throw err;
+    }
+  }
+  return ids;
 }
 
 function fmtBytes(n) {
@@ -8991,7 +9050,10 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
   const [err, setErr] = React.useState('');
   const add = (list) => {
     const incoming = Array.from(list || []);
-    const tooBig = incoming.find((f) => f.size > MAX_ATTACH_BYTES);
+    // Large PNG/JPEG/WebP images are shrunk before upload (shrinkImageForUpload),
+    // so only other files are held to the raw size cap here.
+    const shrinkable = (f) => /^image\/(png|jpe?g|webp)$/i.test(f.type || '') && f.size <= 60 * 1024 * 1024;
+    const tooBig = incoming.find((f) => f.size > MAX_ATTACH_BYTES && !shrinkable(f));
     if (tooBig) { setErr('“' + tooBig.name + '” is over 12 MB — attach a smaller file.'); return; }
     setErr('');
     onChange([...(files || []), ...incoming]);
@@ -10552,13 +10614,30 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
     const hasText = !htmlIsEmpty(reply);
     if (!hasText && replyFiles.length === 0) return;
     setSending(true); setReplyErr('');
-    const commentBody = hasText ? sanitizeHtml(reply) : ('Added ' + (replyFiles.length > 1 ? 'attachments' : 'an attachment') + ': ' + replyFiles.map((f) => f.name).join(', '));
     try {
-      await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/comments', { body: commentBody });
+      // Files FIRST, then the comment. The old order posted "Added an
+      // attachment: …" and only then tried the upload, so a failed upload
+      // still left a comment claiming a file the IT Team could never see.
+      // Now a failure stops here, says why, and nothing misleading is posted;
+      // on success the comment is linked to the files so they show under it.
+      let uploaded = [];
       if (replyFiles.length) {
-        try { await uploadAttachments(id, replyFiles); }
-        catch (e) { setReplyErr('Reply sent, but an attachment didn’t upload: ' + (e.message || 'error') + '.'); }
+        try { uploaded = await uploadAttachments(id, replyFiles); }
+        catch (e) {
+          if (!hasText) { setReplyErr(e.message || 'Couldn’t upload your file.'); return; }
+          uploaded = e.uploadedIds || [];
+          setReplyErr(e.message + ' Your message was still sent.');
+        }
       }
+      const attachmentIds = uploaded.map((u) => u.id);
+      const sentNames = uploaded.map((u) => u.name);
+      const commentBody = hasText
+        ? sanitizeHtml(reply)
+        : ('Added ' + (sentNames.length > 1 ? 'attachments' : 'an attachment') + ': ' + sentNames.join(', '));
+      await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/comments', {
+        body: commentBody,
+        ...(attachmentIds.length ? { attachment_ids: attachmentIds } : {}),
+      });
       // Combined "send &…" actions from the split button — best-effort so the
       // reply is never lost if the follow-up change is rejected.
       if (opts.priority) {
@@ -11432,7 +11511,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         const t = await makeOne(target);
         if (attachFiles.length && t && (t.id || t.ticket_number)) {
           try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
-          catch (ae) { attachWarned = 'An attachment didn’t upload to one of the requests: ' + (ae.message || 'error') + '.'; }
+          catch (ae) { attachWarned = 'One of the requests is missing a file. ' + (ae.message || 'An attachment didn’t upload.') + ' You can add it from the ticket.'; }
         }
         // Tag on-behalf tickets with the recipient's name so the done screen can
         // spell out who each one is for (self-requests carry no tag).
