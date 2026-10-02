@@ -8,7 +8,7 @@ import {
   requireSliceAdmin,
   requireBotOrUser,
 } from './middleware/auth.js'; // selector: AUTH_MODE=hub (hub_token) | slicedesk (cookie)
-import { devTicketsEnabled, handleDevTicket, devAttachmentBytes } from './dev-tickets.js';
+import { devTicketsEnabled, handleDevTicket, devAttachmentBytes, devSimulate } from './dev-tickets.js';
 import {
   bootstrapStatusServices,
   ensureStatusServices,
@@ -17,6 +17,8 @@ import {
 } from './status.js';
 import { moduleConfig } from './module-config.js';
 import { registerGuideRoutes } from './guides-slicedesk.js';
+import { normalizeApproval, canViewApproval } from './approvals.js';
+import { createNotifications } from './notifications.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 // Claude calls are proxied to slicedesk's /api/ext/ai/proxy — it-hub never holds
@@ -331,6 +333,55 @@ async function readOwnTicket(u, id) {
   return { ticket: forRequester(data) };
 }
 
+// Directory lookup used to put names on approvers the module only gives us
+// as hub ids (ad-hoc and "additional approval" stages).
+async function lookupUsers(q) {
+  const p = new URLSearchParams({ q: String(q).slice(0, 100), limit: '10', active: 'false' });
+  const r = await ticketModuleFetch('GET', `/users?${p}`);
+  return r.ok && r.data && Array.isArray(r.data.users) ? r.data.users : [];
+}
+
+// The approval for a ticket the caller has already been cleared to read,
+// normalised (stages incl. appended ones, per-stage state, approver names).
+async function approvalForTicket(u, ticket) {
+  if (!ticket || !ticket.approval_request_id) return null;
+  const r = await ticketModuleFetch('GET', `/approvals/${encodeURIComponent(ticket.approval_request_id)}?hub_user_id=${encodeURIComponent(u.id)}`);
+  if (!r.ok || !r.data || !r.data.request) return null;
+  return normalizeApproval(r.data, { lookupUsers });
+}
+
+// readOwnTicket + the approval, embedded. The module's ticket-detail route has
+// no approval_status at all, so the portal used to fetch the approval in a
+// second call and, until it landed, fell back on guesses from the ticket's
+// status. One payload now carries both, and approval_status is filled in from
+// the approval itself (null when the ticket has none). Returns null when the
+// caller may not read the ticket.
+async function loadTicketForUser(u, id, { withApproval = true } = {}) {
+  const own = await readOwnTicket(u, id);
+  if (own.error) {
+    const err = new Error(own.error);
+    err.statusCode = own.status;
+    throw err;
+  }
+  const t = own.ticket;
+  if (!t.approval_request_id) {
+    t.approval_status = null;
+    t.approval = null;
+  } else if (withApproval) {
+    try {
+      const a = await approvalForTicket(u, t);
+      t.approval = a;
+      if (a && a.request) t.approval_status = a.request.status || null;
+    } catch (e) {
+      console.warn('[tickets.get] approval fetch failed:', e.message);
+      t.approval = null;
+    }
+  }
+  return t;
+}
+
+const notifications = createNotifications({ pool, listUserTickets, loadTicketForUser });
+
 function resolveRequester(u, requestedFor) {
   if (requestedFor && requestedFor.id && String(requestedFor.id) !== String(u.id)) {
     return {
@@ -364,6 +415,27 @@ function asTalkedToNote(v) {
   return t || undefined;
 }
 
+// Rich-text body limits. A flat `.slice(0, 8000)` used to cut replies and
+// descriptions mid-tag: a pasted screenshot is a `data:` image hundreds of KB
+// long inside the HTML, so the cut landed in the middle of its base64 and the
+// ticket system showed the raw markup to agents. Now the WRITTEN text is
+// measured (images excluded) and too-long text is refused with a clear
+// message instead of silently damaged; the images themselves go through
+// whole and the ticket module stores them as files (utils/dataImages.js).
+const MAX_RICH_TEXT_CHARS = 20000;
+const MAX_RICH_TOTAL_BYTES = 15 * 1024 * 1024; // under the 20 MB JSON limit
+function richTextOrError(raw, label) {
+  const html = String(raw || '');
+  const text = html.replace(/<img\b[^>]*>/gi, '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ');
+  if (text.length > MAX_RICH_TEXT_CHARS) {
+    return { error: `${label} is too long (${text.length.toLocaleString()} characters — the limit is ${MAX_RICH_TEXT_CHARS.toLocaleString()}). Attach longer text as a file instead.` };
+  }
+  if (Buffer.byteLength(html) > MAX_RICH_TOTAL_BYTES) {
+    return { error: `${label} is too large — attach big screenshots as files instead of pasting them.` };
+  }
+  return { html };
+}
+
 // Create a ticket — the "issue" path (incident) or a freeform service request.
 app.post('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
@@ -372,10 +444,12 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
     return res.status(400).json({ error: 'A subject is required.' });
   }
   const requester = resolveRequester(u, requested_for);
+  const desc = richTextOrError(description, 'The description');
+  if (desc.error) return res.status(400).json({ error: desc.error });
   try {
     const { ok, status, data } = await ticketModuleFetch('POST', '/tickets', {
       subject: String(subject).slice(0, 300),
-      description: String(description || '').slice(0, 8000),
+      description: desc.html,
       type: type || 'incident',
       priority: priority || 'medium',
       requester_id: requester.id,
@@ -403,10 +477,10 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
 });
 
 // List the signed-in user's own tickets (newest first; optional status filter).
-app.get('/api/tickets', requireSliceUser, async (req, res) => {
-  const u = req.user;
+// Every ticket the signed-in user is party to, most-recently-active first.
+// Shared by GET /api/tickets and the notification sync.
+async function listUserTickets(u, status = null) {
   const uid = String(u.id);
-  const status = req.query.status ? String(req.query.status) : null;
   // THREE filters, covering every way you can be party to a request:
   //   requester_id     — you asked for it
   //   submitter_id     — you raised it for someone else via this portal
@@ -442,12 +516,17 @@ app.get('/api/tickets', requireSliceUser, async (req, res) => {
   // runaway guard so a module that ignores `page` can't spin here forever.
   const PER_PAGE = 100;
   const MAX_PAGES = 20;          // 2000 tickets per filter — far beyond any real requester
+  let partial = false;
   const fetchBy = async (key) => {
     const out = [];
     for (let page = 1; page <= MAX_PAGES; page++) {
       const p = new URLSearchParams({ [key]: u.id, per_page: String(PER_PAGE), page: String(page) });
       if (status) p.set('status', status);
       const r = await ticketModuleFetch('GET', `/tickets?${p}`);
+      // A failed page is treated as empty (the list still renders), but the
+      // result is flagged so the notification diff never reads "missing" as
+      // "new" and replays history as notifications.
+      if (!r.ok) partial = true;
       const batch = r.ok && r.data && Array.isArray(r.data.tickets) ? r.data.tickets : [];
       out.push(...batch);
       // A short page means we've reached the end. An empty page also ends it,
@@ -459,35 +538,47 @@ app.get('/api/tickets', requireSliceUser, async (req, res) => {
     }
     return out;
   };
-  try {
-    const [mine, onBehalf, raisedForMe] = await Promise.all([
-      fetchBy('requester_id'), fetchBy('submitter_id'), fetchBy('requested_for_id'),
-    ]);
-    // Merge + dedup, and defensively keep only tickets the caller is actually
-    // party to — so an ignored filter on an old module (which would return
-    // everyone's tickets) can never leak someone else's into your list.
-    //
-    // ⚠️ The third arm is what makes that safety net hold for the new filter.
-    // isOnBehalfBeneficiary reads the module's normalised `requested_for` field,
-    // so on an OLDER module — which ignores `requested_for_id` and answers with
-    // the newest tickets company-wide, carrying no `requested_for` — it returns
-    // false for every row and the whole batch is discarded. Fails closed by
-    // construction, rather than by us trusting that the module applied the
-    // filter we asked for.
-    const byId = new Map();
-    for (const t of [...mine, ...onBehalf, ...raisedForMe]) {
-      if (String(t.requester_id) === uid ||
-          String(t.submitter_id ?? '') === uid ||
-          isOnBehalfBeneficiary(u, t)) {
-        byId.set(t.id, t);
-      }
+  const [mine, onBehalf, raisedForMe] = await Promise.all([
+    fetchBy('requester_id'), fetchBy('submitter_id'), fetchBy('requested_for_id'),
+  ]);
+  // Merge + dedup, and defensively keep only tickets the caller is actually
+  // party to — so an ignored filter on an old module (which would return
+  // everyone's tickets) can never leak someone else's into your list.
+  //
+  // ⚠️ The third arm is what makes that safety net hold for the new filter.
+  // isOnBehalfBeneficiary reads the module's normalised `requested_for` field,
+  // so on an OLDER module — which ignores `requested_for_id` and answers with
+  // the newest tickets company-wide, carrying no `requested_for` — it returns
+  // false for every row and the whole batch is discarded. Fails closed by
+  // construction, rather than by us trusting that the module applied the
+  // filter we asked for.
+  const byId = new Map();
+  for (const t of [...mine, ...onBehalf, ...raisedForMe]) {
+    if (String(t.requester_id) === uid ||
+        String(t.submitter_id ?? '') === uid ||
+        isOnBehalfBeneficiary(u, t)) {
+      byId.set(t.id, t);
     }
-    // Most-recently-active first, not most-recently-created: a comment or a
-    // re-open bumps updated_at, so the ticket you just touched surfaces at the
-    // top instead of staying buried at its original creation-date position.
-    const tickets = [...byId.values()].sort(
-      (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0),
-    );
+  }
+  // Most-recently-active first, not most-recently-created: a comment or a
+  // re-open bumps updated_at, so the ticket you just touched surfaces at the
+  // top instead of staying buried at its original creation-date position.
+  const tickets = [...byId.values()].sort(
+    (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0),
+  );
+  if (partial) Object.defineProperty(tickets, 'partial', { value: true });
+  return tickets;
+}
+
+// List the signed-in user's own tickets (newest first; optional status filter).
+app.get('/api/tickets', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const status = req.query.status ? String(req.query.status) : null;
+  try {
+    const tickets = await listUserTickets(u, status);
+    // The full list is exactly what the notification diff needs — hand it
+    // over so the bell catches up without a second round of module calls.
+    if (!status && !tickets.partial) notifications.syncUser(u, { tickets }).catch(() => {});
     res.json({ tickets, total: tickets.length });
   } catch (err) {
     ticketProxyError(res, err, 'tickets.list');
@@ -507,9 +598,14 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
     // Requester OR submitter: whoever the ticket is for, and whoever opened it
     // on their behalf, can both read it (ownsTicket). Internal notes and their
     // files are stripped before anything reaches the browser.
-    const own = await readOwnTicket(req.user, req.params.id);
-    if (own.error) return res.status(own.status).json({ error: own.error });
-    res.json(own.ticket);
+    let ticket;
+    try { ticket = await loadTicketForUser(req.user, req.params.id); }
+    catch (e) { if (e.statusCode && e.statusCode < 500) return res.status(e.statusCode).json({ error: e.message }); throw e; }
+    // Record what the user is now looking at, so a reply that just arrived is
+    // logged (and then marked read by the client) instead of turning up in
+    // the bell after they've already seen it.
+    await notifications.syncTicket(req.user, ticket).catch((e) => console.warn('[tickets.get] notif sync:', e.message));
+    res.json(ticket);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.get');
   }
@@ -537,8 +633,10 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
     const attachmentIds = Array.isArray(req.body.attachment_ids)
       ? req.body.attachment_ids.slice(0, 20).map((x) => String(x)).filter((x) => /^\d+$/.test(x))
       : [];
+    const rich = richTextOrError(body, 'Your reply');
+    if (rich.error) return res.status(400).json({ error: rich.error });
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/comments`, {
-      body: String(body).slice(0, 8000),
+      body: rich.html,
       author_id: u.id,
       author_name: u.name,
       is_internal: false,
@@ -557,6 +655,7 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
     const prev = String(own.ticket.status || '').toLowerCase();
     const declined = ['rejected', 'auto_rejected'].includes(String(own.ticket.approval_status || '').toLowerCase());
     const reopened = (prev === 'resolved' || prev === 'closed') && !declined;
+    notifications.afterSelfChange(u, req.params.id);
     res.json({ ...(data && typeof data === 'object' ? data : {}), reopened });
   } catch (err) {
     ticketProxyError(res, err, 'tickets.comment');
@@ -590,6 +689,7 @@ app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
     if (!ok || data.status === 'rejected' || data.status === 'error') {
       return res.status(ok ? 400 : status).json({ error: data.error || `Ticket service returned ${status}` });
     }
+    notifications.afterSelfChange(u, req.params.id);
     res.json(data.ticket || data);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.status');
@@ -615,6 +715,7 @@ app.post('/api/tickets/:id/priority', requireSliceUser, async (req, res) => {
     if (!ok || data.status === 'rejected' || data.status === 'error') {
       return res.status(ok ? 400 : status).json({ error: data.error || `Ticket service returned ${status}` });
     }
+    notifications.afterSelfChange(u, req.params.id);
     res.json(data.ticket || data);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.priority');
@@ -642,6 +743,8 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
       content_base64,
       uploaded_by: u.id,
       uploaded_by_name: u.name,
+      // Shown to agents as "via IT Portal" on the file and in Activity.
+      source: 'portal',
     });
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
     res.json(data);
@@ -1024,7 +1127,10 @@ app.get('/api/approvals/:id', requireSliceUser, async (req, res) => {
   try {
     const { ok, status, data } = await ticketModuleFetch('GET', `/approvals/${encodeURIComponent(req.params.id)}?hub_user_id=${encodeURIComponent(u.id)}`);
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    res.json(data);
+    // Only the requester and the people asked to approve may read it. This
+    // used to hand any approval to any signed-in user who guessed its id.
+    if (!canViewApproval(u, data)) return res.status(403).json({ error: 'This approval belongs to someone else.' });
+    res.json(await normalizeApproval(data, { lookupUsers }));
   } catch (err) {
     ticketProxyError(res, err, 'approvals.get');
   }
@@ -1055,6 +1161,20 @@ app.post('/api/approvals/:id/respond', requireSliceUser, async (req, res) => {
     ticketProxyError(res, err, 'approvals.respond');
   }
 });
+
+// Local dev only: play the IT Team on a fixture ticket so live notifications
+// can be watched end to end. `devTicketsEnabled` is never true in prod (it
+// needs DEV_BYPASS_AUTH / DEV_TICKETS), so this route doesn't exist there.
+if (devTicketsEnabled) {
+  app.post('/api/dev/simulate', requireSliceUser, (req, res) => {
+    const { action, ticket_id } = req.body || {};
+    const r = devSimulate(String(action || ''), String(ticket_id || ''));
+    res.status(r.ok ? 200 : 400).json(r);
+  });
+}
+
+// ── Notifications (bell, badges, live stream) — see notifications.js ───────
+notifications.registerRoutes(app, requireSliceUser);
 
 // ── Guides → SliceDesk Docs (single source of truth) ──────────────────────
 // Registered BEFORE the legacy inline /api/guides* handlers below so it wins

@@ -1044,6 +1044,9 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
         </div>
       </div>
 
+      {/* Open tickets shortcut — renders nothing when nothing is open. */}
+      <OpenTicketsShortcut onOpenTickets={onOpenTickets} />
+
       {/* Pinned guides — the user's own pins (shared with SliceDesk Docs). */}
       {pinnedGuides.length > 0 && (
         <div style={{
@@ -1125,6 +1128,19 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
 
           })}
         </div>
+      </div>
+
+      {/* Browser extension — sits above System status: it's the one thing on
+          the page that isn't a task, but it's what keeps people from having to
+          come back here to check on a ticket. Chrome installs from the Web
+          Store. Firefox installs the SIGNED file served by this Portal
+          (public/companion/), which is also where its update manifest lives —
+          Mozilla signs self-distributed add-ons but does not host them. */}
+      <div style={{
+        maxWidth: 1120, margin: "72px auto 0",
+        animation: "fadeUp .8s .38s var(--ease) both"
+      }}>
+        <CompanionPromo />
       </div>
 
       {/* System status strip */}
@@ -1209,72 +1225,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
         </div>
       </div>
 
-      {/* Browser extension — last on the page because it is the one thing here
-          that is not a task. Chrome installs from the Web Store. Firefox
-          installs the SIGNED file served by this Portal (public/companion/),
-          which is also where its update manifest lives — Mozilla signs
-          self-distributed add-ons but does not host them. */}
-      <div style={{
-        maxWidth: 1120, margin: "72px auto 0",
-        animation: "fadeUp .8s .5s var(--ease) both"
-      }}>
-        <div style={{ marginBottom: 18 }}>
-          <h2 style={{
-            fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: "-0.025em", color: "#000000",
-            fontFamily: "Archivo, sans-serif",
-          }}>
-            SliceDesk in your browser
-          </h2>
-          <div style={{ fontSize: 13.5, color: "#2E2410", marginTop: 6, fontWeight: 500, maxWidth: 680, lineHeight: 1.5 }}>
-            The <b>SliceDesk Companion</b> — a browser extension for Chrome and an add-on for Firefox.
-            Your requests, approvals and replies from IT, one click from the toolbar, with desktop alerts.
-            Nothing to set up: it uses the login you already have.
-          </div>
-        </div>
-        <style>{`
-          /* The card lifts like every other surface on the page; the pill and
-             the logo join in, so the whole card reads as one button. */
-          .companion-card .pill-link { transition: transform .18s cubic-bezier(.34,1.56,.64,1), background .16s ease, box-shadow .18s ease; }
-          .companion-card:hover .pill-link { transform: translate(-2px, -2px); background: #FDC831;
-            box-shadow: 2px 2px 0 #211E1E, 0 8px 18px rgba(33,30,30,.12); }
-          .companion-card:hover .pill-link-arrow { transform: translateX(3px); }
-          .companion-card .companion-logo { transition: transform .22s cubic-bezier(.34,1.56,.64,1); }
-          .companion-card:hover .companion-logo { transform: scale(1.08) rotate(-3deg); }
-          .companion-card:active { transform: translate(1px, 1px); }
-          @media (prefers-reduced-motion: reduce) {
-            .companion-card .pill-link, .companion-card .companion-logo { transition: none; }
-          }
-        `}</style>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 10,
-        }}>
-          {COMPANION_DOWNLOADS.map((b) => (
-            <a key={b.name} href={b.href}
-              target={b.external ? "_blank" : undefined}
-              rel={b.external ? "noopener noreferrer" : undefined}
-              className="surface surface-interactive companion-card"
-              style={{ padding: "14px 16px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14,
-                       textDecoration: "none", color: "inherit" }}>
-              <div className="svc-icon" style={{
-                width: 44, height: 44, borderRadius: 10,
-                background: "#FFFFFF", border: "1px solid #000000",
-                display: "grid", placeItems: "center", flexShrink: 0,
-              }}>
-                <img className="companion-logo" src={b.logo} alt="" width="28" height="28" style={{ display: "block" }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#000000", letterSpacing: "-0.012em" }}>{b.name}</div>
-                <div style={{ fontSize: 12.5, color: "#5C4916", fontWeight: 500, marginTop: 2 }}>{b.body}</div>
-              </div>
-              <span className="pill-link" style={{ flexShrink: 0 }}>
-                {b.cta} <span className="pill-link-arrow">→</span>
-              </span>
-            </a>
-          ))}
-        </div>
-      </div>
     </div>);
 
 }
@@ -1294,10 +1244,103 @@ const COMPANION_LOGO = (name) => `${import.meta.env.BASE_URL}companion/logos/${n
 
 const COMPANION_DOWNLOADS = [
   { name: "Chrome extension", body: "From the Chrome Web Store · updates itself",
-    cta: "Get it", href: COMPANION_CHROME_URL, external: true, logo: COMPANION_LOGO("chrome") },
+    cta: "Add to Chrome", href: COMPANION_CHROME_URL, external: true, logo: COMPANION_LOGO("chrome") },
   { name: "Firefox add-on", body: `Signed by Mozilla · v${COMPANION_FIREFOX_VERSION} · one click, then Allow access`,
-    cta: "Install", href: COMPANION_FIREFOX_URL, external: false, logo: COMPANION_LOGO("firefox") },
+    cta: "Add to Firefox", href: COMPANION_FIREFOX_URL, external: false, logo: COMPANION_LOGO("firefox") },
 ];
+
+
+// Which download to put first: Firefox gets the add-on; every Chromium browser
+// (Chrome, Edge, Brave, Arc) installs from the Chrome Web Store. Safari and
+// anything unknown get no recommendation — both buttons, equal weight.
+function companionBrowser() {
+  try {
+    const ua = navigator.userAgent || '';
+    if (/Firefox\//.test(ua)) return 'firefox';
+    if (/Chrome\/|Chromium\/|Edg\//.test(ua)) return 'chrome';
+  } catch {}
+  return null;
+}
+
+const COMPANION_PERKS = [
+  'Your tickets and approvals, one click from the toolbar',
+  'A desktop alert the moment IT replies or changes a status',
+  'Nothing to set up — it uses the login you already have',
+];
+
+function CompanionPromo() {
+  const rec = React.useMemo(companionBrowser, []);
+  const items = COMPANION_DOWNLOADS.map((b) => ({ ...b, key: /firefox/i.test(b.name) ? 'firefox' : 'chrome' }))
+    .sort((a, b) => (a.key === rec ? -1 : b.key === rec ? 1 : 0));
+  return (
+    <section className="surface companion-promo" aria-labelledby="companion-title">
+      <style>{`
+        .companion-promo { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:28px; align-items:center; padding:26px 28px; }
+        .companion-mark { width:44px; height:44px; border-radius:12px; display:grid; place-items:center; flex:none;
+          background:#211E1E; color:#FDC831; box-shadow:2px 2px 0 #FDC831; }
+        .companion-title { margin:0; font-family:'Archivo',sans-serif; font-size:24px; font-weight:800; letter-spacing:-.025em; color:#211E1E; line-height:1.1; }
+        .companion-lede { margin:6px 0 0; font-size:13.5px; color:#5C4916; font-weight:500; line-height:1.5; }
+        .companion-perks { list-style:none; margin:16px 0 0; padding:0; display:grid; gap:8px; }
+        .companion-perks li { display:flex; align-items:flex-start; gap:9px; font-size:13px; color:#211E1E; font-weight:600; line-height:1.4; }
+        .companion-perks .tick { width:18px; height:18px; flex:none; border-radius:50%; display:grid; place-items:center;
+          background:#D4F4D4; border:1px solid #211E1E; color:#0A6E31; margin-top:1px; }
+        .companion-actions { display:grid; gap:10px; }
+        .companion-btn { display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid #211E1E; border-radius:12px;
+          background:#FFFFFF; color:#211E1E; text-decoration:none; box-shadow:2px 2px 0 #211E1E;
+          transition:transform .18s cubic-bezier(.22,.61,.36,1), box-shadow .18s cubic-bezier(.22,.61,.36,1), background .16s ease; }
+        .companion-btn:hover { transform:translate(-2px,-2px); box-shadow:4px 4px 0 #211E1E, 0 10px 20px rgba(33,30,30,.12); }
+        .companion-btn:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #211E1E; }
+        .companion-btn:focus-visible { outline:3px solid rgba(33,30,30,.35); outline-offset:2px; }
+        .companion-btn.is-rec { background:#FDC831; }
+        .companion-btn-logo { width:40px; height:40px; border-radius:10px; flex:none; display:grid; place-items:center;
+          background:#FFFFFF; border:1px solid #211E1E; }
+        .companion-btn-logo img { transition:transform .22s cubic-bezier(.34,1.56,.64,1); }
+        .companion-btn:hover .companion-btn-logo img { transform:scale(1.1) rotate(-4deg); }
+        .companion-btn-name { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:'Archivo',sans-serif; font-size:15px; font-weight:800; letter-spacing:-.01em; }
+        .companion-btn-sub { display:block; font-size:12px; color:#5C4916; font-weight:500; margin-top:2px; }
+        .companion-btn.is-rec .companion-btn-sub { color:#3D3011; }
+        .companion-rec { padding:1px 7px; border-radius:999px; background:#211E1E; color:#FDC831; font-size:9.5px; font-weight:900;
+          letter-spacing:.06em; text-transform:uppercase; }
+        .companion-btn-go { margin-left:auto; flex:none; transition:transform .16s ease; }
+        .companion-btn:hover .companion-btn-go { transform:translateX(3px); }
+        @media (max-width: 820px) { .companion-promo { grid-template-columns:1fr; gap:20px; padding:22px 20px; } }
+        @media (prefers-reduced-motion: reduce) { .companion-btn, .companion-btn-logo img, .companion-btn-go { transition:none; } }
+      `}</style>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span className="companion-mark" aria-hidden="true"><IconBolt size={22} stroke={2.2} /></span>
+          <div style={{ minWidth: 0 }}>
+            <h2 id="companion-title" className="companion-title">SliceDesk in your browser</h2>
+            <p className="companion-lede">The <b>SliceDesk Companion</b> for Chrome and Firefox.</p>
+          </div>
+        </div>
+        <ul className="companion-perks">
+          {COMPANION_PERKS.map((p) => (
+            <li key={p}><span className="tick" aria-hidden="true"><IconCheck size={11} stroke={3} /></span>{p}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="companion-actions">
+        {items.map((b) => (
+          <a key={b.key} href={b.href}
+            target={b.external ? '_blank' : undefined}
+            rel={b.external ? 'noopener noreferrer' : undefined}
+            className={'companion-btn' + (b.key === rec ? ' is-rec' : '')}>
+            <span className="companion-btn-logo"><img src={b.logo} alt="" width="26" height="26" style={{ display: 'block' }} /></span>
+            <span style={{ minWidth: 0 }}>
+              <span className="companion-btn-name">
+                {b.cta}
+                {b.key === rec && <span className="companion-rec">Your browser</span>}
+              </span>
+              <span className="companion-btn-sub">{b.body}</span>
+            </span>
+            <span className="companion-btn-go" aria-hidden="true"><IconArrow size={18} stroke={2.6} /></span>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 // Fast-access guide cards — the most-opened knowledge articles, one tap from
 // the landing screen. Action "guide" jumps straight into the article.
@@ -1545,6 +1588,143 @@ function PhishingCard({ onSubmit }) {
 // a ticket form. No roster table, no pager gymnastics. The form has the same
 // shape as a regular ticket submission so the triage flow downstream is
 // unchanged.
+// "Your open tickets" — a shortcut on the Help page, under the Security / IT
+// Support row. Only OPEN work (open, in progress, waiting, pending approval);
+// resolved and closed history stays on My Tickets. Capped at three rows — the
+// rest is one click away via "View all". Renders nothing until the list has
+// loaded, and nothing at all when there's nothing open, so people with no
+// tickets never see an empty box. Shares myTicketsCache with My Tickets, so
+// coming back to Help paints instantly.
+const OPEN_TICKETS_SHORTCUT_MAX = 3;
+function OpenTicketsShortcut({ onOpenTickets }) {
+  const [tickets, setTickets] = React.useState(() => myTicketsCache);
+  const icons = useCatalogIcons();
+  React.useEffect(() => {
+    let off = false;
+    const load = () => ticketsApiJson('GET', '/api/tickets')
+      .then((j) => { myTicketsCache = j.tickets || []; if (!off) setTickets(myTicketsCache); })
+      .catch(() => { if (!off) setTickets((t) => t || []); });
+    load();
+    const iv = setInterval(load, 60000);
+    window.addEventListener(TICKET_ACTIVITY_EVT, load);
+    return () => { off = true; clearInterval(iv); window.removeEventListener(TICKET_ACTIVITY_EVT, load); };
+  }, []);
+  const { byTicket } = useNotifStore();
+  if (!tickets) return null;
+  const open = tickets
+    .filter((t) => ticketBucket(t.status) === 'open')
+    .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+  if (open.length === 0) return null;
+  const shown = open.slice(0, OPEN_TICKETS_SHORTCUT_MAX);
+  const more = open.length - shown.length;
+  // One plain-language line on where things stand — "who's got the ball".
+  const waitingApproval = open.filter((t) => String(t.approval_status || '').toLowerCase() === 'pending'
+    || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')).length;
+  const waitingOnYou = open.filter((t) => ['waiting', 'on_hold'].includes(String(t.status || '').toLowerCase())).length;
+  const withIt = open.length - waitingApproval - waitingOnYou;
+  const openOne = (t) => {
+    try { window.__PORTAL_OPEN_TICKET__ = t.ticket_number || t.id; } catch {}
+    onOpenTickets && onOpenTickets();
+  };
+  // Calm outline-and-dot chip (the ApprovalPill look) rather than the solid
+  // list badges, so a row of tiles doesn't shout over the page around it.
+  const chipFor = (t) => {
+    const s = String(t.status || '').toLowerCase();
+    if (String(t.approval_status || '').toLowerCase() === 'pending'
+      || (ticketTypeMeta(t.type).kind === 'request' && s === 'pending')) return { label: 'Awaiting approval', color: '#9A4A00', dot: '#E08A1E' };
+    if (s === 'in_progress') return { label: 'In progress', color: '#7A5A06', dot: '#D9A514' };
+    if (s === 'waiting' || s === 'on_hold' || s === 'pending') return { label: ticketStatusMeta(s).label, color: '#6B5F4A', dot: '#A89A80' };
+    return { label: 'Open', color: '#1C4E8C', dot: '#2563B0' };
+  };
+  // Same section shape as Shortcuts and System status below it: a heading row,
+  // then a grid of the page's standard interactive surfaces.
+  return (
+    <section aria-labelledby="open-tix-title" style={{
+      maxWidth: 1120, margin: "56px auto 0",
+      animation: "fadeUp .8s .32s var(--ease) both",
+    }}>
+      <style>{`
+        .open-tix-headrow { display:flex; align-items:baseline; justify-content:space-between; gap:12px 20px; flex-wrap:wrap; margin-bottom:16px; }
+        .open-tix-title { margin:0; display:flex; align-items:center; gap:8px; font-size:15px; font-weight:600; color:var(--ink); letter-spacing:-.015em; }
+        .open-tix-count { display:inline-grid; place-items:center; min-width:22px; height:22px; padding:0 7px; box-sizing:border-box;
+          background:#211E1E; color:#FDC831; border-radius:999px; font-family:'Archivo',sans-serif; font-size:11.5px; font-weight:900; }
+        .open-tix-sum { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:12.5px; color:#2E2410; font-weight:500; }
+        .open-tix-sum span { display:inline-flex; align-items:center; gap:6px; }
+        .open-tix-sum i { width:7px; height:7px; border-radius:50%; border:1px solid rgba(33,30,30,.35); flex:none; }
+        .open-tix-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; }
+        .open-tix-tile { display:flex; flex-direction:column; gap:12px; padding:18px; text-align:left; font-family:inherit; color:inherit; width:100%; }
+        .open-tix-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+        .open-tix-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 8px; background:#FFFFFF;
+          border:1px solid currentColor; border-radius:999px; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:800;
+          letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; }
+        .open-tix-chip i { width:7px; height:7px; border-radius:50%; flex:none; }
+        .open-tix-subject { font-size:14px; font-weight:600; color:var(--ink); letter-spacing:-.012em; line-height:1.35;
+          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.7em; }
+        .open-tix-meta { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; margin-top:auto; font-size:12px; color:var(--ink-3); }
+        .open-tix-num { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-weight:700; color:#4A4233; }
+        .open-tix-for { margin-top:-6px; font-size:12px; font-weight:700; color:#5C4916; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .open-tix-more { display:flex; justify-content:flex-end; margin-top:16px; }
+        .open-tix-new { position:absolute; top:-7px; left:-7px; min-width:19px; height:19px; padding:0 5px; box-sizing:border-box; display:grid; place-items:center;
+          background:#DA3327; color:#FFFFFF; border-radius:999px; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:900;
+          box-shadow:0 0 0 2px #FFFFFF; z-index:2; }
+      `}</style>
+      <div className="open-tix-headrow">
+        <h2 id="open-tix-title" className="open-tix-title">
+          Your open tickets <span className="open-tix-count" aria-label={`${open.length} open`}>{open.length}</span>
+        </h2>
+        <div className="open-tix-sum">
+          {withIt > 0 && <span><i style={{ background: '#2563B0' }} />{withIt} with the IT Team</span>}
+          {waitingApproval > 0 && <span><i style={{ background: '#E08A1E' }} />{waitingApproval} awaiting approval</span>}
+          {waitingOnYou > 0 && <span><i style={{ background: '#A89A80' }} />{waitingOnYou} on hold</span>}
+        </div>
+      </div>
+      <div className="open-tix-grid">
+        {shown.map((t) => {
+          const app = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null;
+          const chip = chipFor(t);
+          return (
+            <button key={t.id} type="button" className="surface surface-interactive open-tix-tile" onClick={() => openOne(t)}
+              aria-label={`Open ${t.ticket_number || 'ticket'}: ${t.subject || ''} (${chip.label})`}>
+              <span className="open-tix-top">
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <TicketLeadIcon ticket={t} app={app} size={36} />
+                  {byTicket[String(t.id)] > 0 && (
+                    <span className="open-tix-new" title={`${byTicket[String(t.id)]} new update${byTicket[String(t.id)] === 1 ? '' : 's'}`}>
+                      {byTicket[String(t.id)] > 9 ? '9+' : byTicket[String(t.id)]}
+                    </span>
+                  )}
+                </span>
+                <span className="open-tix-chip" style={{ color: chip.color }}><i style={{ background: chip.dot }} />{chip.label}</span>
+              </span>
+              <span className="open-tix-subject">{t.subject || 'Untitled ticket'}</span>
+              <span className="open-tix-meta">
+                <span className="open-tix-num">{t.ticket_number}</span>
+                <span aria-hidden="true">·</span>
+                <span>{ticketTypeMeta(t.type).label}</span>
+                <span aria-hidden="true">·</span>
+                <span>{relativeTime(t.updated_at || t.created_at)}</span>
+              </span>
+              {(() => {
+                // Same rule as OnBehalfTag, as one quiet line so every tile
+                // keeps the same shape.
+                const ob = resolveOnBehalf(t);
+                if (!ob) return null;
+                const label = ob.viewerIsBeneficiary ? `Opened by ${ob.byP && ob.byP.name}` : `For ${ob.forP && ob.forP.name}`;
+                return /undefined|null/.test(label) ? null : <span className="open-tix-for">{label}</span>;
+              })()}
+            </button>
+          );
+        })}
+      </div>
+      <div className="open-tix-more">
+        <a href="#" className="pill-link" onClick={(e) => { e.preventDefault(); onOpenTickets && onOpenTickets(); }}>
+          {more > 0 ? `See ${more} more in My Tickets` : 'All my tickets'} <span className="pill-link-arrow">→</span>
+        </a>
+      </div>
+    </section>
+  );
+}
+
 function OnCallCard({ onSubmit, onOpenTickets }) {
   const [stage, setStage] = React.useState("idle"); // idle | form | sent
   const [subject, setSubject] = React.useState("");
@@ -3304,7 +3484,7 @@ function App() {
       }
 
       {stage === "notifications" &&
-      <NotificationsPage onBack={goHome} />
+      <NotificationsPage onBack={goHome} onOpenTickets={() => openTickets("mine")} />
       }
 
       {/* Footer hidden on working surfaces — those flows have short content
@@ -5042,99 +5222,180 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
 // status incidents are deliberately excluded: users told us the bell should be
 // about their tickets, and service status already has its own Status page.
 
-const NOTIF_KEY = "portal2.notifications.v1";
 const NOTIF_EVT = "portal2:notifications:change";
+// Fired with { detail: { ticketIds, items, live } } whenever the server reports
+// that tickets changed — the list, the open ticket and the Help shortcut all
+// refresh off it instead of each polling on its own clock.
+const TICKET_ACTIVITY_EVT = "portal2:ticket-activity";
 
-// Per-ticket "last seen update" so the bell can flag tickets the IT Team has
-// touched (replied, changed status) since you last opened them. Keyed by ticket
-// id → the updated_at we last saw. Opening a ticket records its current
-// updated_at, which clears its notification.
-const TICKET_SEEN_KEY = "portal2.ticketSeen.v1";
-function loadTicketSeen() {
-  try { const r = typeof localStorage !== 'undefined' && localStorage.getItem(TICKET_SEEN_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
-}
-function markTicketSeen(id, updatedAt) {
-  if (id == null || !updatedAt) return;
-  try {
-    const m = loadTicketSeen();
-    if (m[String(id)] === updatedAt) return;
-    m[String(id)] = updatedAt;
-    localStorage.setItem(TICKET_SEEN_KEY, JSON.stringify(m));
-    window.dispatchEvent(new Event(NOTIF_EVT));
-  } catch {}
-}
+// ── Notifications: one shared store, backed by the server ─────────────────────
+// Read state used to live in localStorage. Inside the hub's cross-origin
+// iframe the browser partitions or wipes that storage, so "Mark all as read"
+// was forgotten on the next login and everything came back. The server now
+// generates notifications (an IT reply, a status / approval / priority change —
+// never your own actions) and remembers what you've read (server/notifications.js).
+//
+// One store for the whole app: the bell, the account menu, the Notifications
+// page, My Tickets and the Help shortcut all read the same state, so they can
+// never disagree. Live: a Server-Sent-Events stream pushes new notifications
+// the moment the server sees them; if the stream can't be held open (a proxy
+// that buffers, a flaky network) it falls back to polling.
+const notifStore = (() => {
+  let state = { ready: false, items: [], unread: 0, byTicket: {}, live: false };
+  const subs = new Set();
+  let started = false;
+  let pollTimer = null;
+  let streamCtl = null;
+  let retryMs = 2000;
+  const POLL_LIVE_MS = 120000;   // safety net while the stream is healthy
+  const POLL_FALLBACK_MS = 30000;
 
-// ── Tab badges: "unseen" tickets / approvals ────────────────────────────────
-// Which items the user has actually OPENED (the detail view), so the My-tickets
-// and Approvals tabs can flag things with an update you haven't looked at yet.
-// Deliberately separate from the bell's TICKET_SEEN_KEY (which seeds first
-// sightings to stay quiet) — this store is never seeded, so an unopened item
-// that has real activity still shows on the tab. Shape: { tickets:{}, approvals:{} }.
-const TAB_SEEN_KEY = "portal2.tabSeen.v1";
-function loadTabSeen() {
-  try {
-    const r = typeof localStorage !== 'undefined' && localStorage.getItem(TAB_SEEN_KEY);
-    const j = r ? JSON.parse(r) : null;
-    return { tickets: (j && j.tickets) || {}, approvals: (j && j.approvals) || {} };
-  } catch { return { tickets: {}, approvals: {} }; }
-}
-function markTabSeen(kind, id, updatedAt) {
-  if (id == null) return;
-  try {
-    const m = loadTabSeen();
-    const v = updatedAt || '1';
-    if (m[kind][String(id)] === v) return;
-    m[kind][String(id)] = v;
-    localStorage.setItem(TAB_SEEN_KEY, JSON.stringify(m));
-    window.dispatchEvent(new Event(NOTIF_EVT));
-  } catch {}
-}
-// Everything in a list, seen, in ONE write and ONE event. This is "Mark all as
-// read" on My Tickets (IT-105119: "I don't want to go through all 53 tickets").
-// Fifty-three markTabSeen() calls would fire fifty-three NOTIF_EVTs, and the
-// tickets page answers each one with two fetches. Writes the bell's own store
-// too, so the two "have I seen this?" answers agree the way they do when you
-// close a ticket. Returns how many rows actually changed.
-function markAllTabSeen(kind, items, getId, getUpdated) {
-  try {
-    const tab = loadTabSeen();
-    const bell = loadTicketSeen();
-    let changed = 0;
-    for (const it of items || []) {
-      const id = getId(it);
-      if (id == null) continue;
-      const v = getUpdated(it) || '1';
-      if (tab[kind][String(id)] !== v) { tab[kind][String(id)] = v; changed++; }
-      if (kind === 'tickets' && getUpdated(it)) bell[String(id)] = getUpdated(it);
-    }
-    if (!changed) return 0;
-    localStorage.setItem(TAB_SEEN_KEY, JSON.stringify(tab));
-    if (kind === 'tickets') localStorage.setItem(TICKET_SEEN_KEY, JSON.stringify(bell));
-    window.dispatchEvent(new Event(NOTIF_EVT));
-    return changed;
-  } catch { return 0; }
-}
+  const emit = () => {
+    subs.forEach((f) => { try { f(); } catch {} });
+    try { window.dispatchEvent(new Event(NOTIF_EVT)); } catch {}
+  };
+  const set = (patch) => { state = { ...state, ...patch }; emit(); };
+  // Only ever announced with new notification rows (see publish() in
+  // server/notifications.js) — listeners reload tickets in response, so this
+  // must never fire for anything a reload itself could cause.
+  const activity = (ticketIds, items, live) => {
+    if (!ticketIds || !ticketIds.length || !items || !items.length) return;
+    try { window.dispatchEvent(new CustomEvent(TICKET_ACTIVITY_EVT, { detail: { ticketIds: ticketIds.map(String), items: items || [], live: !!live } })); } catch {}
+  };
+  const counts = (j) => ({
+    unread: typeof j.unread_count === 'number' ? j.unread_count : state.unread,
+    byTicket: j.unread_by_ticket || state.byTicket,
+  });
 
-// Count items whose latest update the user hasn't seen. An item is "unseen" if
-// it was never opened, or it changed (updated_at) since you last opened it.
-// `getCreated` (tickets only) suppresses items with no activity since creation —
-// a request you filed that nobody's touched yet isn't "an update you haven't seen".
-function countTabUnseen(kind, items, getId, getUpdated, getCreated) {
-  const seen = loadTabSeen()[kind] || {};
-  let n = 0;
-  for (const it of items) {
-    const id = getId(it);
-    if (id == null) continue;
-    const upd = getUpdated ? getUpdated(it) : null;
-    if (getCreated) {
-      const created = getCreated(it);
-      if (created && upd && new Date(upd).getTime() <= new Date(created).getTime()) continue;
-    }
-    const prev = seen[String(id)];
-    if (prev === undefined) { n++; continue; }
-    if (upd && new Date(upd).getTime() > new Date(prev).getTime()) n++;
+  async function refresh() {
+    try {
+      const j = await ticketsApiJson('GET', '/api/notifications?limit=50');
+      const known = new Set(state.items.map((i) => i.id));
+      const fresh = state.ready ? (j.items || []).filter((i) => !known.has(i.id)) : [];
+      set({ ready: true, items: j.items || [], ...counts(j) });
+      // A poll that turned up something new tells the rest of the app too —
+      // the same thing the stream does, just later.
+      if (fresh.length) activity([...new Set(fresh.map((i) => i.ticket_id))], fresh, true);
+    } catch { if (!state.ready) set({ ready: true }); }
   }
-  return n;
+
+  function schedulePoll() {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(async () => { await refresh(); schedulePoll(); }, state.live ? POLL_LIVE_MS : POLL_FALLBACK_MS);
+  }
+
+  function onEvent(type, data) {
+    if (type === 'hello') { retryMs = 2000; set({ live: true }); schedulePoll(); return; }
+    if (type === 'notifications') {
+      const incoming = Array.isArray(data.items) ? data.items : [];
+      const ids = new Set(incoming.map((i) => i.id));
+      set({ items: [...incoming, ...state.items.filter((i) => !ids.has(i.id))].slice(0, 100), ...counts(data) });
+      activity(data.changed_ticket_ids || [...new Set(incoming.map((i) => i.ticket_id))], incoming, true);
+      return;
+    }
+    if (type === 'read') {
+      // Read somewhere else (another tab, another device): take the server's
+      // counts and mark rows read for tickets that no longer have any unread.
+      const byTicket = data.unread_by_ticket || {};
+      set({ ...counts(data), items: state.items.map((i) => (byTicket[i.ticket_id] ? i : { ...i, read: true })) });
+    }
+  }
+
+  async function openStream() {
+    if (typeof window === 'undefined' || typeof ReadableStream === 'undefined') return;
+    const ctl = new AbortController();
+    streamCtl = ctl;
+    // No "hello" within 12s means something between us and the server is
+    // buffering the stream — give up on it and rely on polling for a while.
+    const helloTimer = setTimeout(() => { if (!state.live) ctl.abort(); }, 12000);
+    try {
+      const r = await fetch('/api/notifications/stream', { credentials: 'include', cache: 'no-store', signal: ctl.signal, headers: { Accept: 'text/event-stream' } });
+      if (!r.ok || !r.body) throw new Error('stream ' + r.status);
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let cut;
+        while ((cut = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, cut); buf = buf.slice(cut + 2);
+          let type = 'message'; const data = [];
+          for (const line of chunk.split('\n')) {
+            if (line.startsWith('event:')) type = line.slice(6).trim();
+            else if (line.startsWith('data:')) data.push(line.slice(5).trim());
+          }
+          if (!data.length) continue;
+          try { onEvent(type, JSON.parse(data.join('\n'))); } catch {}
+        }
+      }
+    } catch { /* fall through to reconnect */ }
+    clearTimeout(helloTimer);
+    if (streamCtl !== ctl) return;           // superseded
+    if (state.live) set({ live: false });
+    schedulePoll();
+    // The server ends every stream after ~10 minutes (so it re-checks auth);
+    // reconnect, backing off when it keeps failing.
+    setTimeout(() => { if (streamCtl === ctl) openStream(); }, retryMs);
+    retryMs = Math.min(retryMs * 2, 60000);
+  }
+
+  function start() {
+    if (started || typeof window === 'undefined') return;
+    started = true;
+    refresh().then(schedulePoll);
+    openStream();
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
+  }
+
+  const post = (path, body) => ticketsApiJson('POST', path, body)
+    .then((j) => { set(counts(j)); return j; })
+    .catch(() => refresh());
+
+  return {
+    get: () => state,
+    subscribe(fn) { subs.add(fn); start(); return () => subs.delete(fn); },
+    refresh,
+    markAllRead() {
+      set({ unread: 0, byTicket: {}, items: state.items.map((i) => ({ ...i, read: true })) });
+      return post('/api/notifications/read', { all: true });
+    },
+    markTicketRead(ticketId) {
+      const key = String(ticketId);
+      if (!state.byTicket[key] && !state.items.some((i) => i.ticket_id === key && !i.read)) return Promise.resolve();
+      const n = state.byTicket[key] || 0;
+      const byTicket = { ...state.byTicket }; delete byTicket[key];
+      set({ byTicket, unread: Math.max(0, state.unread - n), items: state.items.map((i) => (i.ticket_id === key ? { ...i, read: true } : i)) });
+      return post('/api/notifications/read', { ticket_id: key });
+    },
+    markRead(id) {
+      const it = state.items.find((i) => i.id === String(id));
+      if (!it || it.read) return Promise.resolve();
+      const byTicket = { ...state.byTicket };
+      if (byTicket[it.ticket_id] > 1) byTicket[it.ticket_id] -= 1; else delete byTicket[it.ticket_id];
+      set({ byTicket, unread: Math.max(0, state.unread - 1), items: state.items.map((i) => (i.id === it.id ? { ...i, read: true } : i)) });
+      return post('/api/notifications/read', { ids: [it.id] });
+    },
+    dismiss(id) {
+      const it = state.items.find((i) => i.id === String(id));
+      if (!it) return Promise.resolve();
+      const byTicket = { ...state.byTicket };
+      if (!it.read) { if (byTicket[it.ticket_id] > 1) byTicket[it.ticket_id] -= 1; else delete byTicket[it.ticket_id]; }
+      set({ byTicket, unread: it.read ? state.unread : Math.max(0, state.unread - 1), items: state.items.filter((i) => i.id !== it.id) });
+      return post('/api/notifications/' + encodeURIComponent(it.id) + '/dismiss', {});
+    },
+  };
+})();
+
+function useNotifStore() {
+  return React.useSyncExternalStore(notifStore.subscribe, notifStore.get, notifStore.get);
+}
+
+// Unread updates on one ticket, for the per-row "+N" badges.
+function ticketUnseenInfo(t, byTicket) {
+  const n = (t && t.id != null && byTicket && byTicket[String(t.id)]) || 0;
+  return { unseen: n > 0, count: n };
 }
 
 // Bucket a Date into the same coarse "Today / Yesterday / Earlier" groups the
@@ -5166,138 +5427,56 @@ function notifWhen(d) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function loadNotifPersist() {
-  try {
-    const raw = typeof localStorage !== "undefined" && localStorage.getItem(NOTIF_KEY);
-    if (!raw) return { dismissed: [], read: [] };
-    const j = JSON.parse(raw);
-    return {
-      dismissed: Array.isArray(j.dismissed) ? j.dismissed : [],
-      read: Array.isArray(j.read) ? j.read : [],
-    };
-  } catch { return { dismissed: [], read: [] }; }
+// What a notification says, in words. The server stores the facts (kind, who,
+// old → new); the wording lives here so it can change without a migration.
+function notifPresent(n) {
+  const kind = n.kind;
+  const statusLabel = (v) => ticketStatusMeta(v).label;
+  const PRIORITY_RANK = { low: 1, medium: 2, high: 3, critical: 4, urgent: 4 };
+  let title; let body = n.excerpt || ''; let tone = kind;
+  if (kind === 'reply') title = `${n.actor_name || 'IT Team'} replied`;
+  else if (kind === 'status') {
+    title = n.new_value === 'resolved' ? 'Marked as resolved'
+      : n.new_value === 'closed' ? 'Ticket closed'
+      : `Status changed to ${statusLabel(n.new_value)}`;
+    if (n.old_value) body = `Was ${statusLabel(n.old_value)}`;
+  } else if (kind === 'approval') {
+    if (n.new_value === 'approved') { title = 'Request approved'; body = 'IT can start working on it now.'; }
+    else if (n.new_value === 'rejected') { title = 'Request declined'; body = 'Open it to see the approver’s reason.'; }
+    else if (n.new_value === 'pending' && n.old_value === 'approved') { title = 'Needs one more approval'; body = 'IT asked for an additional sign-off before this can go ahead.'; }
+    else { title = 'Sent for approval'; body = 'You’ll hear as soon as it’s decided.'; }
+    tone = n.new_value === 'rejected' ? 'declined' : 'approval';
+  } else if (kind === 'priority') {
+    const up = (PRIORITY_RANK[n.new_value] || 0) > (PRIORITY_RANK[n.old_value] || 0);
+    title = `Priority ${up ? 'raised' : 'lowered'} to ${String(n.new_value || '').replace(/^./, (c) => c.toUpperCase())}`;
+  } else if (kind === 'created') { title = `${n.actor_name || 'IT'} opened a ticket for you`; body = ''; tone = 'ticket'; }
+  else title = 'Ticket updated';
+  const when = n.event_at ? new Date(n.event_at) : null;
+  return {
+    id: n.id, kind, tone, ticketId: n.ticket_id, ticketNumber: n.ticket_number, subject: n.subject,
+    title, body, unread: !n.read, when: notifWhen(when), group: notifGroup(when), _ts: when ? when.getTime() : 0,
+  };
 }
 
-function saveNotifPersist(s) {
-  try { localStorage.setItem(NOTIF_KEY, JSON.stringify(s)); } catch {}
-}
-
+// The bell / page / account menu API, on top of the shared store.
 function useNotifications() {
-  const [persist, setPersist] = React.useState(loadNotifPersist);
-  // One live source, polled every 60s: the signed-in user's tickets
-  // (/api/tickets) — so an IT reply or status change on your ticket drops into
-  // the bell without a refresh.
-  const [ticketNotifs, setTicketNotifs] = React.useState([]);
-
-  // Ticket activity → notifications. We compare each ticket's updated_at against
-  // the last value we saw (loadTicketSeen); a newer one means IT touched it since
-  // you last opened it. First sighting of a ticket is seeded (no notification),
-  // so you only get pinged on real changes. Recomputes on NOTIF_EVT too, so
-  // opening a ticket (which records it seen) clears its notification instantly.
-  const ticketsRef = React.useRef([]);
-  React.useEffect(() => {
-    let cancelled = false;
-    const recompute = () => {
-      const seen = loadTicketSeen();
-      const next = { ...seen };
-      let seeded = false;
-      const out = [];
-      for (const t of ticketsRef.current) {
-        const upd = t.updated_at || t.created_at;
-        if (!upd) continue;
-        const prev = seen[String(t.id)];
-        if (prev === undefined) { next[String(t.id)] = upd; seeded = true; continue; }
-        if (new Date(upd).getTime() > new Date(prev).getTime()) {
-          const when = new Date(upd);
-          out.push({
-            id: `tkt-${t.id}-${upd}`,
-            kind: 'ticket',
-            ticketId: t.id,
-            unread: true,
-            when: notifWhen(when),
-            group: notifGroup(when),
-            title: `${t.ticket_number || 'Your ticket'} — new update`,
-            ticketNumber: t.ticket_number || null,
-            subject: t.subject || null,
-            body: `“${t.subject || 'Ticket'}” was updated by the IT Team — tap to view.`,
-            color: '#FDC831',
-            _ts: when.getTime(),
-          });
-        }
-      }
-      if (seeded) { try { localStorage.setItem(TICKET_SEEN_KEY, JSON.stringify(next)); } catch {} }
-      if (!cancelled) setTicketNotifs(out);
-    };
-    const load = async () => {
-      try {
-        const r = await fetch('/api/tickets', { credentials: 'include', cache: 'no-store' });
-        if (!r.ok || cancelled) return;
-        const j = await r.json();
-        ticketsRef.current = j.tickets || [];
-        recompute();
-      } catch { /* leave previous in place */ }
-    };
-    load();
-    const t = setInterval(load, 60000);
-    window.addEventListener(NOTIF_EVT, recompute); // re-eval when a ticket is marked seen
-    return () => { cancelled = true; clearInterval(t); window.removeEventListener(NOTIF_EVT, recompute); };
-  }, []);
-
-  const rawNotifs = React.useMemo(
-    () => [...ticketNotifs].sort((a, b) => b._ts - a._ts),
-    [ticketNotifs],
-  );
-
-  // Same-tab broadcast (custom event) + cross-tab broadcast (storage event) so
-  // dismissing in the dropdown updates the page (and vice versa) without a
-  // refresh.
-  React.useEffect(() => {
-    const refresh = () => setPersist(loadNotifPersist());
-    const onStorage = (e) => { if (e.key === NOTIF_KEY) refresh(); };
-    window.addEventListener(NOTIF_EVT, refresh);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener(NOTIF_EVT, refresh);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-
-  const update = React.useCallback((next) => {
-    setPersist(next);
-    saveNotifPersist(next);
-    try { window.dispatchEvent(new Event(NOTIF_EVT)); } catch {}
-  }, []);
-
-  const dismissed = React.useMemo(() => new Set(persist.dismissed), [persist.dismissed]);
-  const read = React.useMemo(() => new Set(persist.read), [persist.read]);
-
-  const items = React.useMemo(
-    () => rawNotifs
-      .filter((i) => !dismissed.has(i.id))
-      .map((i) => ({ ...i, unread: i.unread && !read.has(i.id) })),
-    [rawNotifs, dismissed, read],
-  );
-  const unreadCount = items.filter((i) => i.unread).length;
-
-  const markRead = React.useCallback((id) => {
-    update({ ...loadNotifPersist(), read: Array.from(new Set([...loadNotifPersist().read, id])) });
-  }, [update]);
-
-  const markAllRead = React.useCallback(() => {
-    const cur = loadNotifPersist();
-    const allIds = rawNotifs
-      .filter((i) => !new Set(cur.dismissed).has(i.id))
-      .map((i) => i.id);
-    update({ ...cur, read: Array.from(new Set([...cur.read, ...allIds])) });
-  }, [update, rawNotifs]);
-
-  const dismiss = React.useCallback((id) => {
-    const cur = loadNotifPersist();
-    update({ ...cur, dismissed: Array.from(new Set([...cur.dismissed, id])) });
-  }, [update]);
-
-  return { items, unreadCount, markRead, markAllRead, dismiss };
+  const st = useNotifStore();
+  const items = React.useMemo(() => st.items.map(notifPresent), [st.items]);
+  return {
+    items,
+    unreadCount: st.unread,
+    ready: st.ready,
+    live: st.live,
+    markRead: notifStore.markRead,
+    markAllRead: notifStore.markAllRead,
+    markTicketRead: notifStore.markTicketRead,
+    dismiss: notifStore.dismiss,
+  };
 }
+
+const IconLifebuoy = (p) => <IconBase {...p}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="m5.6 5.6 3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9"/></IconBase>;
+const IconPulse = (p) => <IconBase {...p}><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></IconBase>;
+const NAV_ICONS = { Help: IconLifebuoy, Knowledge: IconBook, Status: IconPulse, "My Tickets": IconTicket };
 
 function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOpenTickets, onOpenApprovals }) {
   const [activeLocal, setActiveLocal] = React.useState("Help");
@@ -5307,89 +5486,70 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
   // "My Tickets" jumps to the tickets page; Approvals also lives in the account
   // menu (UserMenu).
   const links = ["Help", "Knowledge", "Status", "My Tickets"];
+  const { byTicket } = useNotifStore();
+  const unreadTickets = Object.keys(byTicket || {}).length;
+
+  // Compact on scroll: the bar tightens and lifts off the page once you're
+  // reading, and relaxes back at the top. The page scrolls inside
+  // .page-scroll (not the window). Two thresholds (hysteresis) so a trackpad
+  // hovering around one line can't make it flicker.
+  const [scrolled, setScrolled] = React.useState(false);
+  React.useEffect(() => {
+    const el = document.querySelector('.page-scroll');
+    if (!el) return undefined;
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const y = el.scrollTop;
+        setScrolled((was) => (was ? y > 8 : y > 40));
+      });
+    };
+    onScroll();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => { cancelAnimationFrame(raf); el.removeEventListener('scroll', onScroll); };
+  }, []);
+
+  // Hover glide: one soft highlight that slides to whichever link you point
+  // at, instead of each link lighting up on its own.
+  const trackRef = React.useRef(null);
+  const [glide, setGlide] = React.useState(null); // { x, w } | null
+  const pointAt = (e) => {
+    const b = e.currentTarget;
+    setGlide({ x: b.offsetLeft, w: b.offsetWidth, h: b.offsetHeight, y: b.offsetTop });
+  };
+
   return (
-    <nav style={{
-      position: "sticky", top: 0, zIndex: 50,
-      background: "#FFFFFF",
-      borderBottom: "1px solid #211E1E",
-      padding: "10px 28px",
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      gap: 24,
-    }}>
-      <button
-        onClick={onHome}
-        className="brand-btn"
-        style={{
-          background: "none", border: "none", padding: 0, cursor: "pointer",
-          display: "flex", alignItems: "center", gap: 10,
-        }}>
-        <style>{`
-          .brand-btn img { transition: transform .28s cubic-bezier(.22,.61,.36,1); }
-          .brand-btn:hover img { transform: rotate(-14deg) scale(1.22) !important; }
-          .brand-btn:active img { transform: rotate(-8deg) scale(1.05) !important; }
-          .brand-btn span { transition: letter-spacing .2s var(--ease, cubic-bezier(.22,.61,.36,1)), color .2s; }
-          .brand-btn:hover span { letter-spacing: 0.10em; }
-        `}</style>
-        <img src={withBase("/assets/slice-logo.png")} alt="Slice" width="32" height="32" style={{
-          display: "block", transform: "rotate(-10deg)", transformOrigin: "center",
-        }} />
-        <span style={{
-          display: "inline-flex", alignItems: "center",
-          color: "#211E1E",
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 900, fontSize: 16,
-          letterSpacing: "0.06em", textTransform: "uppercase",
-        }}>IT Hub</span>
+    <nav className={"topnav" + (scrolled ? " is-scrolled" : "")} aria-label="IT Hub">
+      <button onClick={onHome} className="topnav-brand" aria-label="IT Hub home">
+        <img src={withBase("/assets/slice-logo.png")} alt="Slice" width="30" height="30" />
+        <span>IT Hub</span>
       </button>
 
-      <div style={{display: "flex", gap: 28, alignItems: "center"}}>
-        {links.map((l) => (
-          <a key={l} href="#" onClick={(e)=>{e.preventDefault(); setActiveLocal(l); onNavigate && onNavigate(l);}}
-            onMouseEnter={(e)=>{
-              e.currentTarget.style.transform = "scale(1.08)";
-              e.currentTarget.style.color = active===l ? "#211E1E" : "rgba(33,30,30,0.85)";
-              const u = e.currentTarget.querySelector("[data-underline]");
-              if (u) {
-                u.style.opacity = active===l ? "0.55" : "0.55";
-                u.style.transform = "scaleX(1)";
-              }
-            }}
-            onMouseLeave={(e)=>{
-              e.currentTarget.style.transform = "scale(1)";
-              e.currentTarget.style.color = active===l ? "#211E1E" : "rgba(33,30,30,0.68)";
-              const u = e.currentTarget.querySelector("[data-underline]");
-              if (u) {
-                u.style.opacity = active===l ? "1" : "0";
-                u.style.transform = active===l ? "scaleX(1)" : "scaleX(0)";
-              }
-            }}
-            style={{
-              color: active===l ? "#211E1E" : "rgba(33,30,30,0.68)",
-              textDecoration: "none",
-              fontSize: 14, fontWeight: 600,
-              letterSpacing: "-0.005em",
-              position: "relative", padding: "4px 0",
-              display: "inline-block",
-              transformOrigin: "center center",
-              transition: "color .12s ease, transform .18s cubic-bezier(.34,1.56,.64,1)",
-            }}>
-            {l}
-            <span data-underline style={{
-              position: "absolute", left: "-2%", right: "-2%", bottom: -2,
-              height: 6,
-              backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 8' preserveAspectRatio='none'><path d='M2 4 Q 20 1, 40 4 T 78 4' fill='none' stroke='%23FDC831' stroke-width='4' stroke-linecap='round'/></svg>")`,
-              backgroundRepeat: "no-repeat", backgroundSize: "100% 100%",
-              pointerEvents: "none",
-              opacity: active===l ? 1 : 0,
-              transform: active===l ? "scaleX(1)" : "scaleX(0)",
-              transformOrigin: "left center",
-              transition: "opacity .18s ease, transform .22s cubic-bezier(.34,1.56,.64,1)",
-            }}/>
-          </a>
-        ))}
+      <div ref={trackRef} className="topnav-links has-slider" role="tablist" aria-label="IT Hub sections"
+        onMouseLeave={() => setGlide(null)}>
+        <span aria-hidden="true" className={"topnav-glide" + (glide ? " is-on" : "")}
+          style={glide ? { width: glide.w, height: glide.h, transform: `translate(${glide.x}px, ${glide.y}px)` } : undefined} />
+        <SlideIndicator activeKey={active + (scrolled ? ':s' : '')} radius={999} />
+        {links.map((l) => {
+          const isActive = active === l;
+          const Icon = NAV_ICONS[l] || IconSpark;
+          const n = l === "My Tickets" ? unreadTickets : 0;
+          return (
+            <button key={l} type="button" role="tab" aria-selected={isActive} aria-current={isActive ? "page" : undefined}
+              title={l} aria-label={n > 0 ? `${l} (${n} with unread updates)` : l}
+              className={"topnav-link" + (isActive ? " is-active" : "")}
+              onMouseEnter={pointAt} onFocus={pointAt}
+              onClick={() => { setActiveLocal(l); onNavigate && onNavigate(l); }}>
+              <Icon size={15} stroke={2} />
+              <span className="topnav-lbl">{l}</span>
+              {n > 0 && <span className="topnav-badge">{n > 9 ? "9+" : n}</span>}
+            </button>
+          );
+        })}
       </div>
 
-      <div style={{display: "flex", alignItems: "center", gap: 12}}>
+      <div className="topnav-tools">
         <NotificationsMenu onViewAll={onOpenNotifications} onOpenTickets={onOpenTickets} />
         <ItServicesButton />
         <UserMenu onOpenNotifications={onOpenNotifications} onOpenTickets={onOpenTickets} onOpenApprovals={onOpenApprovals} />
@@ -5511,15 +5671,21 @@ function useNavPopover() {
   return { open, closing, toggle, close, wrapRef, triggerRef, panelRef };
 }
 
-const NotifKindIcon = ({ kind }) => (
-  <span className={'notif-kind notif-kind-' + (kind || 'info')} aria-hidden="true">
-    {kind === 'ticket' ? (
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2V10a2 2 0 0 0 0 4v1.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5Z"/><path d="M14 7v10" strokeDasharray="1.5 2.5"/></svg>
-    ) : kind === 'approval' ? (
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-    ) : (
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-    )}
+// One glyph per kind of change, so the bell scans at a glance.
+const NOTIF_GLYPHS = {
+  reply:    <><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.7A8 8 0 1 1 21 12Z"/><path d="M8.5 11h7M8.5 14h4"/></>,
+  status:   <><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></>,
+  approval: <><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></>,
+  declined: <><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></>,
+  priority: <><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></>,
+  ticket:   <><path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2V10a2 2 0 0 0 0 4v1.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5Z"/><path d="M14 7v10" strokeDasharray="1.5 2.5"/></>,
+  info:     <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></>,
+};
+const NotifKindIcon = ({ kind, size = 15 }) => (
+  <span className={'notif-kind notif-kind-' + (NOTIF_GLYPHS[kind] ? kind : 'info')} aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+      {NOTIF_GLYPHS[kind] || NOTIF_GLYPHS.info}
+    </svg>
   </span>
 );
 
@@ -5527,7 +5693,7 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
   const pop = useNavPopover();
   // Shared store — the dropdown shows the latest 6; read state is persisted
   // and in sync with the full Notifications page.
-  const { items: allItems, unreadCount, markRead, markAllRead } = useNotifications();
+  const { items: allItems, unreadCount, markRead, markAllRead, live } = useNotifications();
   const items = allItems.slice(0, 6);
 
   // The bell swings once when a NEW unread arrives (not on every render,
@@ -5550,7 +5716,7 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
 
   const openItem = (it) => {
     markRead(it.id);
-    if (it.kind === 'ticket' && onOpenTickets) {
+    if (it.ticketId != null && onOpenTickets) {
       pop.close(false);
       if (it.ticketId != null) { try { window.__PORTAL_OPEN_TICKET__ = it.ticketId; } catch {} }
       onOpenTickets();
@@ -5559,6 +5725,7 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
 
   return (
     <div ref={pop.wrapRef} style={{ position: 'relative' }}>
+      <LiveToasts onOpenTickets={onOpenTickets} />
       <button
         ref={pop.triggerRef}
         type="button"
@@ -5581,7 +5748,10 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
           <div className="nav-pop-head">
             <div style={{ minWidth: 0 }}>
               <div className="nav-pop-title">Notifications</div>
-              <div className="nav-pop-sub">{unreadCount > 0 ? `${unreadCount} unread` : 'You’re all caught up'}</div>
+              <div className="nav-pop-sub">
+                {unreadCount > 0 ? `${unreadCount} unread` : 'You’re all caught up'}
+                {live && <span className="notif-live" title="Updates arrive as they happen"> · <i aria-hidden="true" />Live</span>}
+              </div>
             </div>
             {unreadCount > 0 && (
               <button type="button" className="notif-markall" onClick={markAllRead}>
@@ -5610,13 +5780,14 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
                       className={'notif-row nav-pop-item' + (it.unread ? ' is-unread' : '')}
                       style={{ '--i': i }}
                       onClick={() => openItem(it)}>
-                      <NotifKindIcon kind={it.kind} />
+                      <NotifKindIcon kind={it.tone} />
                       <span className="notif-main">
-                        <span className="notif-title">{it.subject || it.title}</span>
+                        <span className="notif-title">{it.title}</span>
                         <span className="notif-body">
                           {it.ticketNumber ? <><span className="notif-num">{it.ticketNumber}</span> · </> : null}
-                          {it.subject ? 'Updated by the IT Team' : it.body}
+                          {it.subject || 'Your ticket'}
                         </span>
+                        {it.kind === 'reply' && it.body && <span className="notif-excerpt">“{it.body}”</span>}
                       </span>
                       <span className="notif-side">
                         <span className="notif-when">{it.when}</span>
@@ -5636,6 +5807,68 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Live toasts — a small card bottom-right when a notification arrives over the
+// stream while you're using the portal ("Dana replied", "Request approved"),
+// with a one-click way to the ticket. Only for things pushed live: nothing
+// pops up on page load, and nothing for the ticket you already have open
+// (that one shows its own notice in place). At most three, each fades on its
+// own after a few seconds, and a hover holds it.
+function LiveToasts({ onOpenTickets }) {
+  const [toasts, setToasts] = React.useState([]);
+  const timers = React.useRef(new Map());
+  const remove = React.useCallback((id) => {
+    setToasts((ts) => ts.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
+    setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== id)), 220);
+    const tm = timers.current.get(id); if (tm) { clearTimeout(tm); timers.current.delete(id); }
+  }, []);
+  const arm = React.useCallback((id) => {
+    const tm = setTimeout(() => remove(id), 7000);
+    timers.current.set(id, tm);
+  }, [remove]);
+  React.useEffect(() => {
+    const onActivity = (e) => {
+      const d = (e && e.detail) || {};
+      if (!d.live) return;
+      const viewing = (typeof window !== 'undefined' && window.__PORTAL_VIEWING_TICKET__) || null;
+      const fresh = (d.items || []).filter((n) => !n.read && String(n.ticket_id) !== String(viewing)).map(notifPresent);
+      if (!fresh.length) return;
+      setToasts((ts) => [...fresh.reverse(), ...ts.filter((t) => !fresh.some((f) => f.id === t.id))].slice(0, 3));
+      fresh.forEach((f) => arm(f.id));
+    };
+    window.addEventListener(TICKET_ACTIVITY_EVT, onActivity);
+    const tmap = timers.current;
+    return () => { window.removeEventListener(TICKET_ACTIVITY_EVT, onActivity); tmap.forEach(clearTimeout); tmap.clear(); };
+  }, [arm]);
+  if (!toasts.length) return null;
+  const open = (t) => {
+    notifStore.markRead(t.id);
+    try { window.__PORTAL_OPEN_TICKET__ = t.ticketNumber || t.ticketId; } catch {}
+    remove(t.id);
+    onOpenTickets && onOpenTickets();
+  };
+  return ReactDOM.createPortal(
+    <div className="live-toasts" role="region" aria-label="New updates" aria-live="polite">
+      {toasts.map((t) => (
+        <div key={t.id} className={'live-toast' + (t.leaving ? ' is-leaving' : '')}
+          onMouseEnter={() => { const tm = timers.current.get(t.id); if (tm) { clearTimeout(tm); timers.current.delete(t.id); } }}
+          onMouseLeave={() => arm(t.id)}>
+          <NotifKindIcon kind={t.tone} />
+          <div style={{ minWidth: 0 }}>
+            <div className="live-toast-title">{t.title}</div>
+            <div className="live-toast-sub">{[t.ticketNumber, t.subject].filter(Boolean).join(' · ')}</div>
+            {t.kind === 'reply' && t.body && <div className="live-toast-ex">“{t.body}”</div>}
+          </div>
+          <div className="live-toast-actions">
+            <button type="button" className="live-toast-x" onClick={() => remove(t.id)} aria-label="Dismiss">✕</button>
+            {t.ticketId != null && <button type="button" className="live-toast-view" onClick={() => open(t)}>View</button>}
+          </div>
+        </div>
+      ))}
+    </div>,
+    document.body,
   );
 }
 
@@ -6208,23 +6441,15 @@ Object.assign(window, {
 // ---------- NOTIFICATIONS PAGE ----------
 // Full notifications view linked from the bell-dropdown's "View all" footer.
 // Same yellow + cream module pattern as Profile / Knowledge / Status.
-function NotificationsPage({ onBack }) {
-  // Pulled from the shared store so dismissals + reads survive a refresh and
-  // stay in sync with the bell-dropdown.
-  const { items, unreadCount, markRead, markAllRead, dismiss } = useNotifications();
-  const [filter, setFilter] = React.useState("all"); // all | unread | ticket | status | access | security
-  const KIND_META = {
-    ticket:   { label: "Ticket",    color: "#FDC831" },
-    status:   { label: "Status",    color: "#D4F4D4" },
-    access:   { label: "Access",    color: "#E4DBFF" },
-    security: { label: "Security",  color: "#FFD4D0" },
-    digest:   { label: "Digest",    color: "#C4E3FF" },
-  };
-  const filtered = React.useMemo(() => {
-    if (filter === "all") return items;
-    if (filter === "unread") return items.filter(i => i.unread);
-    return items.filter(i => i.kind === filter);
-  }, [items, filter]);
+function NotificationsPage({ onBack, onOpenTickets }) {
+  // The shared, server-backed store — same items and read state as the bell.
+  const { items, unreadCount, ready, markRead, markAllRead, dismiss } = useNotifications();
+  const [filter, setFilter] = React.useState("all"); // all | unread | reply | status | approval
+  const KIND_LABEL = { reply: "Reply", status: "Status", priority: "Priority", approval: "Approval", created: "New ticket" };
+  const matches = (it, f) => f === "all" || (f === "unread" ? it.unread
+    : f === "status" ? (it.kind === "status" || it.kind === "priority")
+    : it.kind === f);
+  const filtered = React.useMemo(() => items.filter((i) => matches(i, filter)), [items, filter]);
   const grouped = React.useMemo(() => {
     const out = new Map();
     for (const it of filtered) {
@@ -6233,168 +6458,114 @@ function NotificationsPage({ onBack }) {
     }
     return out;
   }, [filtered]);
-
   const filterTabs = [
-    { id: "all",    label: "All",    count: items.length },
-    { id: "unread", label: "Unread", count: unreadCount },
-  ];
+    { id: "all",      label: "All" },
+    { id: "unread",   label: "Unread" },
+    { id: "reply",    label: "Replies" },
+    { id: "status",   label: "Status" },
+    { id: "approval", label: "Approvals" },
+  ].map((t) => ({ ...t, count: items.filter((i) => matches(i, t.id)).length }));
+
+  const openIt = (it) => {
+    markRead(it.id);
+    if (it.ticketId != null && onOpenTickets) {
+      try { window.__PORTAL_OPEN_TICKET__ = it.ticketNumber || it.ticketId; } catch {}
+      onOpenTickets();
+    }
+  };
 
   return (
     <div className="page" style={{ minHeight: "100vh", background: "#FDC831" }}>
-      {/* Hero strip */}
-      <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "20px 32px",
-      }}>
+      <style>{`
+        .np-row { display:flex; align-items:flex-start; gap:14px; width:100%; padding:16px 18px; background:transparent; border:0;
+          border-bottom:1.5px solid #E7E1D4; cursor:pointer; text-align:left; font-family:inherit; color:inherit; position:relative;
+          transition:background .14s ease; }
+        .np-row:last-child { border-bottom:0; }
+        .np-row:hover { background:#FBF6E9; }
+        .np-row.is-unread { background:#FFF8DC; }
+        .np-row.is-unread:hover { background:#FFF1C2; }
+        .np-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
+        .np-row .notif-kind { width:40px; height:40px; border-radius:10px; }
+        .np-title { font-family:'Archivo',sans-serif; font-size:14px; font-weight:700; color:#211E1E; letter-spacing:-.005em; }
+        .np-row.is-unread .np-title { font-weight:900; }
+        .np-ticket { font-size:12.5px; color:#5A4B28; margin-top:2px; }
+        .np-body { font-size:13px; color:#4A4233; line-height:1.5; margin-top:6px; }
+        .np-body.is-quote { font-style:italic; padding-left:10px; border-left:3px solid #E7E1D4; }
+        .np-tag { display:inline-block; margin-top:8px; font-family:'Archivo',sans-serif; font-size:9.5px; font-weight:800; letter-spacing:.06em;
+          text-transform:uppercase; color:#4A3F2E; padding:2px 7px; background:#FFF9E6; border:1px solid #211E1E; border-radius:3px; }
+        .np-when { font-size:11px; color:#8A7A4E; font-weight:600; font-family:'Archivo',sans-serif; flex-shrink:0; white-space:nowrap; }
+        .np-x { flex-shrink:0; width:26px; height:26px; background:transparent; border:1px solid transparent; border-radius:999px;
+          display:grid; place-items:center; cursor:pointer; color:#78684C; }
+        .np-x:hover { background:#FFFFFF; border-color:#211E1E; color:#211E1E; }
+        .np-dot { position:absolute; left:6px; top:50%; transform:translateY(-50%); width:7px; height:7px; border-radius:50%; background:#E8534E; }
+      `}</style>
+      <div style={{ background: "#F7F4EF", borderBottom: "1px solid #211E1E", padding: "20px 32px" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <button onClick={onBack} className="kb-back-btn">
             <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>
             Back to IT Hub
           </button>
-          <button
-            type="button"
-            onClick={markAllRead}
-            disabled={unreadCount === 0}
+          <button type="button" onClick={markAllRead} disabled={unreadCount === 0}
             style={{
-              padding: "8px 14px",
-              background: unreadCount ? "#FFFFFF" : "#F7F4EF",
-              border: "1px solid #211E1E", borderRadius: 999,
-              boxShadow: unreadCount ? "1px 1px 0 #211E1E" : "none",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 700, fontSize: 12,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#211E1E",
-              cursor: unreadCount === 0 ? "default" : "pointer",
-              opacity: unreadCount === 0 ? 0.5 : 1,
+              padding: "8px 14px", background: unreadCount ? "#FFFFFF" : "#F7F4EF",
+              border: "1px solid #211E1E", borderRadius: 999, boxShadow: unreadCount ? "1px 1px 0 #211E1E" : "none",
+              fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "0.04em", textTransform: "uppercase",
+              color: "#211E1E", cursor: unreadCount === 0 ? "default" : "pointer", opacity: unreadCount === 0 ? 0.5 : 1,
             }}>
             {unreadCount > 0 ? `Mark ${unreadCount} read` : "All caught up"}
           </button>
         </div>
       </div>
 
-      {/* Body */}
       <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 80px" }}>
-        {/* Page title */}
-        <h1 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 40, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.02,
-          margin: "0 0 22px", color: "#211E1E",
-        }}>Notifications</h1>
+        <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 40, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.02, margin: "0 0 8px", color: "#211E1E" }}>Notifications</h1>
+        <p style={{ margin: "0 0 22px", fontSize: 14, color: "#4A3F2E", fontWeight: 500 }}>
+          Replies from IT and changes to your tickets — status, approvals and priority. Your own actions never show up here.
+        </p>
 
-        {/* Filter pill tabs */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 24 }}>
-          {filterTabs.map((tab) => {
-            const on = filter === tab.id;
-            return (
-              <button key={tab.id}
-                className={"kb-popular-chip" + (on ? " is-active" : "")}
-                onClick={() => setFilter(tab.id)}>
-                {tab.label}{tab.count != null ? ` · ${tab.count}` : ""}
-              </button>
-            );
-          })}
+          {filterTabs.map((tab) => (
+            <button key={tab.id} className={"kb-popular-chip" + (filter === tab.id ? " is-active" : "")} onClick={() => setFilter(tab.id)}>
+              {tab.label} · {tab.count}
+            </button>
+          ))}
         </div>
 
-        {/* Grouped notification list */}
-        {filtered.length === 0 ? (
-          <div style={{
-            padding: "48px 24px", textAlign: "center",
-            background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14,
-          }}>
-            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: "#211E1E", marginBottom: 6 }}>You're all caught up</div>
-            <div style={{ fontSize: 13.5, color: "#78684C" }}>No notifications match this filter right now.</div>
+        {!ready ? (
+          <TicketsNotice title="Loading notifications…" />
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: "48px 24px", textAlign: "center", background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14 }}>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: "#211E1E", marginBottom: 6 }}>
+              {items.length ? "Nothing here" : "You're all caught up"}
+            </div>
+            <div style={{ fontSize: 13.5, color: "#78684C" }}>
+              {items.length ? "No notifications match this filter." : "When IT replies or something changes on one of your tickets, it lands here."}
+            </div>
           </div>
         ) : (
           [...grouped.entries()].map(([group, list]) => (
             <div key={group} style={{ marginBottom: 28 }}>
-              <div className="eyebrow" style={{
-                fontSize: 11, fontWeight: 900, letterSpacing: "0.08em",
-                textTransform: "uppercase", color: "#4A3F2E",
-                marginBottom: 10,
-              }}>{group}</div>
-              <div style={{
-                background: "#FFFFFF",
-                border: "1px solid #211E1E", borderRadius: 14,
-                boxShadow: "2px 2px 0 #211E1E",
-                overflow: "hidden",
-              }}>
-                {list.map((it, i) => (
-                  <div key={it.id}
-                    onClick={() => markRead(it.id)}
-                    className="notif-row"
-                    style={{
-                      display: "flex", alignItems: "flex-start", gap: 14,
-                      padding: "16px 18px",
-                      borderBottom: i === list.length - 1 ? "none" : "1.5px solid #E7E1D4",
-                      cursor: "pointer",
-                      background: it.unread ? "#FFFAE0" : "transparent",
-                      position: "relative",
-                    }}>
-                    {it.unread && (
-                      <span aria-hidden="true" style={{
-                        position: "absolute", left: 6, top: "50%",
-                        transform: "translateY(-50%)",
-                        width: 7, height: 7, borderRadius: "50%",
-                        background: "#E8534E",
-                      }}/>
-                    )}
-                    {/* Type tile */}
-                    <div className="notif-icon" style={{
-                      width: 40, height: 40, flexShrink: 0,
-                      background: KIND_META[it.kind]?.color || "#FDC831",
-                      border: "1px solid #211E1E", borderRadius: 8,
-                      display: "grid", placeItems: "center",
-                      color: "#211E1E",
-                    }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
-                        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
-                      </svg>
-                    </div>
-                    {/* Body */}
+              <div className="eyebrow" style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 10 }}>{group}</div>
+              <div style={{ background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 14, boxShadow: "2px 2px 0 #211E1E", overflow: "hidden" }}>
+                {list.map((it) => (
+                  <div key={it.id} role="button" tabIndex={0} onClick={() => openIt(it)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openIt(it); } }}
+                    className={"np-row" + (it.unread ? " is-unread" : "")}
+                    aria-label={`${it.title}${it.ticketNumber ? ' on ' + it.ticketNumber : ''}${it.unread ? ' (unread)' : ''}`}>
+                    {it.unread && <span className="np-dot" aria-hidden="true" />}
+                    <NotifKindIcon kind={it.tone} size={18} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 3 }}>
-                        <div style={{
-                          fontFamily: "'Archivo', sans-serif",
-                          fontSize: 14, fontWeight: 800, color: "#211E1E",
-                          letterSpacing: "-0.005em",
-                        }}>{it.title}</div>
-                        <div style={{ fontSize: 11, color: "#8A7A4E", fontWeight: 600, fontFamily: "Archivo, sans-serif", flexShrink: 0 }}>{it.when}</div>
+                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+                        <div className="np-title">{it.title}</div>
+                        <div className="np-when">{it.when}</div>
                       </div>
-                      <div style={{ fontSize: 13, color: "#5A4B28", lineHeight: 1.5 }}>{it.body}</div>
-                      <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <span style={{
-                          fontFamily: "'Archivo', sans-serif",
-                          fontSize: 9.5, fontWeight: 800,
-                          letterSpacing: "0.06em", textTransform: "uppercase",
-                          color: "#4A3F2E",
-                          padding: "2px 7px",
-                          background: "#FFF9E6",
-                          border: "1px solid #211E1E",
-                          borderRadius: 3,
-                        }}>{KIND_META[it.kind]?.label || it.kind}</span>
+                      <div className="np-ticket">
+                        {it.ticketNumber && <span className="notif-num">{it.ticketNumber}</span>}{it.ticketNumber && it.subject ? ' · ' : ''}{it.subject}
                       </div>
+                      {it.body && <div className={"np-body" + (it.kind === 'reply' ? " is-quote" : "")}>{it.body}</div>}
+                      <span className="np-tag">{KIND_LABEL[it.kind] || "Update"}</span>
                     </div>
-                    {/* Dismiss button */}
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); dismiss(it.id); }}
-                      aria-label="Dismiss notification"
-                      style={{
-                        flexShrink: 0,
-                        width: 26, height: 26,
-                        background: "transparent",
-                        border: "1px solid transparent",
-                        borderRadius: 999,
-                        display: "grid", placeItems: "center",
-                        cursor: "pointer", color: "#78684C",
-                        fontFamily: "inherit",
-                        transition: "background .12s ease, border-color .12s ease, color .12s ease",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "#FFFFFF"; e.currentTarget.style.borderColor = "#211E1E"; e.currentTarget.style.color = "#211E1E"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.color = "#78684C"; }}
-                    >
+                    <button type="button" className="np-x" onClick={(e) => { e.stopPropagation(); dismiss(it.id); }} aria-label="Dismiss notification">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
                     </button>
                   </div>
@@ -8960,39 +9131,71 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, onSend }) {
   );
 }
 
-// `files` renders under the bubble — the attachments that were sent WITH this
-// message, so "here's the screenshot" and the screenshot read as one reply.
-// `onOpenImage` makes inline images in the body open in the lightbox.
-function ConversationMessage({ mine, name, time, body, children, files, onOpenImage }) {
-  const initials = mine ? ticketInitials(name) : (name && !/^it team$/i.test(name) ? ticketInitials(name) : 'IT');
-  const avatar = (
-    <span style={{
-      width: 32, height: 32, flexShrink: 0, borderRadius: '50%', border: '1px solid #211E1E',
-      display: 'grid', placeItems: 'center', fontFamily: "'Archivo', sans-serif", fontWeight: 900, fontSize: 11,
-      background: mine ? '#FDC831' : '#211E1E', color: mine ? '#211E1E' : '#FDC831',
-    }}>{initials}</span>
-  );
+// A stable, readable avatar colour per person, so a long thread shows at a
+// glance who said what (and two IT people never look like one).
+const CONVO_TINTS = [
+  ['#DCE8FA', '#1C4E8C'], ['#DDF1E4', '#0A6E31'], ['#EEE7FB', '#5B3CB0'], ['#FFE9D2', '#9A4A00'],
+  ['#E2F4F1', '#0F766E'], ['#FBE4EC', '#9D2B55'], ['#EAEDF1', '#3E4C5E'],
+];
+function convoTint(name) {
+  const str = String(name || 'IT Team');
+  let h = 0;
+  for (let k = 0; k < str.length; k++) h = (h * 31 + str.charCodeAt(k)) >>> 0;
+  return CONVO_TINTS[h % CONVO_TINTS.length];
+}
+
+// Full date/time for the hover title on a relative time ("12m ago").
+function convoStamp(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return undefined;
+  return d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+// "Today" / "Yesterday" / "Mon, Sep 29" — the divider between days.
+function convoDay(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const that = new Date(d); that.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - that) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
+}
+
+function ConversationDay({ label }) {
   return (
-    <div style={{ display: 'flex', flexDirection: mine ? 'row-reverse' : 'row', gap: 10, alignItems: 'flex-end', marginTop: 16 }}>
-      {avatar}
-      <div style={{ minWidth: 0, maxWidth: '78%', display: 'flex', flexDirection: 'column', alignItems: mine ? 'flex-end' : 'flex-start' }}>
-        <div style={{ fontSize: 11.5, color: '#9A8E78', margin: '0 3px 3px', fontWeight: 600 }}>
-          {mine ? 'You' : (name || 'IT Team')}{time ? ' · ' + time : ''}
-        </div>
+    <div className="convo-day" role="separator" aria-label={label}><span>{label}</span></div>
+  );
+}
+
+// One message in the ticket conversation. IT on the left with their own
+// avatar colour and an "IT Team" tag; you on the right. `compact` continues
+// the previous message from the same person (no repeated name or avatar).
+// `files` renders under the bubble — the attachments sent WITH this message,
+// so "here's the screenshot" and the screenshot read as one reply.
+// `onOpenImage` makes inline images in the body open in the lightbox.
+function ConversationMessage({ mine, name, time, stamp, body, children, files, onOpenImage, compact }) {
+  const isGeneric = !name || /^it team$/i.test(name);
+  const initials = mine ? ticketInitials(name) : (isGeneric ? 'IT' : ticketInitials(name));
+  const [bg, fg] = mine ? ['#FDC831', '#211E1E'] : (isGeneric ? ['#211E1E', '#FDC831'] : convoTint(name));
+  return (
+    <div className={'convo-msg' + (mine ? ' is-mine' : ' is-agent') + (compact ? ' is-compact' : '')}>
+      <span className="convo-avatar" aria-hidden="true" style={compact ? undefined : { background: bg, color: fg }}>{compact ? null : initials}</span>
+      <div className="convo-col">
+        {!compact && (
+          <div className="convo-head">
+            <span className="convo-name">{mine ? 'You' : (name || 'IT Team')}</span>
+            {!mine && !isGeneric && <span className="convo-role">IT Team</span>}
+            {time && <time className="convo-time" title={stamp}>{time}</time>}
+          </div>
+        )}
         {children != null ? children : (
-          <div style={{
-            maxWidth: '100%', padding: '9px 13px', border: '1px solid #211E1E', borderRadius: 14,
-            fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            background: mine ? '#FFFFFF' : '#EFEAE0', color: '#211E1E',
-            boxShadow: '2px 2px 0 #211E1E',
-            borderBottomRightRadius: mine ? 4 : 14, borderBottomLeftRadius: mine ? 14 : 4,
-          }}>{looksLikeHtml(body)
-            ? <RichBody html={body} onOpenImage={onOpenImage} />
-            : linkifyText(body, '#B92323')}</div>
+          <div className="convo-bubble">
+            {looksLikeHtml(body) ? <RichBody html={body} onOpenImage={onOpenImage} /> : linkifyText(body, '#B92323')}
+          </div>
         )}
-        {files && files.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, justifyContent: mine ? 'flex-end' : 'flex-start' }}>{files}</div>
-        )}
+        {files && files.length > 0 && <div className="convo-files">{files}</div>}
       </div>
     </div>
   );
@@ -9384,22 +9587,68 @@ function AppIcon({ name, iconUrl, size = 30, className }) {
 // otherwise a type glyph (issues/incidents have no app) — so every ticket gets a
 // clean icon like the service-catalog ones. A cheese bolt on charcoal reads as
 // "issue"; a spark stands in for a freeform request.
+// Glyphs the shared icon set doesn't have, for the issue topics below.
+const IconMonitor = (p) => <IconBase {...p}><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></IconBase>;
+const IconHeadset = (p) => <IconBase {...p}><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M19 20a3 3 0 0 1-3 2h-2"/></IconBase>;
+const IconGlobeLock = (p) => <IconBase {...p}><path d="M20.5 10A9 9 0 1 0 11 21"/><path d="M3.5 9h17M3.5 15H11M12 3a14 14 0 0 1 3.5 7M12 3a14 14 0 0 0 0 18"/><rect x="15" y="16" width="7" height="5" rx="1"/><path d="M16.5 16v-1.5a2 2 0 0 1 4 0V16"/></IconBase>;
+const IconPhone = (p) => <IconBase {...p}><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18.5h2"/></IconBase>;
+
+// What an issue is ABOUT, read from its subject/description/category, so the
+// lead tile says "VPN", "monitor" or "email" at a glance instead of every
+// problem wearing the same warning triangle. First match wins — order runs
+// from the most specific signals to the broadest. Each topic has its own soft
+// tint; the small red "!" corner (TicketLeadIcon) is what still marks it as a
+// problem rather than a request.
+const ISSUE_TOPICS = [
+  { key: 'security', label: 'Security',        re: /phish|suspicious|scam|malware|virus|hack|compromis|spam/, Glyph: IconShield,    bg: '#FDE7E4', fg: '#B42318' },
+  { key: 'vpn',      label: 'VPN',             re: /\bvpn\b|globalprotect|global protect|remote access|tunnel/, Glyph: IconGlobeLock, bg: '#E4EEFB', fg: '#1C4E8C' },
+  { key: 'account',  label: 'Sign-in',         re: /password|passcode|\bmfa\b|2fa|two.factor|authenticat|log ?in|sign ?in|locked out|onelogin|okta|sso\b|credential/, Glyph: IconKey, bg: '#EEE7FB', fg: '#5B3CB0' },
+  { key: 'network',  label: 'Wi-Fi',           re: /wi-?fi|wireless|internet|network|ethernet|router|no connection|offline|dns\b/, Glyph: IconWifi, bg: '#E2F4F1', fg: '#0F766E' },
+  { key: 'email',    label: 'Email',           re: /outlook|e-?mail|\bmail\b|inbox|gmail|calendar|invite/, Glyph: IconMail, bg: '#E6F0FA', fg: '#1D5F99' },
+  { key: 'slack',    label: 'Slack',           re: /\bslack\b|huddle/, Glyph: IconSlack, bg: '#F3E6F1', fg: '#6B2367' },
+  { key: 'audio',    label: 'Audio & video',   re: /headset|headphone|\bmic\b|microphone|audio|sound|speaker|jabra|webcam|camera|\bccp\b|zoom call/, Glyph: IconHeadset, bg: '#FFF1DB', fg: '#A15C07' },
+  { key: 'display',  label: 'Display',         re: /monitor|display|screen|\bdock\b|docking|hdmi|usb-?c|flicker|projector/, Glyph: IconMonitor, bg: '#EAEDF1', fg: '#3E4C5E' },
+  { key: 'printer',  label: 'Printer',         re: /printer|print|scanner|scan\b|toner/, Glyph: IconPrinter, bg: '#EDEAE4', fg: '#55503F' },
+  { key: 'phone',    label: 'Phone',           re: /iphone|android|mobile|phone|\bipad\b|tablet/, Glyph: IconPhone, bg: '#E8F1E6', fg: '#2F6B2A' },
+  { key: 'access',   label: 'Access',          re: /permission|access denied|no access|can'?t access|cannot access|\b403\b|unauthori[sz]ed/, Glyph: IconLock, bg: '#EEE7FB', fg: '#5B3CB0' },
+  { key: 'device',   label: 'Computer',        re: /laptop|macbook|\bmac\b|computer|\bpc\b|windows|slow|battery|keyboard|trackpad|mouse|freez|crash|won'?t (start|boot|turn on)|update/, Glyph: IconLaptop, bg: '#F1ECE2', fg: '#4A3F2E' },
+];
+function issueTopic(ticket) {
+  const t = ticket || {};
+  const hay = [t.subject, t.category_name, t.category, String(t.description || '').replace(/<[^>]*>/g, ' ').slice(0, 300)]
+    .filter(Boolean).join(' ').toLowerCase();
+  return ISSUE_TOPICS.find((x) => x.re.test(hay)) || null;
+}
+
 function TicketLeadIcon({ ticket, app, size = 34, className }) {
   if (app && (app.icon_url || app.name)) {
     return <AppIcon className={className} name={app.name} iconUrl={app.icon_url} size={size} />;
   }
-  // Freeform requests get a neutral charcoal/cheese spark tile; issues (and other
-  // non-request types) get a soft amber-red alert tile so problems stand out.
+  // Freeform requests get a neutral charcoal/cheese spark tile. Issues get a
+  // tile for what they're about (issueTopic) with a red "!" corner, falling
+  // back to the amber alert when nothing in the text gives the topic away.
   const isRequest = ticketTypeMeta(ticket && ticket.type).kind === 'request';
-  const Glyph = isRequest ? IconSpark : IconAlert;
-  const bg = isRequest ? '#211E1E' : '#FBE9E2';
-  const fg = isRequest ? '#FDC831' : '#C2410C';
+  const topic = isRequest ? null : issueTopic(ticket);
+  const Glyph = isRequest ? IconSpark : (topic ? topic.Glyph : IconAlert);
+  const bg = isRequest ? '#211E1E' : (topic ? topic.bg : '#FBE9E2');
+  const fg = isRequest ? '#FDC831' : (topic ? topic.fg : '#C2410C');
+  const flag = !isRequest && topic && size >= 28;
+  const flagSize = Math.max(13, Math.round(size * 0.36));
   return (
-    <span className={className} style={{
-      width: size, height: size, borderRadius: 7, flexShrink: 0, background: bg,
-      border: '1px solid #211E1E', display: 'grid', placeItems: 'center',
+    <span className={className} title={topic ? `Issue · ${topic.label}` : undefined} style={{
+      position: 'relative', width: size, height: size, borderRadius: Math.round(size * 0.22), flexShrink: 0, background: bg,
+      border: '1px solid #211E1E', display: 'grid', placeItems: 'center', boxSizing: 'border-box',
     }}>
-      <Glyph size={Math.round(size * 0.52)} stroke={2.2} style={{ color: fg }} />
+      <Glyph size={Math.round(size * 0.52)} stroke={2} style={{ color: fg }} />
+      {flag && (
+        <span aria-hidden="true" style={{
+          position: 'absolute', right: -Math.round(flagSize * 0.35), bottom: -Math.round(flagSize * 0.35),
+          width: flagSize, height: flagSize, borderRadius: '50%', boxSizing: 'border-box',
+          background: '#DA3327', border: '1.5px solid #FFFFFF', boxShadow: '0 0 0 1px #211E1E',
+          color: '#FFFFFF', display: 'grid', placeItems: 'center',
+          fontFamily: "'Archivo', sans-serif", fontWeight: 900, fontSize: Math.round(flagSize * 0.66), lineHeight: 1,
+        }}>!</span>
+      )}
     </span>
   );
 }
@@ -9483,29 +9732,22 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
   // so the stage-level reset doesn't fire — land at the top on each swap.
   useScrollToTop([tab]);
 
-  // Per-tab "unseen" badges: My tickets flags tickets with an IT update you
-  // haven't opened; Approvals flags requests awaiting you that you haven't looked
-  // at yet. Recomputes on refresh, on a 30s poll, and on NOTIF_EVT — so opening
-  // an item (which marks it seen) clears its count live.
-  const [unseen, setUnseen] = React.useState({ tickets: 0, approvals: 0 });
+  // Tab badges. My tickets: how many tickets have an update you haven't read
+  // (the server's notification state — the same numbers as the bell).
+  // Approvals: how many requests are waiting on YOU — an actionable count that
+  // only goes down when you decide, like a review queue.
+  const notif = useNotifStore();
+  const [pendingApprovals, setPendingApprovals] = React.useState(0);
   React.useEffect(() => {
     let off = false;
-    const recompute = async () => {
-      const [t, a] = await Promise.all([
-        ticketsApiJson('GET', '/api/tickets').catch(() => ({ tickets: [] })),
-        ticketsApiJson('GET', '/api/approvals/pending').catch(() => ({ pending: [] })),
-      ]);
-      if (off) return;
-      setUnseen({
-        tickets: countTabUnseen('tickets', t.tickets || [], (x) => x.id, (x) => x.updated_at || x.created_at, (x) => x.created_at),
-        approvals: countTabUnseen('approvals', a.pending || [], (x) => x.request_id, null, null),
-      });
-    };
-    recompute();
-    const iv = setInterval(recompute, 30000);
-    window.addEventListener(NOTIF_EVT, recompute);
-    return () => { off = true; clearInterval(iv); window.removeEventListener(NOTIF_EVT, recompute); };
+    const load = () => ticketsApiJson('GET', '/api/approvals/pending')
+      .then((a) => { if (!off) setPendingApprovals((a.pending || []).length); })
+      .catch(() => {});
+    load();
+    const iv = setInterval(load, 60000);
+    return () => { off = true; clearInterval(iv); };
   }, [refreshKey]);
+  const unseen = { tickets: Object.keys(notif.byTicket || {}).length, approvals: pendingApprovals };
 
   return (
     <div className="page" style={{ background: '#FDC831', display: 'flex', flexDirection: 'column' }}>
@@ -9550,7 +9792,7 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
               </button>
             </div>
           </div>
-          <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 40, fontWeight: 900, margin: 0, letterSpacing: '-0.03em', color: '#211E1E', lineHeight: 1 }}>Your tickets</h1>
+          <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 40, fontWeight: 900, margin: 0, letterSpacing: '-0.03em', color: '#211E1E', lineHeight: 1 }}>Tickets</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
             <style>{`
               /* Segmented switch — one track holds both options, so it reads as a
@@ -9949,26 +10191,6 @@ function TicketListSkeleton({ rows = 4 }) {
 // refreshes quietly underneath instead of flashing a loading state each visit.
 let myTicketsCache = null;
 
-// Per-ticket unseen state for the list rows. A ticket is "unseen" when IT has
-// touched it (updated_at) since you last opened its detail view — same rule as
-// the tab badge (countTabUnseen), but per row and with a count. The count is
-// the number of visible replies newer than your baseline when the list payload
-// carries `comments`; otherwise (prod list endpoints omit them) a status change
-// still counts as one update. Baseline for a never-opened ticket is its
-// created_at, so your own fresh submission doesn't flag itself.
-function ticketUnseenInfo(t, seenMap) {
-  if (!t || t.id == null) return { unseen: false, count: 0 };
-  const upd = t.updated_at || t.created_at;
-  if (!upd) return { unseen: false, count: 0 };
-  const baseline = seenMap[String(t.id)] !== undefined ? seenMap[String(t.id)] : t.created_at;
-  if (!baseline || new Date(upd).getTime() <= new Date(baseline).getTime()) return { unseen: false, count: 0 };
-  const base = new Date(baseline).getTime();
-  const newReplies = Array.isArray(t.comments)
-    ? t.comments.filter((c) => c && !c.is_internal && c.created_at && new Date(c.created_at).getTime() > base).length
-    : 0;
-  return { unseen: true, count: Math.max(1, newReplies) };
-}
-
 // Red "+N" bubble pinned to a ticket row's top-right corner — the at-a-glance
 // "this ticket has updates you haven't read" signal. Ring + soft pulse so it
 // pops on both the white card and the cheese page behind it.
@@ -9981,25 +10203,60 @@ function TicketUnseenBadge({ count }) {
   );
 }
 
-// "Requested for others" — a single on/off switch between two disjoint lists:
-// your own tickets (default) and the ones you opened on someone else's behalf
-// (who each is for is on the row via the "For ‹name›" chip). Only rendered when
-// at least one such ticket exists, so everyone else never sees a control that
-// can't do anything.
-function RequestedForToggle({ on, onToggle, count, unseen }) {
+// Whose tickets: yours, or the ones you raised for other people. Two named
+// options with counts (the same segmented control as Open / Closed) instead of
+// one on/off pill — the old pill flipped the whole list with nothing on screen
+// saying which list you were now looking at. Only rendered when you have at
+// least one on-behalf ticket. A red dot marks the side with unread updates.
+function RequestedForSwitch({ on, onChange, mineCount, othersCount, mineUnseen, othersUnseen }) {
+  const IconMe = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>;
+  const IconOthers = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+  const opts = [
+    { key: false, label: 'Mine', icon: IconMe, n: mineCount, dot: mineUnseen, title: 'Tickets for you' },
+    { key: true, label: 'For others', icon: IconOthers, n: othersCount, dot: othersUnseen, title: 'Tickets you requested for other people' },
+  ];
   return (
-    <button type="button" onClick={onToggle} aria-pressed={on}
-      className={'tkt-facet' + (on ? ' is-on' : '')}
-      title={on ? 'Showing tickets you requested for others — click to go back to your own' : 'Show the tickets you requested for others'}
-      style={{ marginLeft: 'auto' }}>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      Requested for others
-      <span className="tkt-facet-n">{count}</span>
-      {on && <span className="tkt-facet-x" aria-hidden="true">✕</span>}
-      {/* These tickets are hidden while the switch is off — surface their unread
-          updates here so a reply to an on-behalf request still catches the eye. */}
-      {!on && unseen > 0 && <span className="tkt-facet-dot" aria-label={`${unseen} with unread updates`} title={`${unseen} with unread updates`} />}
-    </button>
+    <div className="tkt-seg has-slider" role="tablist" aria-label="Whose tickets" style={{ marginLeft: 'auto' }}>
+      <SlideIndicator activeKey={on ? 'others' : 'mine'} radius={8} />
+      {opts.map((o) => {
+        const active = on === o.key;
+        return (
+          <button key={String(o.key)} type="button" role="tab" aria-selected={active} title={o.title}
+            onClick={() => onChange(o.key)} className={'tkt-seg-btn' + (active ? ' is-active' : '')}>
+            {o.icon}{o.label}
+            <span className="tkt-seg-n">{o.n}</span>
+            {o.dot > 0 && <span className="tkt-seg-dot" aria-label={`${o.dot} with unread updates`} />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Shown above the list while "For others" is on, so it's unmistakable whose
+// tickets these are — with the people they're for, and the way back.
+function ForOthersBanner({ tickets, onBack }) {
+  const people = [];
+  const seen = new Set();
+  for (const t of tickets) {
+    const ob = resolveOnBehalf(t);
+    const p = ob && ob.forP;
+    const key = p && (p.id || p.email || p.name);
+    if (!p || !p.name || seen.has(key)) continue;
+    seen.add(key); people.push(p.name);
+  }
+  const names = people.length <= 2 ? people.join(' and ') : `${people.slice(0, 2).join(', ')} and ${people.length - 2} more`;
+  return (
+    <div className="tkt-forothers" role="status">
+      <span className="tkt-forothers-stack" aria-hidden="true">
+        {people.slice(0, 4).map((n) => <span key={n} className="tkt-forothers-av">{obInitials(n)}</span>)}
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <b>Tickets you requested for other people</b>
+        {names && <span className="tkt-forothers-sub">For {names} · they get the updates too</span>}
+      </span>
+      <button type="button" className="tkt-forothers-back" onClick={onBack}>← Back to my tickets</button>
+    </div>
   );
 }
 
@@ -10015,19 +10272,12 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   // resolved/closed/cancelled/rejected history so it doesn't crowd the list.
   const [view, setView] = React.useState('open');
   // "Requested for others" toggle: on → only tickets you opened on someone
-  // else's behalf. Only offered when such tickets exist (see RequestedForToggle).
+  // else's behalf. Only offered when such tickets exist (see RequestedForSwitch).
   const [forOthers, setForOthers] = React.useState(false);
   const icons = useCatalogIcons();
-  // Per-row unseen badges read the tab-seen store (localStorage); opening a
-  // detail writes to it and fires NOTIF_EVT, so listen and re-render to clear
-  // a row's badge the moment you come back from the ticket.
-  const [, setSeenTick] = React.useState(0);
-  React.useEffect(() => {
-    const bump = () => setSeenTick((n) => n + 1);
-    window.addEventListener(NOTIF_EVT, bump);
-    return () => window.removeEventListener(NOTIF_EVT, bump);
-  }, []);
-  const seenMap = loadTabSeen().tickets;
+  // Per-row unseen badges come from the shared notification store (server
+  // read state), so they match the bell and survive a new login.
+  const { byTicket: seenMap } = useNotifStore();
   // Tell the page whether a detail is open (so it can hide its header chrome).
   React.useEffect(() => { onViewingChange && onViewingChange(selTicket != null); }, [selTicket, onViewingChange]);
   React.useEffect(() => () => { onViewingChange && onViewingChange(false); }, [onViewingChange]);
@@ -10059,8 +10309,9 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
     } catch {}
   }, [selTicket]);
 
-  // Live list: load on mount/refresh, then silently re-poll every 15s so new
-  // tickets + status changes show up on their own — no manual Refresh needed.
+  // Live list: load on mount/refresh, reload the moment the server reports
+  // activity on any of your tickets (TICKET_ACTIVITY_EVT, pushed live), and
+  // keep a slow poll as the safety net for anything the stream missed.
   React.useEffect(() => {
     let off = false;
     const fetchTickets = (silent) => {
@@ -10075,8 +10326,10 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
     };
     // With a cached list on screen, refresh silently — no loading flash.
     fetchTickets(!!myTicketsCache);
-    const iv = setInterval(() => fetchTickets(true), 15000);
-    return () => { off = true; clearInterval(iv); };
+    const iv = setInterval(() => fetchTickets(true), 60000);
+    const onActivity = () => fetchTickets(true);
+    window.addEventListener(TICKET_ACTIVITY_EVT, onActivity);
+    return () => { off = true; clearInterval(iv); window.removeEventListener(TICKET_ACTIVITY_EVT, onActivity); };
   }, [refreshKey]);
 
   // Search filters everything first, then the open/closed split happens on the
@@ -10127,9 +10380,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   // would be a lie the moment you switched to it.
   const allTickets = st.tickets || [];
   const unseenAll = unseenIn(allTickets);
-  const markAllRead = () => {
-    markAllTabSeen('tickets', allTickets, (t) => t.id, (t) => t.updated_at || t.created_at);
-  };
+  const markAllRead = () => { notifStore.markAllRead(); };
 
   // Paginate the (search-filtered) list — 25 rows per page, matching the full
   // ticketing platform. Prev/next controls sit at the bottom of the list. The
@@ -10252,6 +10503,20 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
         .tkt-seg-dot { position:absolute; top:3px; right:4px; width:7px; height:7px;
           border-radius:999px; background:#DA3327; box-shadow:0 0 0 2px #FFFFFF; }
         .tkt-seg-btn.is-active .tkt-seg-dot { box-shadow:0 0 0 2px #211E1E; }
+        .tkt-forothers { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; padding:12px 14px;
+          background:#211E1E; color:#FFFDF4; border:1px solid #211E1E; border-radius:12px; box-shadow:3px 3px 0 rgba(33,30,30,.35);
+          animation: tktForOthersIn .28s cubic-bezier(.22,.61,.36,1) both; }
+        .tkt-forothers b { display:block; font-family:'Archivo',sans-serif; font-size:14px; font-weight:800; letter-spacing:-.01em; }
+        .tkt-forothers-sub { display:block; font-size:12.5px; color:#E9DFC6; margin-top:2px; }
+        .tkt-forothers-stack { display:flex; flex:none; }
+        .tkt-forothers-av { width:30px; height:30px; margin-left:-8px; border-radius:50%; display:grid; place-items:center; background:#FDC831; color:#211E1E;
+          border:2px solid #211E1E; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:900; }
+        .tkt-forothers-av:first-child { margin-left:0; }
+        .tkt-forothers-back { margin-left:auto; padding:7px 12px; border-radius:999px; border:1px solid #FDC831; background:transparent; color:#FDC831; cursor:pointer;
+          font-family:'Archivo',sans-serif; font-weight:800; font-size:11.5px; letter-spacing:.04em; text-transform:uppercase; }
+        .tkt-forothers-back:hover { background:#FDC831; color:#211E1E; }
+        @keyframes tktForOthersIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+        @media (prefers-reduced-motion: reduce) { .tkt-forothers { animation:none; } }
 
         /* "Requested for others" toggle pill — white when off, cheese when on,
            with a small ✕ hinting the second click clears it. */
@@ -10325,9 +10590,12 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           </button>
         )}
         {hasOnBehalf && (
-          <RequestedForToggle on={forOthers} onToggle={() => setForOthers((v) => !v)} count={forOthersCount} unseen={unseenIn(onBehalfList)} />
+          <RequestedForSwitch on={forOthers} onChange={setForOthers}
+            mineCount={searched.length - forOthersCount} othersCount={forOthersCount}
+            mineUnseen={unseenIn(searched.filter((t) => !isOnBehalf(t)))} othersUnseen={unseenIn(onBehalfList)} />
         )}
       </div>
+      {forOthers && <ForOthersBanner tickets={onBehalfList} onBack={() => setForOthers(false)} />}
       {/* Keyed by the view so Open ↔ Closed (and the for-others facet) fade the
           new list up instead of swapping it in a single frame. */}
       <div key={view + (forOthers ? ':others' : '')} className="tab-panel-in">
@@ -10475,7 +10743,7 @@ const DECISION_ACTION_LABEL = {
 };
 function approverLine(stage, actions, currentApprovers, isCurrent) {
   const acted = (actions || []).filter(
-    (a) => a && a.stage_order === stage.order && a.approver_name && DECISION_ACTION_LABEL[a.action]
+    (a) => a && Number(a.stage_order) === Number(stage.order) && a.approver_name && DECISION_ACTION_LABEL[a.action]
   );
   if (acted.length) {
     return acted.map((a) => DECISION_ACTION_LABEL[a.action] + a.approver_name).join(' · ');
@@ -10483,11 +10751,14 @@ function approverLine(stage, actions, currentApprovers, isCurrent) {
   // Current pending stage: show the actual approver(s) the module resolved —
   // just the email (or name), no "Waiting on" prefix; styled bold at the call site.
   if (isCurrent && Array.isArray(currentApprovers) && currentApprovers.length) {
-    const real = currentApprovers.map((a) => a && (a.email || a.name)).filter(Boolean);
-    if (real.length) return real.join(', ');
+    const real = currentApprovers.map((a) => a && (a.name || a.email)).filter(Boolean);
+    if (real.length) return 'Waiting on ' + real.join(', ');
   }
+  // Names resolved server-side (server/approvals.js). Without them, never
+  // print a raw approver id — a role gets its label, anyone else stays generic.
+  if (Array.isArray(stage.approver_labels) && stage.approver_labels.length) return 'Needs: ' + stage.approver_labels.join(', ');
   const apprs = Array.isArray(stage.approvers) ? stage.approvers : [];
-  const names = apprs.map((ap) => ap && (ap.type === 'role' ? (APPROVER_ROLE_LABEL[ap.value] || ap.value) : ap.value)).filter(Boolean);
+  const names = apprs.map((ap) => ap && (ap.type === 'role' ? (APPROVER_ROLE_LABEL[ap.value] || ap.value) : 'a selected approver')).filter(Boolean);
   return names.length ? ('Needs: ' + names.join(', ')) : '';
 }
 
@@ -10501,31 +10772,53 @@ function ApprovalSummary({ approval, ticket }) {
   const actions = (approval && Array.isArray(approval.actions)) ? approval.actions : [];
   const currentApprovers = (approval && Array.isArray(approval.current_approvers)) ? approval.current_approvers : [];
   const decided = status === 'approved' || status === 'rejected';
-  const DOT = { Approved: '#0A8A3E', Pending: '#FDC831', Awaiting: '#8A8275', Rejected: '#B92323' };
-  const TXT = { Approved: '#0A8A3E', Pending: '#211E1E', Awaiting: '#8A8275', Rejected: '#B92323' };
+  // Server-computed per-stage state (server/approvals.js), which knows about
+  // stages IT added by hand. The fallback below is the old inference, kept
+  // only for a payload that predates it.
+  const STATE = {
+    approved:   { label: 'Approved',   dot: '#0A8A3E', txt: '#0A8A3E' },
+    pending:    { label: 'Pending',    dot: '#FDC831', txt: '#211E1E' },
+    waiting:    { label: 'Up next',    dot: '#D8D2C4', txt: '#8A8275' },
+    rejected:   { label: 'Declined',   dot: '#B92323', txt: '#B92323' },
+    skipped:    { label: 'Not needed', dot: '#D8D2C4', txt: '#8A8275' },
+    not_needed: { label: 'Not needed', dot: '#D8D2C4', txt: '#8A8275' },
+    withdrawn:  { label: 'Withdrawn',  dot: '#D8D2C4', txt: '#8A8275' },
+  };
+  const inferred = (s) => {
+    const isReject = status === 'rejected' && current && s.order === current.order;
+    const isDone = status === 'approved' || (current && s.order < current.order);
+    const isCurrent = !decided && current && s.order === current.order;
+    return isReject ? 'rejected' : isDone ? 'approved' : isCurrent ? 'pending' : 'waiting';
+  };
 
   if (stages.length === 0) {
     return (
       <div style={{ padding: '12px 14px', fontSize: 13, color: '#55503F' }}>
-        {status === 'approved' ? 'This request was approved.' : status === 'rejected' ? 'This request was rejected.' : 'Waiting for approval — you’ll be notified once it’s decided.'}
+        {status === 'approved' ? 'This request was approved.' : status === 'rejected' ? 'This request was declined.' : 'Waiting for approval — you’ll be notified once it’s decided.'}
       </div>
     );
   }
+  const done = stages.filter((s) => (s.state || inferred(s)) === 'approved').length;
   return (
     <div>
+      {status === 'pending' && stages.length > 1 && (
+        <div style={{ padding: '9px 14px', fontSize: 11.5, fontWeight: 700, color: '#78684C', background: '#FBF8F0', borderBottom: '1px solid #F0EBE0' }}>
+          {done} of {stages.length} approvals done
+        </div>
+      )}
       {stages.map((s, i) => {
-        const isReject = status === 'rejected' && current && s.order === current.order;
-        const isDone = status === 'approved' || (current && s.order < current.order);
-        const isCurrent = !decided && current && s.order === current.order;
-        const state = isReject ? 'Rejected' : isDone ? 'Approved' : isCurrent ? 'Pending' : 'Awaiting';
+        const key = s.state || inferred(s);
+        const meta = STATE[key] || STATE.waiting;
+        const isCur = key === 'pending';
+        const line = approverLine(s, actions, currentApprovers, isCur);
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: i ? '1px solid #F0EBE0' : 'none' }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: DOT[state], border: '1px solid #211E1E', flexShrink: 0 }} />
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: i ? '1px solid #F0EBE0' : 'none', background: isCur ? '#FFFBEB' : 'transparent' }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: meta.dot, border: '1px solid #211E1E', flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-              {(() => { const line = approverLine(s, actions, currentApprovers, !!(current && s.order === current.order)); return line ? <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#211E1E', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null; })()}
+              <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name || `Step ${i + 1}`}</span>
+              {line ? <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#4A4233', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null}
             </span>
-            <span style={{ fontSize: 10.5, fontWeight: 800, color: TXT[state], fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{state}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 800, color: meta.txt, fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{meta.label}</span>
           </div>
         );
       })}
@@ -10536,6 +10829,40 @@ function ApprovalSummary({ approval, ticket }) {
 // "Approvals" header button + dropdown — keeps the approval detail out of the
 // ticket body (no mid-page card) and one click away. Shows who has approved and
 // who's still pending.
+// Per-stage state for the approvals control: the server's (server/approvals.js,
+// which knows about stages IT added by hand) when present, else inferred.
+function approvalStageStates(approval, ticket) {
+  const req = approval && approval.request;
+  const status = String((req && req.status) || (ticket && ticket.approval_status) || 'pending').toLowerCase();
+  const stages = (approval && approval.workflow && Array.isArray(approval.workflow.stages)) ? approval.workflow.stages : [];
+  const current = approval && approval.current_stage;
+  return {
+    status,
+    stages: stages.map((s) => {
+      if (s.state) return s.state;
+      if (status === 'rejected' && current && s.order === current.order) return 'rejected';
+      if (status === 'approved' || (current && s.order < current.order)) return 'approved';
+      if (status === 'pending' && current && s.order === current.order) return 'pending';
+      return 'waiting';
+    }),
+  };
+}
+
+const APPROVAL_STEP_ICON = {
+  approved: { bg: '#0A8A3E', fg: '#FFFFFF', path: <path d="m6 12.5 4 4 8-9" /> },
+  pending:  { bg: '#FDC831', fg: '#211E1E', path: <><circle cx="12" cy="12" r="7.5" /><path d="M12 8v4.2l2.6 1.6" /></> },
+  waiting:  { bg: '#FFFFFF', fg: '#8A8275', path: <path d="M8 12h8" /> },
+  rejected: { bg: '#B92323', fg: '#FFFFFF', path: <path d="m8 8 8 8M16 8l-8 8" /> },
+  skipped:  { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
+  not_needed: { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
+  withdrawn:  { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
+};
+
+// "Approvals" control on the ticket page. It used to be a plain button with
+// one tiny coloured dot — nothing said how far along the approval was. Now it
+// shows a step per approval (✓ approved, clock = waiting on someone now,
+// — = later, ✕ = declined) and says where things stand in words, with the
+// full breakdown one click away.
 function ApprovalsButton({ approval, ticket }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef(null);
@@ -10547,17 +10874,66 @@ function ApprovalsButton({ approval, ticket }) {
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
   }, [open]);
-  const status = String((approval && approval.request && approval.request.status) || (ticket && ticket.status) || 'pending').toLowerCase();
-  const dot = status === 'approved' ? '#0A8A3E' : status === 'rejected' ? '#B92323' : '#FDC831';
+  const { status, stages } = approvalStageStates(approval, ticket);
+  const total = stages.length;
+  const done = stages.filter((x) => x === 'approved').length;
+  const waitingOn = (approval && Array.isArray(approval.current_approvers) ? approval.current_approvers : [])
+    .map((p) => p && (p.name || p.email)).filter(Boolean);
+  const curStage = approval && approval.current_stage;
+  const curLabels = curStage && Array.isArray(curStage.approver_labels) ? curStage.approver_labels : [];
+  const who = waitingOn.length ? waitingOn.join(', ') : (curLabels.length ? curLabels.join(', ') : '');
+  const tone = status === 'approved' ? 'is-approved' : status === 'rejected' ? 'is-declined' : status === 'cancelled' ? 'is-withdrawn' : 'is-pending';
+  const headline = status === 'approved' ? (total > 1 ? `All ${total} approved` : 'Approved')
+    : status === 'rejected' ? 'Declined'
+    : status === 'cancelled' ? 'Withdrawn'
+    : total > 1 ? `${done} of ${total} approved` : 'Awaiting approval';
+  const sub = status === 'pending' && who ? `Waiting on ${who}` : '';
+  const steps = total ? stages : [status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'pending'];
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="btn btn-outline" style={{ padding: '7px 13px', fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 7 }} onClick={() => setOpen((o) => !o)}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, border: '1px solid #211E1E' }} />
-        Approvals
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}><polyline points="6 9 12 15 18 9" /></svg>
+      <style>{`
+        .appr-btn { display:inline-flex; align-items:center; gap:10px; padding:6px 12px 6px 8px; min-height:38px; box-sizing:border-box;
+          background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:10px; box-shadow:2px 2px 0 #211E1E; cursor:pointer;
+          font-family:inherit; text-align:left; transition:transform .16s cubic-bezier(.22,.61,.36,1), box-shadow .16s cubic-bezier(.22,.61,.36,1); }
+        .appr-btn:hover { transform:translate(-1px,-1px); box-shadow:3px 3px 0 #211E1E; }
+        .appr-btn:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #211E1E; }
+        .appr-btn:focus-visible { outline:3px solid rgba(33,30,30,.35); outline-offset:2px; }
+        .appr-btn.is-pending { background:#FFFBEB; }
+        .appr-btn.is-approved { background:#EEF8F1; }
+        .appr-btn.is-declined { background:#FDEEEC; }
+        .appr-steps { display:flex; align-items:center; }
+        .appr-step { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; border:1.5px solid #211E1E; flex:none; position:relative; }
+        .appr-step + .appr-step { margin-left:-5px; }
+        .appr-step.is-pending { animation: apprPulse 2s ease-in-out infinite; }
+        @keyframes apprPulse { 0%,100% { box-shadow:0 0 0 0 rgba(253,200,49,.0); } 50% { box-shadow:0 0 0 4px rgba(253,200,49,.45); } }
+        .appr-text { display:flex; flex-direction:column; line-height:1.15; min-width:0; }
+        .appr-head { font-family:'Archivo',sans-serif; font-size:12px; font-weight:900; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
+        .appr-btn.is-approved .appr-head { color:#0A6E31; }
+        .appr-btn.is-declined .appr-head { color:#8E1A1A; }
+        .appr-sub { font-size:11.5px; font-weight:600; color:#5C5240; margin-top:2px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .appr-caret { flex:none; transition:transform .18s ease; }
+        @media (prefers-reduced-motion: reduce) { .appr-step.is-pending { animation:none; } .appr-btn { transition:none; } }
+      `}</style>
+      <button type="button" className={'appr-btn ' + tone} onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        aria-label={`Approvals: ${headline}${sub ? '. ' + sub : ''}. Show details`}>
+        <span className="appr-steps" aria-hidden="true">
+          {steps.map((st, k) => {
+            const ic = APPROVAL_STEP_ICON[st] || APPROVAL_STEP_ICON.waiting;
+            return (
+              <span key={k} className={'appr-step' + (st === 'pending' ? ' is-pending' : '')} style={{ background: ic.bg, color: ic.fg, zIndex: steps.length - k }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">{ic.path}</svg>
+              </span>
+            );
+          })}
+        </span>
+        <span className="appr-text">
+          <span className="appr-head">{headline}</span>
+          {sub && <span className="appr-sub" title={sub}>{sub}</span>}
+        </span>
+        <svg className="appr-caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none' }} aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 300, maxWidth: '82vw', background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '3px 3px 0 #211E1E', zIndex: 40, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, maxWidth: '86vw', background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '3px 3px 0 #211E1E', zIndex: 40, overflow: 'hidden' }}>
           <ApprovalSummary approval={approval} ticket={ticket} />
         </div>
       )}
@@ -10606,9 +10982,12 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
     return ticketsApiJson('GET', '/api/tickets/' + encodeURIComponent(id))
       .then((j) => {
         setSt({ loading: false, ticket: j, error: null, full: true });
-        // Mark seen so the bell stops flagging this ticket as having new activity.
-        markTicketSeen(j.id != null ? j.id : id, j.updated_at || j.created_at);
-        markTabSeen('tickets', j.id != null ? j.id : id, j.updated_at || j.created_at);
+        // You're looking at it, so its updates are read — on the server, so the
+        // bell and badges agree everywhere. Only while the tab is actually
+        // visible: a background refresh in a hidden tab isn't "seeing" it.
+        if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+          notifStore.markTicketRead(j.id != null ? j.id : id);
+        }
         return j; // so callers (status changes) can hand the fresh ticket to the list
       })
       // Keep whatever we already have (the list row we opened with) on failure,
@@ -10622,8 +11001,14 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
 
   // If the ticket carries an approval workflow (service requests that need
   // sign-off), pull its status so the requester can see where it stands.
-  const [approval, setApproval] = React.useState(null);
-  const approvalId = st.ticket && st.ticket.approval_request_id;
+  // The server now embeds it (ticket.approval, normalised — appended stages,
+  // per-stage state, approver names) on every ticket read, so it refreshes
+  // with the ticket. The separate fetch below only runs for a payload that
+  // doesn't carry it (the list row we open with, an older server).
+  const [fetchedApproval, setApproval] = React.useState(null);
+  const embedded = st.ticket && Object.prototype.hasOwnProperty.call(st.ticket, 'approval');
+  const approval = embedded ? st.ticket.approval : fetchedApproval;
+  const approvalId = !embedded && st.ticket && st.ticket.approval_request_id;
   React.useEffect(() => {
     if (!approvalId) { setApproval(null); return; }
     let off = false;
@@ -10733,8 +11118,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
       if (action === 'close' && onClosed) {
         const fresh = (j && j.id != null) ? j
           : { ...(st.ticket || {}), id: (st.ticket && st.ticket.id) != null ? st.ticket.id : id, status: wire === 'cancel' ? 'cancelled' : 'closed' };
-        markTicketSeen(fresh.id, fresh.updated_at || fresh.created_at);
-        markTabSeen('tickets', fresh.id, fresh.updated_at || fresh.created_at);
+        notifStore.markTicketRead(fresh.id);
         onClosed(fresh);
         return true;
       }
@@ -10749,13 +11133,44 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
     }
   };
 
-  // Keep the open ticket live — silently refetch every 15s so new replies and
-  // status changes from IT appear without a refresh. Pause while the user is
-  // mid-send / changing status so we don't clobber in-flight state.
+  // Keep the open ticket live. The server pushes TICKET_ACTIVITY_EVT the
+  // moment IT replies or changes something on it; we reload and say what
+  // happened in a small notice. The 30s poll stays as a safety net. Neither
+  // runs mid-send / mid-status-change, so in-flight state isn't clobbered —
+  // and the reply box is separate state, so a draft is never touched.
+  const busyRef = React.useRef(false);
+  busyRef.current = !!(sending || statusBusy);
+  const [liveNote, setLiveNote] = React.useState(null);
   React.useEffect(() => {
-    const iv = setInterval(() => { if (!sending && !statusBusy) load(); }, 15000);
-    return () => clearInterval(iv);
-  }, [load, sending, statusBusy]);
+    const iv = setInterval(() => { if (!busyRef.current) load(); }, 30000);
+    const onActivity = (e) => {
+      const d = (e && e.detail) || {};
+      if (!(d.ticketIds || []).includes(String(id))) return;
+      if (!busyRef.current) load();
+      const mine = (d.items || []).filter((n) => String(n.ticket_id) === String(id));
+      if (mine.length) {
+        const p = notifPresent(mine[0]);
+        setLiveNote({ key: mine[0].id, title: p.title, more: mine.length - 1 });
+      }
+    };
+    window.addEventListener(TICKET_ACTIVITY_EVT, onActivity);
+    // Coming back to a tab that sat hidden: what arrived meanwhile is now seen.
+    const onVis = () => { if (document.visibilityState === 'visible') notifStore.markTicketRead(id); };
+    document.addEventListener('visibilitychange', onVis);
+    // Tell the global live toasts not to pop up for the ticket already on screen.
+    try { window.__PORTAL_VIEWING_TICKET__ = String(id); } catch {}
+    return () => {
+      clearInterval(iv);
+      window.removeEventListener(TICKET_ACTIVITY_EVT, onActivity);
+      document.removeEventListener('visibilitychange', onVis);
+      try { if (window.__PORTAL_VIEWING_TICKET__ === String(id)) window.__PORTAL_VIEWING_TICKET__ = null; } catch {}
+    };
+  }, [load, id]);
+  React.useEffect(() => {
+    if (!liveNote) return undefined;
+    const tm = setTimeout(() => setLiveNote(null), 6000);
+    return () => clearTimeout(tm);
+  }, [liveNote]);
 
   const t = st.ticket;
   // Internal agent notes aren't for the requester — mirror the ticket system's
@@ -10988,6 +11403,19 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
       </div>
       {st.loading && <TicketsNotice title="Loading ticket…" />}
       {st.error && !t && <TicketsNotice title="Couldn’t load this ticket" body={st.error} />}
+      {/* Live: what just changed on this ticket, said once, then it fades.
+          The ticket itself has already refreshed underneath. */}
+      <div aria-live="polite" style={{ position: 'sticky', top: 74, zIndex: 19, height: 0, display: 'flex', justifyContent: 'center' }}>
+        {liveNote && (
+          <div key={liveNote.key} className="tkt-live-note" role="status">
+            <span className="tkt-live-dot" aria-hidden="true" />
+            <b>{liveNote.title}</b>
+            {liveNote.more > 0 && <span style={{ opacity: 0.8 }}> +{liveNote.more} more</span>}
+            <span style={{ opacity: 0.7 }}>· just now</span>
+            <button type="button" onClick={() => setLiveNote(null)} aria-label="Dismiss">✕</button>
+          </div>
+        )}
+      </div>
       {t && (
         <>
           {st.error && (
@@ -11047,13 +11475,28 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
             {timeline.length === 0 && (st.full || st.error) && (
               <div className="tab-panel-in" style={{ fontSize: 14, color: '#9A8E78' }}>No replies yet — write the first message below and the IT Team will see it on your ticket.</div>
             )}
-            {timeline.map((it) => it.kind === 'msg' ? (
-              <ConversationMessage key={it.tkey} mine={it.mine} name={it.name} time={it.time ? relativeTime(it.time) : ''} body={it.body} files={it.files} onOpenImage={openImage} />
-            ) : (
-              <ConversationMessage key={it.tkey} mine={it.mine} name={it.name || 'IT Team'} time={it.time ? relativeTime(it.time) : ''}>
-                <AttachmentItem name={attName(it.att)} source={attSource(it.att)} size={attSize(it.att)} isImage={isImageAttachment(it.att, attName(it.att))} onOpenImage={openImage} />
-              </ConversationMessage>
-            ))}
+            {timeline.map((it, idx) => {
+              // Day dividers, and grouping: the same person again within a few
+              // minutes continues their message instead of repeating the header.
+              const prev = idx > 0 ? timeline[idx - 1] : null;
+              const day = convoDay(it.time);
+              const showDay = day && (!prev || convoDay(prev.time) !== day);
+              const sameAuthor = prev && !showDay && prev.mine === it.mine && String(prev.name || '') === String(it.name || '')
+                && it.at != null && prev.at != null && it.at - prev.at < 5 * 60 * 1000;
+              const common = { mine: it.mine, time: it.time ? relativeTime(it.time) : '', stamp: convoStamp(it.time), compact: !!sameAuthor };
+              return (
+                <React.Fragment key={it.tkey}>
+                  {showDay && <ConversationDay label={day} />}
+                  {it.kind === 'msg' ? (
+                    <ConversationMessage {...common} name={it.name} body={it.body} files={it.files} onOpenImage={openImage} />
+                  ) : (
+                    <ConversationMessage {...common} name={it.name || 'IT Team'}>
+                      <AttachmentItem name={attName(it.att)} source={attSource(it.att)} size={attSize(it.att)} isImage={isImageAttachment(it.att, attName(it.att))} onOpenImage={openImage} />
+                    </ConversationMessage>
+                  )}
+                </React.Fragment>
+              );
+            })}
 
             {/* Reply composer — posts a public comment (and any attachments) to the
                 ticket in SliceDesk. */}
@@ -11225,7 +11668,7 @@ function ApprovalDetailView({ id, onBack, onActed }) {
     let off = false;
     setSt({ loading: true, data: null, error: null });
     ticketsApiJson('GET', '/api/approvals/' + encodeURIComponent(id))
-      .then((j) => { if (!off) { setSt({ loading: false, data: j, error: null }); markTabSeen('approvals', id); } })
+      .then((j) => { if (!off) setSt({ loading: false, data: j, error: null }); })
       .catch((e) => { if (!off) setSt({ loading: false, data: null, error: e.message }); });
     return () => { off = true; };
   }, [id]);
