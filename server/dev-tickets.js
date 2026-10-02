@@ -42,7 +42,7 @@ const tickets = [
       'GlobalProtect just spins on "Connecting…" and never finishes. Tried quitting and reopening, same thing. I\'m on home Wi-Fi.',
     requester_id: DEV_USER.id, requester_name: DEV_USER.name, requester_email: DEV_USER.email,
     submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
-    created_at: ago(95), updated_at: ago(40),
+    created_at: ago(95), updated_at: ago(28),
     comments: [
       { id: 'c1-90012', author_name: 'IT Team', body: "Thanks for the report — can you confirm GlobalProtect is on the latest version? We pushed an update via Jamf this morning. Try reconnecting and let us know.", is_internal: false, created_at: ago(40) },
       // Internal note + its file: must never reach the browser (forRequester).
@@ -137,6 +137,108 @@ const tickets = [
     ],
   },
 ];
+
+// A few more open tickets so the Help page's "My tickets" shortcut shows its
+// "+N more open" overflow (it caps at three rows).
+tickets.push(
+  {
+    id: 90014, ticket_number: 'IT-90014', type: 'incident', status: 'in_progress', priority: 'medium',
+    subject: 'Second monitor flickers on the USB-C dock',
+    description: 'The Dell monitor on my desk flickers every few seconds when plugged into the dock.',
+    requester_id: DEV_USER.id, requester_name: DEV_USER.name, requester_email: DEV_USER.email,
+    submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
+    created_at: ago(2200), updated_at: ago(300), comments: [],
+  },
+  {
+    id: 90015, ticket_number: 'IT-90015', type: 'service_request', status: 'open', priority: 'low',
+    subject: 'Request: Notion',
+    description: 'Need access to the Payments team space.',
+    catalog_item_id: 508,
+    requester_id: DEV_USER.id, requester_name: DEV_USER.name, requester_email: DEV_USER.email,
+    submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
+    created_at: ago(2600), updated_at: ago(2400), comments: [],
+  },
+  {
+    id: 90016, ticket_number: 'IT-90016', type: 'incident', status: 'waiting', priority: 'medium',
+    subject: 'Outlook keeps asking for my password',
+    description: 'Every morning Outlook prompts for my password again.',
+    requester_id: DEV_USER.id, requester_name: DEV_USER.name, requester_email: DEV_USER.email,
+    submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
+    created_at: ago(5000), updated_at: ago(4300), comments: [],
+  },
+);
+
+// Approvals ON the dev user's own requests, shaped like the module's
+// GET /approvals/:id (request row spread whole, so extra_stages is present).
+//  • AR-8 — IT-90008: an ordinary manager approval, still pending.
+//  • AR-17 — IT-90017: approved by the manager, then IT added ONE MORE
+//    approver by hand (addAdditionalApprovalStage). The template still has one
+//    stage; the new one lives in extra_stages and current_stage points past
+//    the template. The portal used to show this as approved.
+const devApprovalRequests = {
+  'AR-8': {
+    request: { id: 'AR-8', ticket_id: 90008, status: 'pending', current_stage: 1, requested_by: DEV_USER.id, requested_at: ago(1500), extra_stages: [] },
+    workflow: { id: 1, name: 'Manager approval', stages: [
+      { order: 1, name: 'Manager approval', type: 'sequential', approvers: [{ type: 'role', value: 'requester_manager' }] },
+    ] },
+    actions: [],
+    current_approvers: [{ id: 'u-jane', name: 'Jane Doe', email: 'jane.doe@local' }],
+  },
+  'AR-17': {
+    request: { id: 'AR-17', ticket_id: 90017, status: 'pending', current_stage: 2, requested_by: DEV_USER.id, requested_at: ago(3000),
+      extra_stages: [{ order: 2, name: 'Additional Approval', type: 'sequential', approvers: [{ type: 'specific_user', value: 'u-priya' }] }] },
+    workflow: { id: 2, name: 'Manager approval', stages: [
+      { order: 1, name: 'Manager approval', type: 'sequential', approvers: [{ type: 'role', value: 'requester_manager' }] },
+    ] },
+    actions: [{ id: 1, request_id: 'AR-17', stage_order: 1, approver_id: 'u-jane', approver_name: 'Jane Doe', action: 'approved', acted_at: ago(2800) }],
+    current_approvers: [],
+  },
+};
+{
+  const t8 = tickets.find((x) => x.id === 90008);
+  if (t8) t8.approval_request_id = 'AR-8';
+}
+tickets.push({
+  id: 90017, ticket_number: 'IT-90017', type: 'service_request', status: 'pending', approval_status: 'pending',
+  approval_request_id: 'AR-17', priority: 'medium', catalog_item_id: 506,
+  subject: 'Request: GitHub', description: 'Write access to the payments-api repository.',
+  requester_id: DEV_USER.id, requester_name: DEV_USER.name, requester_email: DEV_USER.email,
+  submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
+  created_at: ago(3000), updated_at: ago(120),
+  comments: [{ id: 'c1-90017', author_name: 'Marcus Reed', body: 'Manager approved — Security asked for one more sign-off from Priya before we grant write access.', is_internal: false, created_at: ago(120) }],
+});
+
+// Dev-only: act as the IT Team on a fixture ticket, so live notifications can
+// be exercised locally (POST /api/dev/simulate, see index.js).
+const IT_NAMES = ['Dana Brooks', 'Marcus Reed'];
+const STATUS_CYCLE = ['open', 'in_progress', 'waiting', 'resolved'];
+export function devSimulate(action, ticketId) {
+  const t = findTicket(ticketId);
+  if (!t) return { ok: false, error: 'No such dev ticket' };
+  const ts = new Date().toISOString();
+  if (action === 'reply') {
+    t.comments = t.comments || [];
+    t.comments.push({
+      id: `c${t.comments.length + 1}-${t.id}-${Date.now()}`,
+      author_id: 'agent-dana', author_name: IT_NAMES[t.comments.length % 2],
+      body: '<p>Quick update from IT — we\'ve looked into this and pushed a fix. Can you try again and let us know?</p>',
+      is_internal: false, created_at: ts,
+    });
+  } else if (action === 'status') {
+    const i = STATUS_CYCLE.indexOf(String(t.status));
+    t.status = STATUS_CYCLE[(i + 1) % STATUS_CYCLE.length];
+  } else if (action === 'approve' || action === 'reject') {
+    const ar = t.approval_request_id && devApprovalRequests[t.approval_request_id];
+    if (!ar) return { ok: false, error: 'Ticket has no approval' };
+    ar.request.status = action === 'approve' ? 'approved' : 'rejected';
+    ar.actions.push({ id: ar.actions.length + 1, request_id: ar.request.id, stage_order: ar.request.current_stage,
+      approver_id: 'u-priya', approver_name: 'Priya Nair', action: action === 'approve' ? 'approved' : 'rejected', acted_at: ts });
+    t.approval_status = ar.request.status;
+    t.status = action === 'approve' ? 'open' : 'cancelled';
+  } else return { ok: false, error: 'action must be reply | status | approve | reject' };
+  t.updated_at = ts;
+  return { ok: true, ticket: { id: t.id, status: t.status, approval_status: t.approval_status } };
+}
 
 // One pending approval awaiting the dev user, so the Approvals tab badge + the
 // approve/reject flow are exercisable offline. Drops off when acted on.
@@ -438,7 +540,7 @@ export function handleDevTicket(method, subPath, body) {
   // GET /users?q=  (people search for "request for someone else" / change approver)
   if (method === 'GET' && parts[0] === 'users' && parts.length === 1) {
     const q = (params.get('q') || '').toLowerCase();
-    const list = devPeople.filter((u) => !q || [u.name, u.email, u.title].join(' ').toLowerCase().includes(q));
+    const list = devPeople.filter((u) => !q || [u.id, u.name, u.email, u.title].join(' ').toLowerCase().includes(q));
     return ok({ users: list.slice(0, Number(params.get('limit')) || 20) });
   }
   // GET /catalog/:id/approval-preview — approval-required items route to the
@@ -464,6 +566,21 @@ export function handleDevTicket(method, subPath, body) {
     return ok({ pending: approvals });
   }
   // GET /approvals/:id
+  if (method === 'GET' && parts[0] === 'approvals' && parts.length === 2 && devApprovalRequests[decodeURIComponent(parts[1])]) {
+    const d = devApprovalRequests[decodeURIComponent(parts[1])];
+    const t = tickets.find((x) => x.id === d.request.ticket_id);
+    // Mirror the module exactly, bug included: template stages only, current
+    // stage matched by a strict `order ===`, approvers only when it matched.
+    const current = d.workflow.stages.find((st) => st.order === d.request.current_stage) || null;
+    return ok({
+      ...JSON.parse(JSON.stringify(d)),
+      ticket: t ? { id: t.id, ticket_number: t.ticket_number, subject: t.subject, requester_id: t.requester_id,
+        requester_name: t.requester_name, requester_email: t.requester_email, catalog_item_id: t.catalog_item_id } : null,
+      current_stage: current,
+      current_approvers: current && d.request.status === 'pending' ? d.current_approvers : [],
+      can_act: false,
+    });
+  }
   if (method === 'GET' && parts[0] === 'approvals' && parts.length === 2 && parts[1] !== 'pending') {
     const ap = approvals.find((a) => String(a.request_id) === decodeURIComponent(parts[1]));
     if (!ap) return notFound();
