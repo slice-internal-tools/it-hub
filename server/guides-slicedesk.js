@@ -142,6 +142,23 @@ function toGuide(g, { withBody = false } = {}) {
   };
 }
 
+// Read access for the knowledge index (knowledge.js), which answers chat
+// questions from the SAME guides the Portal shows. The list carries metadata;
+// a guide's text needs its detail call. Ids are the numeric how_to_guides ids
+// the Portal links with (see toGuide).
+export async function listPortalGuides() {
+  const rows = await hubFetch('/api/ext/portal/howto');
+  _idToSlug = new Map((rows || []).map((g) => [String(g.id), g.slug]));
+  return (rows || []).map((g) => ({ ...toGuide(g), slug: g.slug }));
+}
+export async function getPortalGuideText(slug) {
+  const g = await hubFetch(`/api/ext/portal/howto/${encodeURIComponent(slug)}`);
+  // SliceDesk renders a Markdown `body` for Markdown consumers; that's the
+  // right input for retrieval. Lexical JSON is only the fallback.
+  return { body: g.body || '', content: g.content || '', updated_at: g.updated_at || null };
+}
+export const guidesFromSliceDesk = () => !!(moduleConfig.hubApiBase && moduleConfig.apiKey);
+
 export function registerGuideRoutes(app, { requireSliceUser, requireSliceAdmin }) {
   // LIST
   app.get('/api/guides', requireSliceUser, async (req, res, next) => {

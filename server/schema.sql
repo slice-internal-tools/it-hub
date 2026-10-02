@@ -78,6 +78,11 @@ CREATE TABLE IF NOT EXISTS chat_feedback (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS chat_feedback_chat_log_id_idx ON chat_feedback (chat_log_id);
+-- Why an answer missed ("Wrong answer", "Outdated info", …). These were posted
+-- to an endpoint that never existed, so every reason and note was dropped.
+ALTER TABLE chat_feedback ADD COLUMN IF NOT EXISTS reasons TEXT[];
+-- Which flow the answer came from (ask page, screenshot, Slack bot).
+ALTER TABLE chat_logs ADD COLUMN IF NOT EXISTS source TEXT;
 
 -- ── Status platform ────────────────────────────────────────────────────────
 -- Replaces the old localStorage-based mock + StatusGator integration.

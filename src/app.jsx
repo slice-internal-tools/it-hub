@@ -573,7 +573,7 @@ function useLiveStatus(intervalMs = 30000) {
   return { services, lastCheck, error };
 }
 
-function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets, onRequest }) {
+function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets, onOpenTicketNumber, onRequestItem, onBrowseCatalog, onRequest }) {
   const [q, setQ] = useState("");
   // Apps shown in the "Request app access" stack. Session-cached and shared
   // with the ticket list's icon lookup — one /api/catalog fetch between them.
@@ -710,6 +710,39 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
       .catch(() => {});
   }, []);
 
+  // Instant suggestions under the box (see buildInstantRows): the app you're
+  // naming, matching guides, a live outage, a pasted ticket number. Row 0 is
+  // always "ask", so Enter keeps doing what it always did.
+  const catalogItems = useCatalogItems();
+  const [instantHidden, setInstantHidden] = useState(false);
+  const [instantActive, setInstantActive] = useState(0);
+  const instantRows = React.useMemo(
+    () => (attached || instantHidden ? [] : buildInstantRows({ text: q, catalog: catalogItems, guides: dbGuides, services: liveStatus.services || [] })),
+    [q, attached, instantHidden, catalogItems, dbGuides, liveStatus.services],
+  );
+  React.useEffect(() => { setInstantActive(0); }, [q]);
+  const showInstant = instantRows.length > 1;
+  const pickInstant = (row) => {
+    if (!row) return;
+    if (row.kind === 'ask') return submit();
+    setQ('');
+    if (row.kind === 'app') onRequestItem && onRequestItem(row.item.id);
+    else if (row.kind === 'guide') onOpenGuide && onOpenGuide({ id: row.guide.id, title: row.guide.title, category: row.guide.category });
+    else if (row.kind === 'outage') onOpenStatus && onOpenStatus();
+    else if (row.kind === 'ticket') onOpenTicketNumber && onOpenTicketNumber(row.number);
+    else if (row.kind === 'browse') onBrowseCatalog && onBrowseCatalog(row.label);
+  };
+  const onHeroKeyDown = (e) => {
+    if (showInstant && e.key === 'ArrowDown') { e.preventDefault(); setInstantActive((i) => Math.min(i + 1, instantRows.length - 1)); return; }
+    if (showInstant && e.key === 'ArrowUp') { e.preventDefault(); setInstantActive((i) => Math.max(i - 1, 0)); return; }
+    if (showInstant && e.key === 'Escape') { e.preventDefault(); setInstantHidden(true); return; }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (showInstant && instantActive > 0) pickInstant(instantRows[instantActive]);
+      else submit();
+    }
+  };
+
   // Quick prompts always go through the question flow \u2014 never shortcut straight
   // to a guide. The user might mean "password problem in Slack", "Wi-Fi on a
   // tablet", or "set up a Windows machine" \u2014 only the question flow can ask
@@ -818,10 +851,13 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           <textarea
             ref={inputRef}
             value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
-            }}
+            onChange={(e) => { setQ(e.target.value); setInstantHidden(false); }}
+            onKeyDown={onHeroKeyDown}
+            role="combobox"
+            aria-expanded={showInstant}
+            aria-controls="hero-instant"
+            aria-activedescendant={showInstant ? `hero-instant-${instantActive}` : undefined}
+            aria-autocomplete="list"
             rows={3}
             placeholder={attached
               ? "Add a note (optional) — what's happening in this screenshot?"
@@ -951,6 +987,10 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             </div>
           </div>
         </div>
+
+        {showInstant && (
+          <InstantPanel id="hero-instant" rows={instantRows} active={instantActive} onHover={setInstantActive} onPick={pickInstant} />
+        )}
 
         {/* Request app access — the second way out of this page, and the one
             people were missing. It used to be a white .chip-flat, which put it
@@ -3049,6 +3089,7 @@ const STAGE_TO_PATH = {
   landing: "/",
   questions: "/help",
   "search-results": "/help",
+  ask: "/help",
   knowledge: "/knowledge",
   status: "/status",
   tickets: "/tickets",
@@ -3275,6 +3316,92 @@ function App() {
   };
 
   const goHome = () => { setStage("landing"); setQuery(""); setOutcome(null); setSearchResult({ query: '', citations: [], loading: false }); };
+  // Bumped on every new question so the answer page remounts fresh even when
+  // the same text is asked twice.
+  const [askKey, setAskKey] = useState(0);
+  // Deep link: /portal/help?q=… opens the answer page for that question.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const qp = url.searchParams.get("q");
+    if (qp && qp.trim()) {
+      setQuery(qp.trim().slice(0, 500)); setStage("ask");
+      // One-shot: drop it from the address bar so a later reload (on another
+      // page) doesn't reopen this question.
+      if (!IS_EMBEDDED) {
+        url.searchParams.delete("q");
+        try { window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash); } catch {}
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Where a typed question should land. A clear app request goes straight to
+  // that app's request page — no answer page in between; a request we can't
+  // pin to one app opens the catalog already searched for it. Everything else
+  // gets an answer (with the quick questions first when they're needed).
+  const submitQuestion = async (q) => {
+    const text = String(q || '').trim();
+    if (!text) return;
+    const det = detectAccessRequest(text);
+    const wantsSomething = det.isRequest || /\b(need|want|get|request|install|licen[cs]e|seat|account for|access)\b/i.test(text);
+    if (!det.isProblem && wantsSomething) {
+      const catalog = await loadCatalogItemsOnce();
+      const m = matchCatalogItem(catalog, text);
+      if (m.strong) { openCatalog({ itemId: m.best.id }); return; }
+      if (det.isRequest && m.candidates.length) { openCatalog({ query: (m.terms || []).join(' ') || text.slice(0, 60) }); return; }
+    }
+    setQuery(text); setAskKey((k) => k + 1); setStage("ask");
+  };
+  const openTicketNumber = (num) => {
+    try { window.__PORTAL_OPEN_TICKET__ = num; } catch {}
+    openTickets("mine");
+  };
+  // "Still need help" from the answer page: a ticket written the way a person
+  // would — the question, the follow-ups, and what was already suggested — so
+  // the IT Team starts where the conversation ended instead of from scratch.
+  const openTicketFromAsk = ({ turns = [], reasons = [], app = null, triage = [] } = {}) => {
+    const firstQ = String((turns[0] && turns[0].q) || query || '').trim();
+    const more = turns.slice(1).map((t) => t.q).filter(Boolean);
+    const tried = [...new Set(turns.flatMap((t) => t.citations || []))].slice(0, 5);
+    const blocks = [/[.!?]$/.test(firstQ) ? firstQ : firstQ + '.'];
+    if (triage.length) blocks.push(triage.map((p) => `${p.label} — ${p.answer}`).join('\n'));
+    if (more.length) blocks.push('More detail:\n' + more.map((m) => '- ' + m).join('\n'));
+    if (tried.length) blocks.push('The IT Hub suggested these guides, but they didn’t solve it:\n' + tried.map((g) => '- ' + g).join('\n'));
+    if (reasons.length) blocks.push('What didn’t work: ' + reasons.join(', ') + '.');
+    const det = detectAccessRequest([firstQ, ...more].join('. '));
+    setTicketDraft({
+      subject: (app && det.isRequest && !det.isProblem ? 'Access request: ' : '') + firstQ.slice(0, 140),
+      description: blocks.join('\n\n'),
+      type: det.isRequest && !det.isProblem ? 'service_request' : 'incident',
+      priority: 'medium',
+    });
+  };
+  // Screenshot → ticket. This used to show a "Ticket filed" toast WITHOUT
+  // creating anything, so people believed IT had their screenshot when no
+  // ticket existed. Now it opens the real ticket form, pre-filled with the
+  // diagnosis and the screenshot attached, for the person to send.
+  const openTicketFromScreenshot = async (ctx = {}) => {
+    let files = [];
+    try {
+      if (ctx.file && ctx.file.dataUrl) {
+        const blob = await (await fetch(ctx.file.dataUrl)).blob();
+        files = [new File([blob], ctx.file.name || 'screenshot.png', { type: blob.type || 'image/png' })];
+      }
+    } catch { /* the form still opens; they can re-attach */ }
+    const note = String(ctx.note || '').trim();
+    const lines = [];
+    if (note) lines.push(/[.!?]$/.test(note) ? note : note + '.');
+    if (ctx.diagnosis) lines.push('What the screenshot shows: ' + ctx.diagnosis);
+    if (Array.isArray(ctx.clues) && ctx.clues.length) lines.push('Details spotted:\n' + ctx.clues.map((c) => '- ' + c).join('\n'));
+    if (Array.isArray(ctx.steps) && ctx.steps.length) lines.push('Suggested steps (didn’t solve it):\n' + ctx.steps.map((c, i) => `${i + 1}. ${c}`).join('\n'));
+    setTicketDraft({
+      subject: (note || ctx.diagnosis || 'Issue shown in screenshot').slice(0, 140),
+      description: lines.join('\n\n') || 'See the attached screenshot.',
+      type: 'incident',
+      priority: ctx.is_hardware_issue ? 'high' : 'medium',
+      files,
+    });
+  };
 
   // Assemble a clean, plain-text ticket from everything captured this session:
   // the question, the clarifying answers (mapped from option ids back to their
@@ -3398,13 +3525,30 @@ function App() {
 
       {stage === "landing" &&
       <Landing
-        onSubmit={(q) => { setQuery(q); setStage("questions"); }}
+        onSubmit={submitQuestion}
         onOpenStatus={() => setStage("status")}
         onOpenKnowledge={() => setStage("knowledge")}
         onOpenGuide={(g) => setGuide(g)}
         onOpenTickets={() => openTickets("mine")}
+        onOpenTicketNumber={openTicketNumber}
         onOpenScreenshot={(init) => openScreenshot(init)}
+        onRequestItem={(id) => openCatalog({ itemId: id })}
+        onBrowseCatalog={(q) => openCatalog(q ? { query: q } : {})}
         onRequest={() => openCatalog()} />
+      }
+
+      {stage === "ask" && query &&
+      <AskPage
+        key={askKey}
+        query={query}
+        onBack={goHome}
+        onOpenGuide={(g) => setGuide(g)}
+        onRequestItem={(id) => openCatalog({ itemId: id })}
+        onBrowseCatalog={(q) => openCatalog(q ? { query: q } : {})}
+        onOpenStatus={() => setStage("status")}
+        onOpenTicketNumber={openTicketNumber}
+        onFileTicket={openTicketFromAsk}
+        onScreenshot={(note) => openScreenshot({ note })} />
       }
 
       {stage === "questions" &&
@@ -3532,7 +3676,7 @@ function App() {
           initialNote={screenshotInit.note || ''}
           onClose={closeScreenshot}
           onOpenGuide={(g) => { setGuide(g); }}
-          onFileTicket={(ctx) => { closeScreenshot(); setFiledTicket({ team: ctx.team || "IT Team", source: ctx.source }); }}
+          onFileTicket={(ctx) => { closeScreenshot(); openTicketFromScreenshot(ctx); }}
         />
       )}
 
@@ -5602,7 +5746,7 @@ function ItServicesButton() {
         <path d="M19 12H5"/>
         <path d="M12 19l-7-7 7-7"/>
       </svg>
-      SliceDesk
+      <span className="bts-label">SliceDesk</span>
     </a>
   );
 }
@@ -8524,7 +8668,8 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
   const [description, setDescription] = React.useState(draft.description || "");
   const [type, setType] = React.useState(draft.type || "incident");
   const [priority, setPriority] = React.useState(draft.priority || "medium");
-  const [attachFiles, setAttachFiles] = React.useState([]);
+  // A draft can arrive with files already attached (the screenshot flow).
+  const [attachFiles, setAttachFiles] = React.useState(() => (Array.isArray(draft.files) ? draft.files.filter(Boolean) : []));
   const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
   const [talkedToNote, setTalkedToNote] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -26770,8 +26915,12 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               onOpenSpecificGuide={openGuide}
               onFileTicket={() => {
                 onFileTicket?.({
-                  team: "IT Team",
-                  source: "Screenshot diagnosis: " + result.diagnosis,
+                  file,
+                  note,
+                  diagnosis: result.diagnosis,
+                  clues: result.clues,
+                  steps: result.next_steps,
+                  is_hardware_issue: result.is_hardware_issue,
                 });
                 onClose();
               }}
@@ -26792,7 +26941,18 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               fontSize: 12.5, color: "#7A1A14", fontWeight: 600,
               lineHeight: 1.45,
             }}>
-              Couldn't analyze this screenshot — {error}. Try again, or file a ticket and we'll review it manually.
+              <div>Couldn't analyze this screenshot — {error}.</div>
+              {/* Don't strand them: the screenshot is still the most useful
+                  thing they can send, so offer to send it as-is. */}
+              {file && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                  <button type="button" className="ask-btn is-primary" style={{ minHeight: 34 }}
+                    onClick={() => { onFileTicket?.({ file, note }); onClose(); }}>
+                    Send it to IT anyway
+                  </button>
+                  <button type="button" className="ask-btn" style={{ minHeight: 34 }} onClick={() => { setError(null); }}>Try again</button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -29117,6 +29277,763 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 // Export
 window.GuideExperience = GuideExperience;
 window.HubSearchResults = HubSearchResults;
+
+
+// ─── ask flow (instant matches + answer page) ──────────────────────────────
+// From "type a question" to "sorted" in as few steps as possible.
+//
+// The old path forced every question — even "I need Figma" — through two or
+// three multiple-choice screens before showing anything, then a results page
+// whose only exit was a ticket. Now:
+//   1. While you type, the Help box offers what it can tell instantly with no
+//      AI round trip: the catalog app you're naming (one click to its request
+//      form), guides whose titles match, a service that's down right now, a
+//      ticket number you pasted. Enter still just asks.
+//   2. Asking goes straight to an answer. The page leads with the action that
+//      matters — "Request Figma", "Zoom is down right now" — then the answer
+//      and its sources, follow-ups in place, and optional "narrow it down"
+//      chips only when the answer is weak.
+//   3. Every answer ends in a clear fork: "That fixed it", or "Still need
+//      help" → a ticket pre-filled with the whole conversation.
+
+let _guideListCache = null;
+let _guideListPromise = null;
+function loadGuideListOnce() {
+  if (_guideListCache) return Promise.resolve(_guideListCache);
+  if (!_guideListPromise) {
+    _guideListPromise = fetch('/api/guides', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => { _guideListCache = Array.isArray(rows) ? rows : []; return _guideListCache; })
+      .catch(() => { _guideListCache = []; return _guideListCache; });
+  }
+  return _guideListPromise;
+}
+function useGuideList() {
+  const [list, setList] = React.useState(() => _guideListCache || []);
+  React.useEffect(() => { let off = false; loadGuideListOnce().then((l) => { if (!off) setList(l); }); return () => { off = true; }; }, []);
+  return list;
+}
+const _allCatalog = (items) => items;
+function useCatalogItems() { return useCatalogSlice(_allCatalog, []); }
+
+const ASK_STOP = new Set(('a an and are as at be but by can could do does for from get got has have how i if in into is it its me my no not of on or our please ' +
+  'should so that the their them then there this to too up us was we what when where which who why will with would you your hi hello hey thanks ' +
+  'need want help cant cannot dont doesnt wont isnt im ive keep keeps working work works issue problem still anymore just really').split(' '));
+function askTerms(text) {
+  return String(text || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]+/g, ' ').split(/\s+/).filter((w) => w.length >= 2 && !ASK_STOP.has(w));
+}
+
+// Guides whose TITLE says what you typed. Cheap and local — the full-text
+// answer is the AI's job; this only has to be right about the obvious ones.
+function matchGuidesByTitle(guides, text, limit = 3) {
+  const qs = askTerms(text);
+  if (!qs.length || !Array.isArray(guides)) return [];
+  const scored = [];
+  for (const g of guides) {
+    const words = askTerms(g.title + ' ' + (g.category || ''));
+    if (!words.length) continue;
+    let s = 0;
+    for (const q of qs) {
+      if (words.includes(q)) s += 3;
+      else if (q.length >= 3 && words.some((w) => w.startsWith(q) || (w.length >= 4 && q.startsWith(w)))) s += 2;
+    }
+    if (s >= 3 && s >= qs.length * 1.5) scored.push({ g, s: s + Math.min(1, (g.helpful_count || 0) / 50) });
+  }
+  scored.sort((a, b) => b.s - a.s);
+  return scored.slice(0, limit).map((x) => x.g);
+}
+
+// A service you named that isn't operational right now — "it's not just you".
+function matchOutages(services, text) {
+  const t = ' ' + String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+  return (services || []).filter((s) => {
+    if (!s || s.state === 'operational') return false;
+    const names = [s.name, s.vendor].filter(Boolean).map((n) => String(n).toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]+/g, ' ').trim());
+    return names.some((n) => n.length >= 3 && t.includes(' ' + n + ' '));
+  });
+}
+
+function extractTicketNumber(text) {
+  const m = String(text || '').match(/\b(IT|INC|REQ|TKT|SR)[-\s]?(\d{3,7})\b/i);
+  return m ? `${m[1].toUpperCase()}-${m[2]}` : null;
+}
+
+// Instant rows for the Help box, best first. Row 0 is always "ask".
+function buildInstantRows({ text, catalog, guides, services }) {
+  const q = String(text || '').trim();
+  if (q.length < 2) return [];
+  const rows = [{ kind: 'ask', key: 'ask', label: q }];
+  const ticket = extractTicketNumber(q);
+  if (ticket) rows.push({ kind: 'ticket', key: 't:' + ticket, number: ticket });
+  for (const s of matchOutages(services, q).slice(0, 2)) rows.push({ kind: 'outage', key: 'o:' + s.name, service: s });
+  const det = detectAccessRequest(q);
+  if (!det.isProblem && Array.isArray(catalog) && catalog.length) {
+    const m = matchCatalogItem(catalog, q);
+    const apps = m.candidates.filter((c) => c._confidence === 'strong' || (c._confidence === 'likely' && det.isRequest)).slice(0, 3);
+    for (const a of apps) rows.push({ kind: 'app', key: 'a:' + a.id, item: a });
+  }
+  for (const g of matchGuidesByTitle(guides, q, 3)) rows.push({ kind: 'guide', key: 'g:' + g.id, guide: g });
+  if (det.isRequest && !rows.some((r) => r.kind === 'app')) rows.push({ kind: 'browse', key: 'browse', label: q });
+  return rows;
+}
+
+function InstantPanel({ rows, active, onHover, onPick, id }) {
+  if (!rows || rows.length < 2) return null;
+  const head = (kind) => ({ app: 'Request an app', guide: 'Guides', outage: 'Live status', ticket: 'Your ticket', browse: 'Service catalog' }[kind]);
+  let lastKind = null;
+  return (
+    <div className="instant-panel" role="listbox" id={id} aria-label="Suggestions">
+      {rows.map((r, i) => {
+        const showHead = r.kind !== 'ask' && r.kind !== lastKind;
+        lastKind = r.kind;
+        const on = i === active;
+        return (
+          <React.Fragment key={r.key}>
+            {showHead && <div className="instant-head">{head(r.kind)}</div>}
+            <button type="button" role="option" aria-selected={on} id={`${id}-${i}`}
+              className={'instant-row is-' + r.kind + (on ? ' is-on' : '')}
+              onMouseEnter={() => onHover(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(r)}>
+              {r.kind === 'ask' && <>
+                <span className="instant-ic is-ask"><IconSearch size={15} stroke={2.2} /></span>
+                <span className="instant-main"><span className="instant-title">Ask Slice IT: <b>“{r.label.length > 80 ? r.label.slice(0, 80) + '…' : r.label}”</b></span></span>
+                <span className="instant-kbd">↵</span>
+              </>}
+              {r.kind === 'app' && <>
+                <AppIcon name={r.item.name} iconUrl={r.item.icon_url} size={28} />
+                <span className="instant-main">
+                  <span className="instant-title">Request <b>{r.item.name}</b></span>
+                  <span className="instant-sub">{r.item.approval_required ? 'Goes to your manager for approval' : 'No approval needed'}{r.item.category_name ? ` · ${r.item.category_name}` : ''}</span>
+                </span>
+                <span className="instant-go">Request <IconArrow size={13} stroke={2.4} /></span>
+              </>}
+              {r.kind === 'guide' && (() => { const Icon = categoryIconFor(r.guide.category); return <>
+                <span className="instant-ic"><Icon size={15} stroke={2} /></span>
+                <span className="instant-main">
+                  <span className="instant-title">{r.guide.title}</span>
+                  {r.guide.category && <span className="instant-sub">{r.guide.category}</span>}
+                </span>
+                <span className="instant-go">Open <IconArrow size={13} stroke={2.4} /></span>
+              </>; })()}
+              {r.kind === 'outage' && <>
+                <span className="instant-ic is-outage"><IconAlert size={15} stroke={2.2} /></span>
+                <span className="instant-main">
+                  <span className="instant-title"><b>{r.service.name}</b> is {r.service.state === 'degraded' ? 'having issues' : 'down'} right now</span>
+                  <span className="instant-sub">It's not just you — the IT Team is on it</span>
+                </span>
+                <span className="instant-go">Status <IconArrow size={13} stroke={2.4} /></span>
+              </>}
+              {r.kind === 'ticket' && <>
+                <span className="instant-ic"><IconTicket size={15} stroke={2} /></span>
+                <span className="instant-main"><span className="instant-title">Open ticket <b>{r.number}</b></span></span>
+                <span className="instant-go">Open <IconArrow size={13} stroke={2.4} /></span>
+              </>}
+              {r.kind === 'browse' && <>
+                <span className="instant-ic"><IconKey size={15} stroke={2} /></span>
+                <span className="instant-main">
+                  <span className="instant-title">Find it in the service catalog</span>
+                  <span className="instant-sub">Every app and service you can request</span>
+                </span>
+                <span className="instant-go">Browse <IconArrow size={13} stroke={2.4} /></span>
+              </>}
+            </button>
+          </React.Fragment>
+        );
+      })}
+      <div className="instant-foot"><span><kbd>↑</kbd><kbd>↓</kbd> to choose</span><span><kbd>↵</kbd> to open</span><span><kbd>esc</kbd> to just type</span></div>
+    </div>
+  );
+}
+
+const ASK_LOADING_STEPS = ['Searching the guides…', 'Checking the catalog and live status…', 'Writing your answer…'];
+function AskLoading() {
+  const [i, setI] = React.useState(0);
+  React.useEffect(() => { const t = setInterval(() => setI((n) => Math.min(n + 1, ASK_LOADING_STEPS.length - 1)), 1300); return () => clearInterval(t); }, []);
+  return (
+    <div className="ask-card ask-loading" aria-busy="true" aria-live="polite">
+      <div className="ask-card-head"><span className="ask-avatar">S</span><TypingDots /><span className="ask-loading-text">{ASK_LOADING_STEPS[i]}</span></div>
+      <div className="ask-skel"><span style={{ width: '92%' }} /><span style={{ width: '78%' }} /><span style={{ width: '64%' }} /></div>
+    </div>
+  );
+}
+
+function dedupeGuides(list) {
+  const seen = new Set();
+  return (list || []).filter((c) => { const k = String(c.guide_id ?? c.id); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+function AskTurn({ turn, isFirst, onOpenGuide, onRetry }) {
+  if (turn.state === 'loading') {
+    return <>
+      {!isFirst && <div className="ask-you"><span>{turn.display || turn.q}</span></div>}
+      <AskLoading />
+    </>;
+  }
+  const sources = dedupeGuides(turn.citations);
+  const hasAnswer = !!(turn.answer && turn.answer.trim());
+  return (
+    <>
+      {!isFirst && <div className="ask-you"><span>{turn.display || turn.q}</span></div>}
+      {turn.state === 'error' ? (
+        <div className="ask-card is-error">
+          <div className="ask-card-title">Couldn't get an answer just now</div>
+          <p className="ask-muted">{turn.error || 'The answer service didn’t respond.'}</p>
+          <button type="button" className="ask-btn" onClick={onRetry}>Try again</button>
+        </div>
+      ) : hasAnswer ? (
+        <div className="ask-card ask-answer">
+          <div className="ask-card-head">
+            <span className="ask-avatar">S</span>
+            <span className="ask-eyebrow">Slice IT</span>
+            {turn.mode === 'dev' && <span className="ask-dev">Dev preview · no AI locally</span>}
+          </div>
+          <div className="ask-md">{renderMarkdown(turn.answer, { stepStyle: 'cards' })}</div>
+          {sources.length > 0 && (
+            <div className="ask-sources">
+              <span className="ask-sources-label">From</span>
+              {sources.slice(0, 4).map((c) => {
+                const Icon = categoryIconFor(c.category);
+                return (
+                  <button key={c.guide_id} type="button" className="ask-source" onClick={() => onOpenGuide({ id: c.guide_id, title: c.title, category: c.category })}>
+                    <Icon size={13} stroke={2} /> <span>{c.title}</span> <IconArrow size={12} stroke={2.4} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : sources.length > 0 ? (
+        <div className="ask-card">
+          <div className="ask-card-title">These guides cover it</div>
+          <div className="ask-guides">
+            {sources.map((c) => {
+              const Icon = categoryIconFor(c.category);
+              return (
+                <button key={c.guide_id} type="button" className="ask-guide" onClick={() => onOpenGuide({ id: c.guide_id, title: c.title, category: c.category })}>
+                  <span className="ask-guide-ic"><Icon size={18} stroke={2} /></span>
+                  <span className="ask-guide-main">
+                    <span className="ask-guide-title">{c.title}</span>
+                    {c.content_preview && <span className="ask-guide-sub">{c.content_preview}</span>}
+                  </span>
+                  <IconArrow size={16} stroke={2.4} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="ask-card">
+          <div className="ask-card-title">No guide covers this yet</div>
+          <p className="ask-muted">That's useful to know — tell the IT Team below and they'll sort it (and write the guide).</p>
+        </div>
+      )}
+      {Array.isArray(turn.suggestions) && turn.suggestions.length > 0 && (
+        <div className="ask-also">
+          <span className="ask-sources-label">You might mean</span>
+          {turn.suggestions.map((s) => (
+            <button key={s.guide_id} type="button" className="ask-source" title={s.reason || ''} onClick={() => onOpenGuide({ id: s.guide_id, title: s.title, category: s.category })}>
+              <span>{s.title}</span> <IconArrow size={12} stroke={2.4} />
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function AppRequestCard({ item, others, onRequest, onBrowse }) {
+  return (
+    <div className="ask-app">
+      <AppIcon name={item.name} iconUrl={item.icon_url} size={48} />
+      <div className="ask-app-main">
+        <div className="ask-eyebrow">Looks like an app request</div>
+        <div className="ask-app-title">{item.name}</div>
+        <div className="ask-app-sub">
+          {item.description ? String(item.description).slice(0, 140) : 'Request it here and the IT Team takes it from there.'}
+        </div>
+        <div className="ask-app-meta">
+          <span className={'ask-chip' + (item.approval_required ? ' is-warn' : ' is-ok')}>
+            {item.approval_required ? 'Needs manager approval' : 'No approval needed'}
+          </span>
+          {others && others.length > 0 && (
+            <span className="ask-app-others">Not it?{' '}
+              {others.map((o, i) => (
+                <React.Fragment key={o.id}>{i ? ', ' : ''}<button type="button" className="ask-link" onClick={() => onRequest(o)}>{o.name}</button></React.Fragment>
+              ))}{' · '}
+              <button type="button" className="ask-link" onClick={onBrowse}>browse all</button>
+            </span>
+          )}
+        </div>
+      </div>
+      <button type="button" className="ask-btn is-primary ask-app-cta" onClick={() => onRequest(item)}>
+        Request {item.name.length > 18 ? 'it' : item.name} <IconArrow size={15} stroke={2.4} />
+      </button>
+    </div>
+  );
+}
+
+// ── Triage: the quick questions, only when they change the answer ──────────
+// "Wi-Fi isn't working" can't be answered well without knowing the device and
+// where you are — so for a short, vague problem we ask first. A request ("I
+// need Figma"), a how-to question, or a problem described in detail goes
+// straight to an answer. Anything the message already says ("on my Mac") is
+// filled in rather than asked again, and the device is remembered for the
+// rest of the visit.
+const _askMemory = {}; // this visit only: { device: 'mac' | 'windows' | … }
+const DEVICE_WORDS = {
+  mac: /\b(mac|macbook|imac|macos|apple laptop)\b/i,
+  windows: /\b(windows|pc|thinkpad|lenovo|dell|surface|hp laptop)\b/i,
+  iphone: /\b(iphone|ios)\b/i,
+  android: /\b(android|pixel|samsung)\b/i,
+  ipad: /\bipad\b/i,
+  linux: /\b(linux|ubuntu)\b/i,
+};
+const PROBLEM_HINT = /not working|isn'?t working|doesn'?t|won'?t|can'?t|cannot|broken|slow|error|fail|crash|stuck|frozen|freez|keeps|drop|disconnect|no sound|no internet|offline|locked|down\b|black screen|not loading|not connecting/i;
+const GENERIC_OPTION_WORDS = new Set(['something', 'else', 'other', 'yes', 'not', 'just', 'me', 'the', 'my', 'i', 'it', 'a', 'an', 'of', 'or', 'and', 'still', 'have', 'tell', 'more', 'sure', 'dont', 'know']);
+
+// Problems where the answer depends on the device. If the question set for
+// one of these doesn't already ask, this goes first (unless the message or an
+// earlier answer this visit already said which device).
+const DEVICE_SENSITIVE = /wi-?fi|internet|network|vpn|globalprotect|slow|crash|freez|frozen|sound|audio|\bmic|microphone|camera|headset|jabra|speaker|printer|print|monitor|display|screen|bluetooth|battery|charg|keyboard|mouse|trackpad|update|install|app\b|won'?t open|black screen|disk|storage/i;
+const DEVICE_QUESTION = {
+  id: '__device', label: 'Which device is this on?', type: 'choice',
+  options: [
+    { id: 'mac', label: 'Mac', hint: 'MacBook or iMac' },
+    { id: 'windows', label: 'Windows laptop or PC' },
+    { id: 'iphone', label: 'iPhone or iPad' },
+    { id: 'android', label: 'Android phone' },
+    { id: 'other', label: 'Something else' },
+  ],
+};
+function withDeviceQuestion(qs, text) {
+  const list = Array.isArray(qs) ? qs : [];
+  if (!DEVICE_SENSITIVE.test(text)) return list;
+  if (list.some((q) => /device|computer|laptop|machine|using|platform|operating/i.test(q.label))) return list;
+  return [DEVICE_QUESTION, ...list];
+}
+
+function needsTriage(text) {
+  const det = detectAccessRequest(text);
+  if (det.isRequest && !det.isProblem) return false;
+  if (extractTicketNumber(text)) return false;
+  if (!det.isProblem && !PROBLEM_HINT.test(text)) return false;
+  // A long description already carries the context the questions would ask for.
+  return askTerms(text).length <= 12;
+}
+
+function deviceOf(text) {
+  for (const [k, re] of Object.entries(DEVICE_WORDS)) if (re.test(text)) return k;
+  return null;
+}
+
+// Answer a question from what the person already wrote (or chose earlier this
+// visit). Returns an option id, or null to ask.
+function autoAnswer(q, text) {
+  if (!q || q.type === 'text' || !Array.isArray(q.options)) return null;
+  const isDeviceQ = /device|computer|laptop|machine|using|platform|operating|os\b/i.test(q.label);
+  if (isDeviceQ) {
+    const dev = deviceOf(text) || _askMemory.device;
+    if (dev) {
+      const opt = q.options.find((o) => DEVICE_WORDS[dev].test(o.label) || DEVICE_WORDS[dev].test(String(o.id)));
+      if (opt) return q.type === 'multi' ? [opt.id] : opt.id;
+    }
+  }
+  if (/urgent|blocking/i.test(q.label) && /\b(urgent|asap|blocking|right now|can'?t work)\b/i.test(text)) {
+    const opt = q.options.find((o) => /now|block|urgent/i.test(o.label));
+    if (opt) return opt.id;
+  }
+  const words = new Set(askTerms(text));
+  const hits = q.options.filter((o) => askTerms(o.label).some((w) => w.length >= 3 && !GENERIC_OPTION_WORDS.has(w) && words.has(w)));
+  if (hits.length === 1) return q.type === 'multi' ? [hits[0].id] : hits[0].id;
+  return null;
+}
+
+function optionLabel(q, id) {
+  const o = (q.options || []).find((x) => x.id === id);
+  return o ? o.label : String(id);
+}
+function answerText(q, a) {
+  if (a == null || a === '' || (Array.isArray(a) && !a.length)) return '';
+  if (Array.isArray(a)) return a.filter((x) => x !== '__none__').map((id) => optionLabel(q, id)).join(', ') || "Haven't tried anything yet";
+  return q.type === 'text' ? String(a).trim() : optionLabel(q, a);
+}
+
+function TriageCard({ questions, answers, auto, step, onAnswer, onBack, onNext, onSkip, loading }) {
+  const q = questions[step];
+  // 1–9 picks an option (the number badges on screen), unless you're typing.
+  React.useEffect(() => {
+    if (loading || !q || q.type === 'text') return undefined;
+    const onKey = (e) => {
+      const el = document.activeElement;
+      if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const n = parseInt(e.key, 10);
+      if (!n || n > q.options.length) return;
+      const o = q.options[n - 1];
+      e.preventDefault();
+      if (q.type === 'multi') {
+        const cur = Array.isArray(answers[q.id]) ? answers[q.id] : [];
+        onAnswer(q, cur.includes(o.id) ? cur.filter((x) => x !== o.id) : [...cur.filter((x) => x !== '__none__'), o.id], false);
+      } else onAnswer(q, o.id, true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+  if (loading) {
+    return (
+      <div className="ask-card triage" aria-busy="true">
+        <div className="ask-card-head"><span className="ask-avatar">S</span><span className="ask-loading-text">Working out what to ask…</span><TypingDots /></div>
+        <div className="ask-skel"><span style={{ width: '58%' }} /><span style={{ width: '100%', height: 46 }} /><span style={{ width: '100%', height: 46 }} /></div>
+      </div>
+    );
+  }
+  if (!q) return null;
+  const a = answers[q.id];
+  const total = questions.length;
+  const known = questions.filter((x) => auto[x.id] != null);
+  const multiSel = Array.isArray(a) ? a : [];
+  return (
+    <div className="ask-card triage">
+      <div className="triage-top">
+        <span className="ask-avatar">S</span>
+        <span className="triage-intro">A couple of quick questions so the answer fits your setup</span>
+        <span className="triage-dots" aria-label={`Question ${step + 1} of ${total}`}>
+          {questions.map((x, i) => <i key={x.id} className={i < step ? 'is-done' : i === step ? 'is-now' : ''} />)}
+        </span>
+      </div>
+      {known.length > 0 && (
+        <div className="triage-known">
+          <span className="ask-muted">Already know:</span>
+          {known.map((x) => <span key={x.id} className="triage-known-chip">{answerText(x, answers[x.id])}</span>)}
+        </div>
+      )}
+      <div key={q.id} className="triage-q">
+        <div className="triage-label">{q.label}</div>
+        {q.type === 'text' ? (
+          <div className="triage-text">
+            <textarea autoFocus rows={3} value={a || ''} placeholder={q.placeholder || 'A sentence or two is plenty…'}
+              onChange={(e) => onAnswer(q, e.target.value, false)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && String(a || '').trim()) { e.preventDefault(); onNext(); } }} />
+          </div>
+        ) : (
+          <div className={'triage-opts' + (q.options.length > 4 ? ' is-many' : '')}>
+            {q.options.map((o, i) => {
+              const on = q.type === 'multi' ? multiSel.includes(o.id) : a === o.id;
+              return (
+                <button key={o.id} type="button" className={'triage-opt' + (on ? ' is-on' : '')} aria-pressed={on}
+                  onClick={() => {
+                    if (q.type === 'multi') {
+                      const next = on ? multiSel.filter((x) => x !== o.id) : [...multiSel.filter((x) => x !== '__none__'), o.id];
+                      onAnswer(q, next, false);
+                    } else onAnswer(q, o.id, true);
+                  }}>
+                  <span className="triage-opt-key" aria-hidden="true">{i + 1}</span>
+                  <span className="triage-opt-main">
+                    <span className="triage-opt-label">{o.label}</span>
+                    {o.hint && <span className="triage-opt-hint">{o.hint}</span>}
+                  </span>
+                  {on && <IconCheck size={15} stroke={3} />}
+                </button>
+              );
+            })}
+            {q.type === 'multi' && (
+              <button type="button" className={'triage-opt is-ghost' + (multiSel.includes('__none__') ? ' is-on' : '')}
+                onClick={() => onAnswer(q, ['__none__'], true)}>
+                <span className="triage-opt-main"><span className="triage-opt-label">I haven't tried anything yet</span></span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="triage-foot">
+        {step > 0 ? <button type="button" className="ask-link" onClick={onBack}>← Back</button> : <span />}
+        <button type="button" className="ask-link is-quiet" onClick={onSkip}>Skip — just show me the answer</button>
+        {(q.type !== 'choice') && (
+          <button type="button" className="ask-btn is-primary" disabled={!answerText(q, a)} onClick={onNext}>
+            {step === total - 1 ? 'Show my answer' : 'Next'} <IconArrow size={14} stroke={2.4} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AskPage({ query, onBack, onOpenGuide, onRequestItem, onBrowseCatalog, onOpenStatus, onOpenTicketNumber, onFileTicket, onScreenshot }) {
+  const catalog = useCatalogItems();
+  const live = useLiveStatus(60000);
+  const [turns, setTurns] = React.useState([]);
+  const turnsRef = React.useRef(turns);
+  turnsRef.current = turns;
+  const [draft, setDraft] = React.useState('');
+  const [outcome, setOutcome] = React.useState(null); // null | 'solved' | 'help'
+  const [reasons, setReasons] = React.useState([]);
+  const [refine, setRefine] = React.useState(null); // a clarifying question { label, options }
+  const composerRef = React.useRef(null);
+  const endRef = React.useRef(null);
+  // Triage (see needsTriage). phase: 'triage' while questions are up.
+  const [phase, setPhase] = React.useState(() => (needsTriage(query) ? 'triage' : 'answer'));
+  const [tQuestions, setTQuestions] = React.useState(null); // null = loading
+  const [tStep, setTStep] = React.useState(0);
+  const [tAnswers, setTAnswers] = React.useState({});
+  const [tAuto, setTAuto] = React.useState({});
+  const [triageDone, setTriageDone] = React.useState([]); // [{label, answer}] once finished
+
+  const ask = React.useCallback(async (q, display) => {
+    const text = String(q || '').trim();
+    if (!text) return;
+    const id = 't' + Date.now() + Math.random().toString(36).slice(2, 6);
+    const history = turnsRef.current
+      .filter((t) => t.state === 'done' && t.answer)
+      .flatMap((t) => [{ role: 'user', content: t.q }, { role: 'assistant', content: t.answer }])
+      .slice(-8);
+    setTurns((ts) => [...ts, { id, q: text, display, state: 'loading' }]);
+    setOutcome(null);
+    try {
+      const j = await ticketsApiJson('POST', '/api/chat', { query: text, history, source: 'ask' });
+      setTurns((ts) => ts.map((t) => (t.id === id ? { ...t, state: 'done', answer: j.answer || '', citations: j.citations || [], suggestions: j.suggestions || [], mode: j.mode, chatLogId: j.chat_log_id } : t)));
+    } catch (e) {
+      setTurns((ts) => ts.map((t) => (t.id === id ? { ...t, state: 'error', error: e.message } : t)));
+    }
+  }, []);
+
+  // Finish triage: ask with the answers folded in (the person still sees
+  // their own words as the question), and keep a summary for the ticket.
+  const finishTriage = React.useCallback((qs, ans) => {
+    const pairs = (qs || []).map((q) => ({ label: q.label, answer: answerText(q, ans[q.id]) })).filter((p) => p.answer);
+    setTriageDone(pairs);
+    setPhase('answer');
+    const augmented = pairs.length ? `${query}. ${pairs.map((p) => `${p.label} ${p.answer}`).join('. ')}` : query;
+    ask(augmented, query);
+  }, [query, ask]);
+
+  React.useEffect(() => {
+    setTurns([]);
+    if (!needsTriage(query)) { setPhase('answer'); ask(query); return undefined; }
+    setPhase('triage'); setTQuestions(null); setTStep(0); setTAnswers({}); setTAuto({}); setTriageDone([]);
+    let off = false;
+    // AI questions tailored to the message; the built-in set for the topic if
+    // the AI is slow (>2.5s) or unavailable, so nobody waits on a spinner.
+    const fallback = () => (routeFor(query).questions || []).slice(0, 3);
+    const timer = setTimeout(() => { if (!off) begin(fallback()); }, 2500);
+    let begun = false;
+    function begin(list) {
+      if (begun || off) return;
+      begun = true; clearTimeout(timer);
+      const qs = withDeviceQuestion(list && list.length ? list : fallback(), query).slice(0, 3);
+      const auto = {};
+      for (const q of qs) { const v = autoAnswer(q, query); if (v != null) auto[q.id] = v; }
+      const firstOpen = qs.findIndex((q) => auto[q.id] == null);
+      if (!qs.length || firstOpen === -1) { setTAnswers(auto); setTAuto(auto); finishTriage(qs, auto); return; }
+      setTQuestions(qs); setTAnswers(auto); setTAuto(auto); setTStep(firstOpen);
+    }
+    ticketsApiJson('POST', '/api/help/clarify', { query })
+      .then((j) => begin(Array.isArray(j.questions) ? j.questions : []))
+      .catch(() => begin([]));
+    return () => { off = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  const nextOpenStep = (from, ans) => {
+    for (let i = from + 1; i < (tQuestions || []).length; i++) if (tAuto[tQuestions[i].id] == null || ans[tQuestions[i].id] == null) return i;
+    return -1;
+  };
+  const onTriageAnswer = (q, val, advance) => {
+    const ans = { ...tAnswers, [q.id]: val };
+    setTAnswers(ans);
+    if (/device|computer|laptop|machine|using|platform/i.test(q.label) && typeof val === 'string') {
+      const lbl = optionLabel(q, val);
+      const dev = Object.keys(DEVICE_WORDS).find((k) => DEVICE_WORDS[k].test(lbl));
+      if (dev) _askMemory.device = dev;
+    }
+    if (advance) setTimeout(() => goNext(ans), 180);
+  };
+  const goNext = (ans = tAnswers) => {
+    const n = nextOpenStep(tStep, ans);
+    if (n === -1) finishTriage(tQuestions, ans);
+    else setTStep(n);
+  };
+  const editTriage = () => { setTurns([]); setOutcome(null); setTriageDone([]); setPhase('triage'); setTStep(0); };
+
+  // Keep the newest turn in view as the conversation grows.
+  React.useEffect(() => {
+    if (turns.length > 1 && endRef.current) endRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [turns.length]);
+
+  const first = turns[0];
+  const last = turns[turns.length - 1];
+  const settled = last && last.state !== 'loading';
+  const fullText = turns.map((t) => t.q).join('. ');
+
+  // What to put first. Computed from everything asked so far.
+  const det = detectAccessRequest(fullText);
+  const appMatch = Array.isArray(catalog) && catalog.length ? matchCatalogItem(catalog, fullText) : { best: null, candidates: [], strong: false };
+  const showApp = !det.isProblem && appMatch.best && (appMatch.strong || (det.isRequest && appMatch.best._confidence !== 'weak'));
+  const outages = matchOutages(live.services, fullText);
+  const ticketNum = extractTicketNumber(query);
+
+  // Narrow-it-down chips — only when the first answer came back weak. The AI
+  // question first; the built-in route questions if the AI isn't available.
+  const weak = first && first.state === 'done' && !(first.answer && first.answer.trim()) && dedupeGuides(first.citations).length === 0;
+  React.useEffect(() => {
+    if (!weak || turns.length > 1 || showApp || triageDone.length) { setRefine(null); return; }
+    let off = false;
+    (async () => {
+      let qn = null;
+      try {
+        const j = await ticketsApiJson('POST', '/api/help/clarify', { query });
+        qn = Array.isArray(j.questions) ? j.questions.find((x) => x && x.options && x.options.length >= 2) : null;
+      } catch { /* fall back below */ }
+      if (!qn) {
+        const r = routeFor(query);
+        qn = (r.questions || []).find((x) => x.type !== 'text' && x.options && x.options.length >= 2) || null;
+      }
+      if (!off) setRefine(qn);
+    })();
+    return () => { off = true; };
+  }, [weak, turns.length, showApp, query, triageDone.length]);
+
+  const vote = (rating, why) => {
+    const id = last && last.chatLogId;
+    if (!id) return;
+    ticketsApiJson('POST', `/api/chat/${id}/feedback`, { rating, ...(why && why.length ? { reasons: why } : {}) }).catch(() => {});
+  };
+  const send = () => { const t = draft.trim(); if (!t) return; setDraft(''); setRefine(null); ask(t); };
+  const raiseTicket = () => onFileTicket({
+    turns: turns.filter((t) => t.state === 'done').map((t) => ({ q: t.display || t.q, citations: dedupeGuides(t.citations).map((c) => c.title) })),
+    reasons,
+    triage: triageDone,
+    app: showApp ? appMatch.best : null,
+  });
+
+  return (
+    <div className="page ask-page">
+      <div className="ask-wrap">
+        <button type="button" className="kb-back-btn" onClick={onBack}>
+          <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>
+          New question
+        </button>
+        <h1 className="ask-q">{query}</h1>
+
+        {ticketNum && (
+          <button type="button" className="ask-banner is-ticket" onClick={() => onOpenTicketNumber(ticketNum)}>
+            <IconTicket size={18} stroke={2} />
+            <span><b>{ticketNum}</b> — open the ticket to see where it's at</span>
+            <IconArrow size={15} stroke={2.4} />
+          </button>
+        )}
+        {outages.map((s) => (
+          <button key={s.name} type="button" className="ask-banner is-outage" onClick={onOpenStatus}>
+            <IconAlert size={18} stroke={2.2} />
+            <span><b>{s.name} is {s.state === 'degraded' ? 'having issues' : 'down'} right now.</b> It's not just you — the IT Team is already on it.{s.state_note || s.note ? ` ${s.state_note || s.note}` : ''}</span>
+            <span className="ask-banner-go">Live status <IconArrow size={14} stroke={2.4} /></span>
+          </button>
+        ))}
+        {showApp && (
+          <AppRequestCard
+            item={appMatch.best}
+            others={appMatch.strong ? [] : appMatch.candidates.slice(1, 3)}
+            onRequest={(it) => onRequestItem(it.id)}
+            onBrowse={() => onBrowseCatalog((appMatch.terms || []).join(' '))} />
+        )}
+
+        {phase === 'triage' && (
+          <TriageCard
+            loading={!tQuestions}
+            questions={tQuestions || []}
+            answers={tAnswers}
+            auto={tAuto}
+            step={tStep}
+            onAnswer={onTriageAnswer}
+            onBack={() => setTStep((s0) => Math.max(0, s0 - 1))}
+            onNext={() => goNext()}
+            onSkip={() => finishTriage(tQuestions || [], tAnswers)} />
+        )}
+        {phase === 'answer' && triageDone.length > 0 && (
+          <div className="triage-summary">
+            <span className="ask-muted">Answer for:</span>
+            {triageDone.map((p) => <span key={p.label} className="triage-known-chip" title={p.label}>{p.answer}</span>)}
+            <button type="button" className="ask-link" onClick={editTriage}>Change</button>
+          </div>
+        )}
+
+        <div className="ask-thread">
+          {turns.map((t, i) => (
+            <AskTurn key={t.id} turn={t} isFirst={i === 0} onOpenGuide={onOpenGuide} onRetry={() => { setTurns((ts) => ts.filter((x) => x.id !== t.id)); ask(t.q, t.display); }} />
+          ))}
+        </div>
+
+        {settled && refine && turns.length === 1 && (
+          <div className="ask-refine">
+            <div className="ask-refine-label">Help me narrow it down — {refine.label}</div>
+            <div className="ask-refine-opts">
+              {refine.options.map((o) => (
+                <button key={o.id || o.label} type="button" className="ask-pill" onClick={() => { setRefine(null); ask(`${query}. ${refine.label} ${o.label}`, o.label); }}>{o.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {phase === 'answer' && settled && (
+          <div className="ask-outcome" ref={endRef}>
+            {outcome === 'solved' ? (
+              <div className="ask-solved">
+                <span className="ask-solved-ic"><IconCheck size={18} stroke={3} /></span>
+                <div><b>Glad that sorted it.</b><div className="ask-muted">Thanks — that helps us keep the best answers on top.</div></div>
+                <button type="button" className="ask-btn" onClick={onBack}>Back to IT Hub</button>
+              </div>
+            ) : outcome === 'help' ? (
+              <div className="ask-help">
+                <div className="ask-help-title">Let's get you to a person</div>
+                <div className="ask-help-actions">
+                  <button type="button" className="ask-btn is-primary" onClick={raiseTicket}>
+                    <IconTicket size={16} stroke={2} /> Raise a ticket <span className="ask-help-hint">pre-filled with this chat</span>
+                  </button>
+                  {showApp && (
+                    <button type="button" className="ask-btn" onClick={() => onRequestItem(appMatch.best.id)}>Request {appMatch.best.name}</button>
+                  )}
+                  <a className="ask-btn" href="https://app.slack.com/client/T04HEPC7P/C9FPB2M1S" target="_blank" rel="noopener noreferrer">
+                    <IconSlack size={15} /> Urgent? #it-support
+                  </a>
+                </div>
+                <div className="ask-reasons">
+                  <span className="ask-muted">What went wrong? (optional)</span>
+                  {['Steps didn’t work', 'Not what I asked', 'Outdated info', 'Too generic'].map((r) => {
+                    const on = reasons.includes(r);
+                    return (
+                      <button key={r} type="button" className={'ask-pill is-sm' + (on ? ' is-on' : '')}
+                        onClick={() => { const next = on ? reasons.filter((x) => x !== r) : [...reasons, r]; setReasons(next); vote(-1, next); }}>{r}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="ask-fork">
+                <span className="ask-fork-q">Did that solve it?</span>
+                <button type="button" className="ask-btn is-ok" onClick={() => { setOutcome('solved'); vote(1); }}><IconCheck size={15} stroke={3} /> Yes, all sorted</button>
+                <button type="button" className="ask-btn" onClick={() => { setOutcome('help'); vote(-1); }}>No, I still need help</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {phase === 'answer' && <div className="ask-composer">
+          <textarea
+            ref={composerRef}
+            value={draft}
+            rows={1}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder={turns.length ? 'Ask a follow-up, or add a detail…' : 'Ask anything…'}
+            aria-label="Ask a follow-up" />
+          <button type="button" className="ask-icon-btn" title="Add a screenshot" aria-label="Add a screenshot" onClick={() => onScreenshot(draft.trim() || query)}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z" /><circle cx="12" cy="13" r="3.2" /></svg>
+          </button>
+          <button type="button" className="ask-btn is-primary" onClick={send} disabled={!draft.trim() || (last && last.state === 'loading')}>Send <IconArrow size={14} stroke={2.4} /></button>
+        </div>}
+      </div>
+    </div>
+  );
+}
 
 // Default export so main.jsx can mount <App />.
 export default App;
