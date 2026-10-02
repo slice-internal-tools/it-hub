@@ -16,7 +16,8 @@ import {
   mountStatusRoutes,
 } from './status.js';
 import { moduleConfig } from './module-config.js';
-import { registerGuideRoutes } from './guides-slicedesk.js';
+import { registerGuideRoutes, listPortalGuides, getPortalGuideText, guidesFromSliceDesk } from './guides-slicedesk.js';
+import { createKnowledge } from './knowledge.js';
 import { normalizeApproval, canViewApproval } from './approvals.js';
 import { createNotifications } from './notifications.js';
 
@@ -1504,6 +1505,31 @@ async function ftsSearch(query) {
   return trgm.rows;
 }
 
+// What chat answers from: the live SliceDesk guides when paired (the same ones
+// the Portal shows and links to), the local table otherwise. See knowledge.js.
+const DEV_LOCAL_GUIDES_FOR_CHAT = ['1', 'true', 'yes'].includes(String(process.env.DEV_LOCAL_GUIDES || '').toLowerCase());
+const useSliceDeskGuides = () => guidesFromSliceDesk() && !DEV_LOCAL_GUIDES_FOR_CHAT;
+const knowledge = createKnowledge({
+  ftsSearch,
+  pool,
+  // Same ranking either way; only where the guides come from differs.
+  source: {
+    enabled: () => true,
+    list: async () => {
+      if (useSliceDeskGuides()) return listPortalGuides();
+      const r = await pool.query(
+        `SELECT id, title, category, helpful_count, updated_at, id::text AS slug
+           FROM guides WHERE deleted_at IS NULL`);
+      return r.rows;
+    },
+    text: async (slug) => {
+      if (useSliceDeskGuides()) return getPortalGuideText(slug);
+      const r = await pool.query('SELECT body, updated_at FROM guides WHERE id = $1', [Number(slug)]);
+      return { body: (r.rows[0] && r.rows[0].body) || '', content: '', updated_at: r.rows[0] && r.rows[0].updated_at };
+    },
+  },
+});
+
 // ────────────────────────────────────────────────────────────────────────
 // AI editor + insights actions, all through slicedesk's /api/ext/ai/proxy.
 //
@@ -1744,7 +1770,9 @@ async function groundScreenshotSteps(req, clean, userNote) {
   // order — most relevant first). FTS on the diagnosis is the fallback.
   let rows = [];
   const ids = clean.guide_suggestions.map((g) => g.id);
-  if (ids.length > 0) {
+  const indexed = ids.length > 0 ? knowledge.chunksFor(ids) : null;
+  if (indexed) rows = indexed;
+  else if (ids.length > 0) {
     const r = await pool.query(
       `SELECT gc.content, gc.guide_id, g.title
          FROM guide_chunks gc
@@ -1758,7 +1786,7 @@ async function groundScreenshotSteps(req, clean, userNote) {
   }
   if (rows.length === 0) {
     const q = [clean.diagnosis, userNote].filter(Boolean).join(' ').trim();
-    if (q) rows = await ftsSearch(q);
+    if (q) rows = await knowledge.search(q);
   }
   if (rows.length === 0) return;
 
@@ -1819,14 +1847,8 @@ app.post('/api/help/screenshot', requireBotOrUser, async (req, res) => {
   // is all the model needs for grounding.
   let guides = [];
   try {
-    const r = await pool.query(
-      `SELECT id, title, COALESCE(category, 'General') AS category
-         FROM guides
-        WHERE deleted_at IS NULL
-        ORDER BY updated_at DESC
-        LIMIT 200`,
-    );
-    guides = r.rows;
+    guides = (await knowledge.titles()).slice(0, 200)
+      .map((g) => ({ id: Number(g.id), title: g.title, category: g.category || 'General' }));
   } catch (e) {
     console.warn('[screenshot] guide list fetch failed:', e.message);
   }
@@ -2261,6 +2283,23 @@ function isChatTicketListQuery(text) {
          /\bmy\b|\bmine\b|\bi\s+have\b|\bi'?ve\b|\bfor\s+me\b|\bunder\s+my\b/i.test(text);
 }
 
+// Drop a trailing "Still stuck? … ticket …" paragraph. The answer page shows
+// that action itself; the model used to be told to write it, and still might.
+function stripSupportTrailer(text) {
+  if (!text) return text;
+  return String(text).replace(/\n+\s*(?:>\s*)?_?\*{0,2}still stuck\??\*{0,2}[^\n]*$/i, '').trimEnd();
+}
+
+// Local dev has no AI proxy. So the answer page can be previewed with an
+// answer at all, quote the best-matching guide passage instead (labelled as
+// such). Never runs in prod: needs dev fixtures on and no proxy configured.
+function devAnswerFrom(matches) {
+  const top = matches && matches[0];
+  if (!top) return null;
+  const body = String(top.content || '').replace(/^#{1,6}\s*/gm, '').trim().slice(0, 700);
+  return `From **${top.title}** [1]:\n\n${body}${body.length >= 700 ? '…' : ''}`;
+}
+
 app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
   const { query, history } = req.body ?? {};
   if (!query) return res.status(400).json({ error: 'query required' });
@@ -2362,7 +2401,7 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
       }
     }
 
-    const matches = await ftsSearch(query);
+    const matches = await knowledge.search(query);
 
     // Build a clean preview: strip leading markdown header marks so cards
     // don't show literal `## Step 4`, and collapse runs of whitespace.
@@ -2455,17 +2494,16 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
               "- Customer-support agents also use Amazon Connect inside Salesforce — the soft-phone is the **CCP** (Contact Control Panel).\n" +
               "- AI tooling: **Claude** is the company AI assistant (chat) and **Claude Code** is the CLI used by engineers.\n" +
               "- Internal IT team is just **the IT Team** — no sub-teams (no 'Network Operations', 'Identity & Access', etc.). When you mention escalation or who to contact, always say 'the IT Team'.\n" +
-              "- Tickets are submitted RIGHT HERE in the IT Hub — there is a **Submit a ticket** button directly below your answer. Do NOT tell users to visit an external portal or https://it.slicelife.com (that old portal is retired), and never print a ticket URL.\n" +
-              "- Getting ACCESS to an app or service (e.g. 1Password, Figma, a new account or license) is a REQUEST, not a problem to troubleshoot. Tell the user to request it with the **Submit a ticket** button below — it raises the request with the IT Team and (where the app is in the service catalog) routes it through approval. Don't send them elsewhere.\n\n" +
-              "**Hardware-failure rule — non-negotiable.** If the question mentions or implies physical damage or hardware failure (cracked / shattered screen, water / liquid spill, dropped laptop, swollen or leaking battery, broken hinge or keyboard keys, dead pixels, ports physically broken, smoke / burning smell, won't power on, kernel panic with hardware codes, GPU artifacts, repeated thermal shutdowns, fan grinding, anything physically loose), DO NOT give self-repair steps. Never tell the user to open the device, reseat parts, change the battery, swap the keyboard, run a hardware diagnostic, or 'try a hard reset' as a fix for damage. Reply with one short sentence acknowledging it looks like a hardware issue and direct them to **file a ticket with the IT Team** using the **Submit a ticket** button below so a technician can inspect or swap the device. The closing-line requirement still applies, but no numbered steps — those imply self-repair. The IT Team owns all hardware repair and swaps.\n\n" +
+              "- Tickets are raised RIGHT HERE in the IT Hub — the page shows a **Still need help?** button under your answer that opens a ticket pre-filled with this conversation. Do NOT tell users to visit an external portal or https://it.slicelife.com (that old portal is retired), and never print a ticket URL.\n" +
+              "- Getting ACCESS to an app or service (e.g. 1Password, Figma, a new account or license) is a REQUEST, not a problem to troubleshoot. Say in one sentence that they can request it right here — the page shows a request button for the matching app next to your answer, which routes it through approval. Don't send them elsewhere and don't list troubleshooting steps for a request.\n\n" +
+              "**Hardware-failure rule — non-negotiable.** If the question mentions or implies physical damage or hardware failure (cracked / shattered screen, water / liquid spill, dropped laptop, swollen or leaking battery, broken hinge or keyboard keys, dead pixels, ports physically broken, smoke / burning smell, won't power on, kernel panic with hardware codes, GPU artifacts, repeated thermal shutdowns, fan grinding, anything physically loose), DO NOT give self-repair steps. Never tell the user to open the device, reseat parts, change the battery, swap the keyboard, run a hardware diagnostic, or 'try a hard reset' as a fix for damage. Reply with one short sentence acknowledging it looks like a hardware issue and direct them to **raise it with the IT Team** using the button below so a technician can inspect or swap the device. No numbered steps — those imply self-repair. The IT Team owns all hardware repair and swaps.\n\n" +
               "Tailor language to those tools when it would actually change the steps (e.g. say 'GlobalProtect', 'Jabra USB headset', 'CCP in Salesforce'); skip the qualifier when it doesn't help. Don't invent device-specific steps not in the excerpts.\n\n" +
               "Format:\n" +
               "- Short markdown. Numbered steps for sequences; plain prose for one-liners.\n" +
               "- **Bold** UI labels, button names, menu items, and shortcuts.\n" +
               "- Use [N] citations.\n" +
               "- Keep it tight — no preamble, no recap of the question.\n\n" +
-              "Closing line — REQUIRED on every answer, on its own paragraph at the end (no bullet, no quote, no heading), using EXACTLY this text:\n" +
-              "Still stuck? Use the **Submit a ticket** button below and we'll send it to the IT Team." +
+              "Do NOT end with a closing line about tickets, support or 'still stuck' — the page already shows that under every answer." +
               (adminRulesBlock ? `\n\n${adminRulesBlock}` : '') +
               (assetContext ? `\n\n**Asset Manager data is available.** When the user asks about hardware, devices, or assets, use the <asset_manager> block in the user message to answer with real inventory data. Cite it as "[Asset Manager]".` : '') +
               (statusContext ? `\n\n**Live system status data is available.** When the user asks whether a service is down, experiencing issues, or about outages, use the <system_status> block in the user message to answer directly from real-time data. Cite it as "[System Status]". If a service is operational, say so clearly. If it's down or degraded, explain what's known and suggest filing a ticket if it's affecting their work.` : ''),
@@ -2488,12 +2526,10 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
             .filter((b) => b.type === 'text')
             .map((b) => b.text)
             .join('\n');
-          // Safety net: every chat answer must end with the in-hub Submit-a-ticket
-          // line. If the model forgot or rephrased, append the canonical line.
-          const SUPPORT_LINE = "Still stuck? Use the **Submit a ticket** button below and we'll send it to the IT Team.";
-          if (answer && !/submit a (ticket|request)/i.test(answer)) {
-            answer = answer.trimEnd() + '\n\n' + SUPPORT_LINE;
-          }
+          // The page renders its own "Still need help?" action under every
+          // answer, so a closing "Still stuck? …" line from the model (old
+          // habit, or a paraphrase) is stripped rather than shown twice.
+          answer = stripSupportTrailer(answer);
           usage = msg.usage || null;
           mode = 'llm';
         } else {
@@ -2562,8 +2598,8 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
       const SLICEDESK_API_URL = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
       if (SLICEDESK_API_URL) {
         try {
-          const allGuides = await pool.query(`SELECT title FROM guides WHERE deleted_at IS NULL ORDER BY title`);
-          const titleList = allGuides.rows.map((g) => `- ${g.title}`).join('\n').slice(0, 5000);
+          const allGuides = await knowledge.titles();
+          const titleList = allGuides.map((g) => `- ${g.title}`).join('\n').slice(0, 5000);
           const upstream = await aiProxyFetch(req, {
             method: 'POST',
             headers: aiProxyHeaders(req),
@@ -2586,12 +2622,7 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
               // Look up guide ids by title so the UI can deep-link
               const titles = parsed.suggestions.map((s) => s.guide_title).filter(Boolean);
               if (titles.length) {
-                const ids = await pool.query(
-                  `SELECT id, title, category FROM guides
-                    WHERE deleted_at IS NULL AND title = ANY($1::text[])`,
-                  [titles],
-                );
-                const byTitle = new Map(ids.rows.map((r) => [r.title, r]));
+                const byTitle = new Map(allGuides.filter((g) => titles.includes(g.title)).map((r) => [r.title, r]));
                 suggestions = parsed.suggestions.map((s) => {
                   const g = byTitle.get(s.guide_title);
                   return g ? { guide_id: g.id, title: g.title, category: g.category, reason: s.reason } : null;
@@ -2605,10 +2636,18 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
       }
     }
 
+    if (!answer && devTicketsEnabled && !SLICEDESK_API_URL) {
+      answer = devAnswerFrom(matches);
+      if (answer) mode = 'dev';
+    }
+
+    // retrieved_chunk_ids is INT[]; index chunk ids are "guideId:n" strings.
+    const chunkIds = matches.map((r) => r.chunk_id).filter((x) => Number.isInteger(x));
     const log = await pool.query(
-      `INSERT INTO chat_logs (query, answer, retrieved_chunk_ids, citations, mode)
-       VALUES ($1, $2, $3, $4::jsonb, $5) RETURNING id`,
-      [query, answer, matches.map((r) => r.chunk_id), JSON.stringify(citations), mode],
+      `INSERT INTO chat_logs (query, answer, retrieved_chunk_ids, citations, mode, source)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6) RETURNING id`,
+      [query, answer, chunkIds, JSON.stringify(citations), mode,
+        req.user?._bot ? 'bot' : String(req.body.source || 'portal').slice(0, 30)],
     );
 
     res.json({
@@ -2625,14 +2664,30 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
 app.post('/api/chat/:id/feedback', requireBotOrUser, async (req, res, next) => {
   const { rating, comment } = req.body ?? {};
   if (rating !== 1 && rating !== -1) return res.status(400).json({ error: 'rating must be 1 or -1' });
+  if (!/^\d+$/.test(String(req.params.id))) return res.status(400).json({ error: 'bad id' });
+  const reasons = Array.isArray(req.body?.reasons)
+    ? req.body.reasons.map((r) => String(r).slice(0, 80)).filter(Boolean).slice(0, 8)
+    : null;
+  const note = comment != null ? String(comment).slice(0, 2000) : (req.body?.note != null ? String(req.body.note).slice(0, 2000) : null);
   try {
-    await pool.query(
-      `INSERT INTO chat_feedback (chat_log_id, rating, comment) VALUES ($1, $2, $3)`,
-      [req.params.id, rating, comment ?? null],
-    );
-    const log = await pool.query(`SELECT citations FROM chat_logs WHERE id = $1`, [req.params.id]);
-    if (log.rows[0]) {
-      const guideIds = (log.rows[0].citations ?? []).map((c) => c.guide_id).filter(Boolean);
+    // One vote per answer: changing your mind (👍 → 👎 + reasons) updates the
+    // row instead of stacking a second one.
+    const prev = await pool.query('SELECT id, rating FROM chat_feedback WHERE chat_log_id = $1 ORDER BY id DESC LIMIT 1', [req.params.id]);
+    if (prev.rows[0]) {
+      await pool.query('UPDATE chat_feedback SET rating = $2, comment = COALESCE($3, comment), reasons = COALESCE($4, reasons) WHERE id = $1',
+        [prev.rows[0].id, rating, note, reasons]);
+    } else {
+      await pool.query('INSERT INTO chat_feedback (chat_log_id, rating, comment, reasons) VALUES ($1, $2, $3, $4)',
+        [req.params.id, rating, note, reasons]);
+    }
+    // Guide counters only for the local table. When answers come from the
+    // SliceDesk index the ids are SliceDesk's — SliceDesk owns those counters
+    // (the guide page's own 👍/👎 posts there), and these ids would land on
+    // unrelated local rows.
+    const firstVote = !prev.rows[0] || prev.rows[0].rating !== rating;
+    if (firstVote && !useSliceDeskGuides()) {
+      const log = await pool.query(`SELECT citations FROM chat_logs WHERE id = $1`, [req.params.id]);
+      const guideIds = ((log.rows[0] && log.rows[0].citations) || []).map((c) => Number(c.guide_id)).filter(Number.isInteger);
       if (guideIds.length > 0) {
         const col = rating === 1 ? 'helpful_count' : 'unhelpful_count';
         await pool.query(`UPDATE guides SET ${col} = ${col} + 1 WHERE id = ANY($1::int[])`, [guideIds]);
