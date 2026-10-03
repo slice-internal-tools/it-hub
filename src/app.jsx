@@ -1000,7 +1000,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                       <AppIcon name={it.name} iconUrl={it.icon_url} size={36} />
                       <span className="hc-app-text">
                         <span className="hc-app-name">{it.name}</span>
-                        <span className="hc-app-sub">{it.approval_required ? "Manager approval" : "No approval needed"}</span>
                       </span>
                       <IconArrow size={14} stroke={2.4} className="hc-app-go" />
                     </button>
