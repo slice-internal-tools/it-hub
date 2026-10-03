@@ -573,7 +573,7 @@ function useLiveStatus(intervalMs = 30000) {
   return { services, lastCheck, error };
 }
 
-function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets, onOpenTicketNumber, onRequestItem, onBrowseCatalog, onRequest }) {
+function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets, onOpenTicketNumber, onRequestItem, onBrowseCatalog, onCustomRequest, onRequest }) {
   const [q, setQ] = useState("");
   // Apps shown in the "Request app access" stack. Session-cached and shared
   // with the ticket list's icon lookup — one /api/catalog fetch between them.
@@ -588,17 +588,9 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const t = useCopy();
-  // Live status drives the System status strip below. While the first poll
-  // is in flight, we render the hardcoded STATUS list as a skeleton so the
-  // section never collapses to empty. Once we have real data, that's what
-  // the strip shows — including a real "updated Xs ago" timestamp.
+  // Live status feeds the instant suggestions (an outage for the app you're
+  // typing about). The full status board lives on the Status page.
   const liveStatus = useLiveStatus();
-  const statusServices = liveStatus.services && liveStatus.services.length
-    ? liveStatus.services
-    : STATUS;
-  const statusUpdatedLabel = liveStatus.lastCheck
-    ? `Live · updated ${relativeTime(liveStatus.lastCheck)}`
-    : (liveStatus.error ? 'Live · sync failed' : 'Live · syncing…');
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 400);
@@ -751,6 +743,53 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
     submit(qp.label);
   };
 
+  // Command box mode: "ask" (free-text help) or "access" (catalog search).
+  const [mode, setMode] = useState("ask");
+  const [accessQ, setAccessQ] = useState("");
+  // -1 = nothing highlighted until you hover, arrow, or type a search.
+  const [accessActive, setAccessActive] = useState(-1);
+  const accessRef = useRef(null);
+  // Switch animation: the panel slides in from the side you moved towards
+  // (Ask IT is left, access is right) while its wrapper eases between the
+  // two content heights instead of snapping.
+  const [modeDir, setModeDir] = useState(0);
+  const panelRef = useRef(null);
+  const [panelH, setPanelH] = useState(null);
+  React.useLayoutEffect(() => {
+    const el = panelRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(() => setPanelH(el.offsetHeight));
+    ro.observe(el);
+    setPanelH(el.offsetHeight);
+    return () => ro.disconnect();
+  }, [mode]);
+  const switchMode = (m) => {
+    if (m === mode) return;
+    setModeDir(m === "access" ? 1 : -1);
+    setMode(m);
+    setAccessActive(-1);
+    setTimeout(() => (m === "access" ? accessRef : inputRef).current?.focus(), 0);
+  };
+  const accessResults = React.useMemo(() => {
+    const term = accessQ.trim();
+    if (term) return rankCatalog(catalogItems, term).slice(0, 8);
+    return [...catalogItems]
+      .sort((a, b) => (Number(b.request_count) || 0) - (Number(a.request_count) || 0))
+      .slice(0, 8);
+  }, [accessQ, catalogItems]);
+  const onAccessKeyDown = (e) => {
+    const cols = window.matchMedia && window.matchMedia("(max-width: 640px)").matches ? 1 : 2;
+    if (e.key === "ArrowDown") { e.preventDefault(); setAccessActive((i) => (i < 0 ? 0 : Math.min(i + cols, accessResults.length - 1))); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setAccessActive((i) => Math.max(i - cols, 0)); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      const pick = accessResults[accessActive];
+      if (pick) onRequestItem && onRequestItem(pick.id);
+      else if (accessQ.trim()) onCustomRequest && onCustomRequest(accessQ.trim());
+      else onBrowseCatalog && onBrowseCatalog("");
+    } else if (e.key === "Escape" && accessQ) { e.preventDefault(); setAccessQ(""); }
+  };
+
   // hero rewritten — no copy-dict title needed
 
   return (
@@ -789,34 +828,36 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
       <div className="hero-headline" style={{ position: "relative", zIndex: 1, textAlign: "center", marginBottom: 28 }}>
         <h1 style={{
           fontSize: "clamp(34px, 4.4vw, 60px)",
-          fontWeight: 700,
-          letterSpacing: "-0.028em",
+          fontWeight: 400,
+          letterSpacing: "-0.01em",
           lineHeight: 1.1,
           margin: "24px 0 0",
           color: "#211E1E",
           animation: "fadeUp .7s .05s var(--ease) both",
-          fontFamily: "'Archivo', -apple-system, sans-serif",
+          fontFamily: "var(--font-head)",
         }}>
           How can{" "}
           <span className="annotate-underline" style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 900,
-            letterSpacing: "-0.028em",
+            fontFamily: "var(--font-head)",
+            fontWeight: 400,
+            letterSpacing: "-0.01em",
             color: "#211E1E",
           }}>Slice IT</span>
           {" "}help you?
         </h1>
+        <p className="hc-sub">Ask a question, report a problem, or get access to an app.</p>
       </div>
 
-      {/* The big input */}
-      <div className="hero-input-wrap" style={{
-        maxWidth: 1120, margin: "0 auto",
-        position: "relative", zIndex: 1,
-        animation: "fadeUp .7s .15s var(--ease) both"
-      }}>
+      {/* The command box — one surface, two jobs. "Ask IT" is the free-text
+          help path; "Request app access" turns the same box into a live
+          catalog search. Access used to be a separate charcoal banner under
+          the box because people couldn't find it; making it a first-class
+          mode of the box itself is what makes it impossible to miss without
+          shouting. */}
+      <div className="hc-wrap" style={{ animation: "fadeUp .7s .15s var(--ease) both" }}>
         <div
-          className="hero-input-shell"
-          onDragOver={(e) => { e.preventDefault(); if (!dragOver) setDragOver(true); }}
+          className={"hc-shell" + (mode === "access" ? " is-access" : "")}
+          onDragOver={(e) => { if (mode !== "ask") return; e.preventDefault(); if (!dragOver) setDragOver(true); }}
           onDragLeave={(e) => {
             // Only clear when the drag actually leaves the shell — children
             // generate dragleave too, which would otherwise flash the overlay.
@@ -824,249 +865,186 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             setDragOver(false);
           }}
           onDrop={(e) => {
+            if (mode !== "ask") return;
             e.preventDefault();
             setDragOver(false);
             const f = e.dataTransfer?.files?.[0];
             if (f) stageFile(f);
           }}
-          style={{ position: "relative" }}
         >
-          {/* Drag-over overlay — shows just the cue, doesn't block the underlying
-              input until the user releases. */}
-          {dragOver && (
-            <div style={{
-              position: "absolute", inset: 6,
-              background: "rgba(253,200,49,0.92)",
-              border: "1px dashed #211E1E",
-              borderRadius: 10,
-              display: "grid", placeItems: "center",
-              zIndex: 5, pointerEvents: "none",
-              fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18,
-              color: "#211E1E", letterSpacing: "-0.01em",
-            }}>
-              Drop the screenshot — we'll analyze it
-            </div>
-          )}
+          <div className="hc-tabs" role="tablist" aria-label="What do you need?">
+            <SlideIndicator activeKey={mode} radius={999} />
+            <button type="button" role="tab" id="hc-tab-ask" aria-controls="hc-panel" aria-selected={mode === "ask"}
+              className={"hc-tab" + (mode === "ask" ? " is-on" : "")} onClick={() => switchMode("ask")}>
+              <IconSpark size={15} stroke={2.2} />
+              <span>Ask IT</span>
+            </button>
+            <button type="button" role="tab" id="hc-tab-access" aria-controls="hc-panel" aria-selected={mode === "access"}
+              className={"hc-tab" + (mode === "access" ? " is-on" : "")} onClick={() => switchMode("access")}>
+              <IconKey size={15} stroke={2.2} />
+              <span>Request app access</span>
+              {ctaIcons.length > 0 && (
+                <span className="hc-tab-apps" aria-hidden="true">
+                  {ctaIcons.slice(0, 3).map((it) => (
+                    <span key={it.id} className="hc-tab-app">
+                      {it.icon_url ? <img src={it.icon_url} alt="" width="48" height="48" decoding="async" /> : it.name.charAt(0).toUpperCase()}
+                    </span>
+                  ))}
+                  {ctaTotal > 3 && <span className="hc-tab-app is-count">+{ctaTotal - 3}</span>}
+                </span>
+              )}
+            </button>
+          </div>
 
-          <textarea
-            ref={inputRef}
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setInstantHidden(false); }}
-            onKeyDown={onHeroKeyDown}
-            role="combobox"
-            aria-expanded={showInstant}
-            aria-controls="hero-instant"
-            aria-activedescendant={showInstant ? `hero-instant-${instantActive}` : undefined}
-            aria-autocomplete="list"
-            rows={3}
-            placeholder={attached
-              ? "Add a note (optional) — what's happening in this screenshot?"
-              : "Ask a question, paste a screenshot, or drop one here…"}
-            style={{
-              width: "100%",
-              border: "none", outline: "none", resize: "none",
-              background: "transparent",
-              padding: "34px 32px 10px",
-              fontSize: 26, lineHeight: 1.35,
-              color: "var(--ink)",
-              letterSpacing: "-0.02em",
-              fontFamily: "inherit",
-              fontWeight: 400
-            }} />
+          <div className="hc-panel-size" style={panelH != null ? { height: panelH } : undefined}>
+          <div ref={panelRef} key={mode} id="hc-panel" role="tabpanel" aria-labelledby={mode === "ask" ? "hc-tab-ask" : "hc-tab-access"}
+            className={"hc-panel" + (modeDir ? (modeDir > 0 ? " is-in-right" : " is-in-left") : "")}>
+          {mode === "ask" ? (
+            <>
+              {/* Drag-over overlay — shows just the cue, doesn't block the
+                  underlying input until the user releases. */}
+              {dragOver && (
+                <div className="hc-drop">Drop the screenshot — we'll analyze it</div>
+              )}
+              <textarea
+                ref={inputRef}
+                className="hc-input"
+                value={q}
+                onChange={(e) => { setQ(e.target.value); setInstantHidden(false); }}
+                onKeyDown={onHeroKeyDown}
+                role="combobox"
+                aria-label="Ask IT"
+                aria-expanded={showInstant}
+                aria-controls="hero-instant"
+                aria-activedescendant={showInstant ? `hero-instant-${instantActive}` : undefined}
+                aria-autocomplete="list"
+                rows={3}
+                placeholder={attached
+                  ? "Add a note (optional) — what's happening in this screenshot?"
+                  : "Describe the problem or ask a question…"} />
 
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "12px 18px 14px 22px", gap: 12, flexWrap: "wrap",
-          }}>
-            {/* Left side — attach affordance / staged-file chip */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: "1 1 auto" }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) stageFile(f);
-                  e.target.value = ""; // allow picking the same file twice
-                }}
-              />
-              {attached ? (
-                <div style={{
-                  display: "inline-flex", alignItems: "center", gap: 8,
-                  padding: "6px 10px 6px 8px",
-                  background: "#FDC831",
-                  border: "1px solid #211E1E",
-                  borderRadius: 999,
-                  boxShadow: "1.5px 1.5px 0 #211E1E",
-                  maxWidth: "100%",
-                  minWidth: 0,
-                }}>
-                  <img src={attached.dataUrl} alt=""
-                    style={{ width: 24, height: 24, borderRadius: 4, border: "1px solid #211E1E", objectFit: "cover", flexShrink: 0 }} />
-                  <span style={{
-                    fontFamily: "ui-monospace, SF Mono, Menlo, monospace",
-                    fontSize: 11.5, color: "#211E1E",
-                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                    maxWidth: 260,
-                  }}>{attached.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => { setAttached(null); setAttachError(null); }}
-                    aria-label="Remove screenshot"
-                    title="Remove"
-                    style={{
-                      width: 18, height: 18, padding: 0,
-                      background: "#211E1E", color: "#FDC831",
-                      border: "none", borderRadius: "50%",
-                      display: "grid", placeItems: "center", cursor: "pointer",
-                      flexShrink: 0,
+              <div className="hc-foot">
+                <div className="hc-foot-left">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) stageFile(f);
+                      e.target.value = ""; // allow picking the same file twice
                     }}
-                  >
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+                  />
+                  {attached ? (
+                    <div className="hc-attached">
+                      <img src={attached.dataUrl} alt="" />
+                      <span>{attached.name}</span>
+                      <button type="button" onClick={() => { setAttached(null); setAttachError(null); }}
+                        aria-label="Remove screenshot" title="Remove">
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="hc-ghost"
+                      title="Attach a screenshot — we'll diagnose what's on screen">
+                      {/* Camera — clearer than a paperclip for "share what's on your screen". */}
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 8h3l2-3h8l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/>
+                        <circle cx="12" cy="13" r="3.2"/>
+                      </svg>
+                      Add a screenshot
+                    </button>
+                  )}
+                  {attachError && <span className="hc-error">{attachError}</span>}
+                </div>
+                <div className="hc-foot-right">
+                  <span className="hc-kbd-hint"><span className="kbd">⏎</span> {attached ? "to analyze" : "to send"}</span>
+                  <button onClick={() => submit()} disabled={!attached && !q.trim()} className="hc-go">
+                    {attached ? "Analyze" : "Ask"}
+                    <IconArrow size={15} stroke={2.4} />
                   </button>
                 </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="hc-search">
+                <IconSearch size={20} stroke={2.2} />
+                <input
+                  ref={accessRef}
+                  className="hc-input is-line"
+                  value={accessQ}
+                  onChange={(e) => { setAccessQ(e.target.value); setAccessActive(e.target.value.trim() ? 0 : -1); }}
+                  onKeyDown={onAccessKeyDown}
+                  aria-label="Search apps and services"
+                  placeholder="Which app do you need? Try Figma, GitHub, Adobe…" />
+                {accessQ && (
+                  <button type="button" className="hc-clear" onClick={() => { setAccessQ(""); accessRef.current?.focus(); }} aria-label="Clear search">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+                  </button>
+                )}
+              </div>
+              <div className="hc-apps-head">
+                <span>{accessQ.trim() ? (accessResults.length ? "Best matches" : "No exact match") : "Most requested"}</span>
+              </div>
+              {accessResults.length > 0 ? (
+                <div className="hc-apps" role="listbox" aria-label="Apps" onMouseLeave={() => { if (!accessQ.trim()) setAccessActive(-1); }}>
+                  {accessResults.map((it, i) => (
+                    <button key={it.id} type="button" role="option" aria-selected={i === accessActive}
+                      className={"hc-app" + (i === accessActive ? " is-on" : "")}
+                      style={{ "--i": i }}
+                      onMouseEnter={() => setAccessActive(i)}
+                      onClick={() => onRequestItem && onRequestItem(it.id)}>
+                      <AppIcon name={it.name} iconUrl={it.icon_url} size={36} />
+                      <span className="hc-app-text">
+                        <span className="hc-app-name">{it.name}</span>
+                        <span className="hc-app-sub">{it.approval_required ? "Manager approval" : "No approval needed"}</span>
+                      </span>
+                      <IconArrow size={14} stroke={2.4} className="hc-app-go" />
+                    </button>
+                  ))}
+                </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="hero-attach-btn"
-                  title="Attach a screenshot — we'll diagnose what's on screen"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 8,
-                    padding: "8px 12px",
-                    background: "#FFFFFF",
-                    border: "1px dashed #211E1E",
-                    borderRadius: 999,
-                    color: "#211E1E",
-                    fontFamily: "inherit", fontSize: 12.5, fontWeight: 600,
-                    letterSpacing: "-0.005em",
-                    cursor: "pointer",
-                    transition: "background .15s ease, transform .15s ease, box-shadow .15s ease, border-style .15s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#FDC831";
-                    e.currentTarget.style.borderStyle = "solid";
-                    e.currentTarget.style.transform = "translate(-1px,-1px)";
-                    e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "#FFFFFF";
-                    e.currentTarget.style.borderStyle = "dashed";
-                    e.currentTarget.style.transform = "none";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                >
-                  {/* Camera with a tiny upload arrow — clearer than a paperclip
-                      for "share what's on your screen". */}
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M3 8h3l2-3h8l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/>
-                    <circle cx="12" cy="13" r="3.2"/>
-                  </svg>
-                  Add a screenshot
-                </button>
+                <div className="hc-empty">
+                  Nothing called “{accessQ.trim()}” in the catalog yet. Send it as a custom request and IT will sort it out.
+                </div>
               )}
-              {attachError && (
-                <span style={{ fontSize: 11.5, color: "#DA3327", fontWeight: 600 }}>{attachError}</span>
-              )}
-            </div>
-            {/* Right side — hint + submit */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontSize: 12, color: "var(--ink-4)", display: "flex", alignItems: "center", gap: 6 }}>
-                <span className="kbd">⏎</span> {attached ? "to analyze" : "to continue"}
-              </span>
-              <button
-                onClick={() => submit()}
-                disabled={!attached && !q.trim()}
-                className="btn btn-primary btn-go focus-ring"
-                style={{ padding: "12px 22px", fontSize: 14.5 }}>
-                {attached ? "Analyze" : t("continue")}
-                <IconArrow size={16} stroke={2} />
-              </button>
-            </div>
+              <div className="hc-foot">
+                <div className="hc-foot-left">
+                  <button type="button" className="hc-ghost" onClick={() => onCustomRequest && onCustomRequest(accessQ.trim())}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    Not in the list? Custom request
+                  </button>
+                </div>
+                <div className="hc-foot-right">
+                  <button type="button" className="hc-go" onClick={() => onBrowseCatalog && onBrowseCatalog(accessQ.trim())}>
+                    Browse all{ctaTotal > 0 ? ` ${ctaTotal}` : ""}
+                    <IconArrow size={15} stroke={2.4} />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+          </div>
           </div>
         </div>
 
-        {showInstant && (
+        {mode === "ask" && showInstant && (
           <InstantPanel id="hero-instant" rows={instantRows} active={instantActive} onHover={setInstantActive} onPick={pickInstant} />
         )}
 
-        {/* Request app access — the second way out of this page, and the one
-            people were missing. It used to be a white .chip-flat, which put it
-            in the same visual class as the little quick-prompt chips AND sat it
-            directly under the much larger white search shell — so it read as a
-            footnote to the search rather than an alternative to it.
-            It is now CHARCOAL (.hero-request-cta): the one inverted surface on
-            the page, so it separates from both the cheese background and the
-            white shell above it. Same hard-shadow/lift language as everything
-            else, just asserting itself. */}
-        {/* Wrapper carries the entrance animation + width/spacing; the transform
-            stays free on the button itself (an `animation … both` on the button
-            would pin it and kill the hover lift). */}
-        {/* 916px, not the 1120 the rest of the hero uses: this lines the bar up
-            with the quick-prompt chip row directly beneath it, which is
-            content-sized and centred (it measures ~915px). If QUICK_PROMPTS
-            changes materially, re-measure. */}
-        <div style={{ maxWidth: 916, margin: "26px auto 0", animation: "fadeUp .7s .2s var(--ease) both" }}>
-          <button
-            onClick={() => onRequest && onRequest()}
-            className="hero-request-cta"
-          >
-            {/* Real catalog icons, not a generic glyph — three app cards say
-                "this is where the apps are" faster than any symbol, and they
-                lift in sequence on hover. Falls back to the key when the
-                catalog hasn't loaded (or is empty / unreachable), so the bar
-                is never mid-render blank. */}
-            {ctaIcons.length > 0 ? (
-              <span className="hero-request-cta-icons" aria-hidden="true">
-                {ctaIcons.map((it) => (
-                  <span key={it.id} className="hero-request-cta-chip" title={it.name}>
-                    {it.icon_url
-                      ? <img src={it.icon_url} alt="" width="46" height="46" loading="lazy" />
-                      : <span className="hero-request-cta-chip-letter">{it.name.charAt(0).toUpperCase()}</span>}
-                  </span>
-                ))}
-                {ctaTotal > ctaIcons.length && (
-                  <span className="hero-request-cta-chip is-count">+{ctaTotal - ctaIcons.length}</span>
-                )}
-              </span>
-            ) : (
-              <span className="hero-request-cta-icon" aria-hidden="true">
-                <IconKey size={31} stroke={2.4} />
-              </span>
-            )}
-            <span className="hero-request-cta-text">
-              <span className="hero-request-cta-title">Request app access</span>
-              {/* Name the actual number once we know it — "Browse 47 apps"
-                  is a reason to click in a way that "browse the catalog"
-                  never is. Falls back to the generic line before the
-                  catalog resolves, so the text never flashes a wrong count. */}
-              <span className="hero-request-cta-sub">
-                {ctaTotal > 0
-                  ? `Browse ${ctaTotal} app${ctaTotal === 1 ? '' : 's'} & services you can ask for`
-                  : 'Browse the catalog of apps & services you can ask for'}
-              </span>
-            </span>
-            {/* Sits at the far end and slides on hover — the "this goes
-                somewhere" cue the flat chip never had. */}
-            <span className="hero-request-cta-go" aria-hidden="true">
-              <IconArrow size={20} stroke={2.6} />
-            </span>
-          </button>
-        </div>
-
         {/* Quick prompts */}
-        <div style={{
-          display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center",
-          marginTop: 44,
-          animation: "fadeUp .7s .25s var(--ease) both"
-        }}>
-          {QUICK_PROMPTS.map((qp) =>
-          <Chip key={qp.label} icon={qp.icon} label={qp.label}
-          onClick={() => onPromptClick(qp)} />
-          )}
-        </div>
+        {mode === "ask" && (
+          <div className="hc-prompts">
+            <span className="hc-prompts-label">Popular</span>
+            {QUICK_PROMPTS.map((qp) =>
+            <Chip key={qp.label} icon={qp.icon} label={qp.label}
+            onClick={() => onPromptClick(qp)} />
+            )}
+          </div>
+        )}
       </div>
 
       {/* IT Command row: Phishing + On-call roster */}
@@ -1109,7 +1087,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                 style={{
                   textAlign: "left", cursor: "pointer",
                   background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: 14,
-                  padding: "16px 18px", boxShadow: "3px 3px 0 rgba(33,30,30,0.9)",
+                  padding: "16px 18px", boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                   fontFamily: "inherit",
                 }}>
                 <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 800, color: "#211E1E", marginBottom: 4, letterSpacing: "-0.01em" }}>{g.title}</div>
@@ -1183,87 +1161,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
         <CompanionPromo />
       </div>
 
-      {/* System status strip */}
-      <div style={{
-        maxWidth: 1120, margin: "72px auto 0",
-        animation: "fadeUp .8s .4s var(--ease) both"
-      }}>
-        <div style={{
-          display: "flex", alignItems: "flex-end", justifyContent: "space-between",
-          marginBottom: 18, gap: 20, flexWrap: "wrap",
-        }}>
-          <div>
-            <h2 style={{
-              fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: "-0.025em", color: "#000000",
-              fontFamily: "Archivo, sans-serif",
-            }}>
-              {t("statusTitle")}
-            </h2>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, color: "#2E2410", fontWeight: 500 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <span className="pulse-dot" /> {statusUpdatedLabel}
-            </span>
-            <a href="#" className="pill-link"
-              onClick={(e) => { e.preventDefault(); onOpenStatus && onOpenStatus(); }}>
-              Full status <span className="pill-link-arrow">→</span>
-            </a>
-          </div>
-        </div>
-
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 10,
-        }}>
-          {/* Landing shows just the first 6 services — the "Full status →" link
-              above goes to the complete list on the Status page. */}
-          {statusServices.slice(0, 6).map((s) => {
-            const tone =
-              s.state === "operational" ? { bg: "#D4F4D4", dot: "#0A8A3E", label: "Up" } :
-              s.state === "degraded" ? { bg: "#FFE8A3", dot: "#B8860B", label: "Slow" } :
-              { bg: "#FFD4D0", dot: "#B92323", label: "Down" };
-            return (
-              <div key={s.name} className="surface surface-interactive" style={{ padding: "12px 14px", borderRadius: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div className="svc-icon" style={{
-                    width: 36, height: 36, borderRadius: 8,
-                    background: "#FFFFFF", border: "1px solid #000000",
-                    display: "grid", placeItems: "center", flexShrink: 0,
-                    overflow: "hidden",
-                  }}>
-                    <img
-                      src={serviceIconUrl(s, 64)}
-                      alt=""
-                      width="24" height="24"
-                      style={{ display: "block" }}
-                      onError={(e)=>{e.currentTarget.style.display='none';}}
-                    />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#000000", letterSpacing: "-0.012em" }}>{s.name}</span>
-                      <span style={{ fontSize: 11, color: "#5C4916", fontWeight: 500 }}>·</span>
-                      <span style={{ fontSize: 11, color: "#5C4916", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em" }}>{s.vendor}</span>
-                    </div>
-                  </div>
-                  <span className="pill-flat" style={{ background: tone.bg, fontSize: 10, padding: "2px 8px", fontWeight: 700, flexShrink: 0 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: tone.dot }} />
-                    {tone.label}
-                  </span>
-                </div>
-                {(s.state_note || s.note) && (
-                  <div style={{
-                    marginTop: 10, padding: "5px 9px",
-                    background: "#FFF3C4", border: "1px solid #000000", borderRadius: 6,
-                    fontSize: 11, color: "#000000", fontWeight: 500,
-                  }}>⚠ {s.state_note || s.note}</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
     </div>);
 
@@ -1317,7 +1214,7 @@ function CompanionPromo() {
       <style>{`
         .companion-promo { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:28px; align-items:center; padding:26px 28px; }
         .companion-mark { width:44px; height:44px; border-radius:12px; display:grid; place-items:center; flex:none;
-          background:#211E1E; color:#FDC831; box-shadow:2px 2px 0 #FDC831; }
+          background:#211E1E; color:#FDC831; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .companion-title { margin:0; font-family:'Archivo',sans-serif; font-size:24px; font-weight:800; letter-spacing:-.025em; color:#211E1E; line-height:1.1; }
         .companion-lede { margin:6px 0 0; font-size:13.5px; color:#5C4916; font-weight:500; line-height:1.5; }
         .companion-perks { list-style:none; margin:16px 0 0; padding:0; display:grid; gap:8px; }
@@ -1326,10 +1223,10 @@ function CompanionPromo() {
           background:#D4F4D4; border:1px solid #211E1E; color:#0A6E31; margin-top:1px; }
         .companion-actions { display:grid; gap:10px; }
         .companion-btn { display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid #211E1E; border-radius:12px;
-          background:#FFFFFF; color:#211E1E; text-decoration:none; box-shadow:2px 2px 0 #211E1E;
+          background:#FFFFFF; color:#211E1E; text-decoration:none; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           transition:transform .18s cubic-bezier(.22,.61,.36,1), box-shadow .18s cubic-bezier(.22,.61,.36,1), background .16s ease; }
-        .companion-btn:hover { transform:translate(-2px,-2px); box-shadow:4px 4px 0 #211E1E, 0 10px 20px rgba(33,30,30,.12); }
-        .companion-btn:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #211E1E; }
+        .companion-btn:hover { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 10px 20px rgba(33,30,30,.12); }
+        .companion-btn:active { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .companion-btn:focus-visible { outline:3px solid rgba(33,30,30,.35); outline-offset:2px; }
         .companion-btn.is-rec { background:#FDC831; }
         .companion-btn-logo { width:40px; height:40px; border-radius:10px; flex:none; display:grid; place-items:center;
@@ -1339,8 +1236,8 @@ function CompanionPromo() {
         .companion-btn-name { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:'Archivo',sans-serif; font-size:15px; font-weight:800; letter-spacing:-.01em; }
         .companion-btn-sub { display:block; font-size:12px; color:#5C4916; font-weight:500; margin-top:2px; }
         .companion-btn.is-rec .companion-btn-sub { color:#3D3011; }
-        .companion-rec { padding:1px 7px; border-radius:999px; background:#211E1E; color:#FDC831; font-size:9.5px; font-weight:900;
-          letter-spacing:.06em; text-transform:uppercase; }
+        .companion-rec { padding:1px 7px; border-radius:999px; background:#211E1E; color:#FDC831; font-size:9.5px; font-weight:600;
+          letter-spacing:.06em; text-transform:uppercase; font-family:var(--font-mono);}
         .companion-btn-go { margin-left:auto; flex:none; transition:transform .16s ease; }
         .companion-btn:hover .companion-btn-go { transform:translateX(3px); }
         @media (max-width: 820px) { .companion-promo { grid-template-columns:1fr; gap:20px; padding:22px 20px; } }
@@ -1424,7 +1321,7 @@ function PhishingCard({ onSubmit }) {
         background: "#0A8A3E",
         border: "1px solid #211E1E",
         borderRadius: 14,
-        boxShadow: "3px 3px 0 #211E1E",
+        boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         color: "#FFFFFF",
         minHeight: 240,
         display: "flex", flexDirection: "column", justifyContent: "center",
@@ -1439,8 +1336,8 @@ function PhishingCard({ onSubmit }) {
           <IconCheck size={24} stroke={3} />
         </div>
         <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 6,
+          fontFamily: "var(--font-head)",
+          fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 6,
         }}>Report sent to Security</div>
         <div style={{ fontSize: 13.5, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
           Thanks — we've quarantined the message in your inbox and our Security team is reviewing. You'll hear back within an hour.
@@ -1456,17 +1353,17 @@ function PhishingCard({ onSubmit }) {
         background: "#FFF0EE",
         border: "1px solid #B92323",
         borderRadius: 14,
-        boxShadow: "3px 3px 0 #211E1E",
+        boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "4px 10px",
-            background: "#B92323", color: "#FFFFFF",
-            border: "1px solid #211E1E",
+            background: "#FFFFFF", color: "#DA3327",
+            border: "1px solid #DA3327",
             borderRadius: 4,
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 900, fontSize: 10.5,
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600, fontSize: 10.5,
             letterSpacing: "0.08em", textTransform: "uppercase",
           }}>
             <IconShield size={11} stroke={2.5} /> Security
@@ -1511,8 +1408,8 @@ function PhishingCard({ onSubmit }) {
         </div>
 
         <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
+          fontFamily: "var(--font-mono)",
+          fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 8,
         }}>What looked off?</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
@@ -1536,12 +1433,12 @@ function PhishingCard({ onSubmit }) {
           style={{
             width: "100%", padding: "11px 16px",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-            background: (sender || subject) ? "#B92323" : "#E8DFDD",
-            color: (sender || subject) ? "#FFFFFF" : "#78684C",
+            background: (sender || subject) ? "#211E1E" : "#E8DFDD",
+            color: (sender || subject) ? "#FDC831" : "#78684C",
             border: "1px solid #211E1E", borderRadius: 4,
-            boxShadow: (sender || subject) ? "1px 1px 0 #211E1E" : "none",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 12.5,
+            boxShadow: (sender || subject) ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600, fontSize: 12.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: (sender || subject) ? "pointer" : "not-allowed",
           }}>
@@ -1558,7 +1455,7 @@ function PhishingCard({ onSubmit }) {
       background: "#FFFFFF",
       border: "1px solid #B92323",
       borderRadius: 14,
-      boxShadow: "3px 3px 0 #B92323",
+      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       position: "relative",
       minHeight: 240,
       display: "flex", flexDirection: "column",
@@ -1577,11 +1474,11 @@ function PhishingCard({ onSubmit }) {
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 8,
           padding: "4px 10px",
-          background: "#B92323", color: "#FFFFFF",
-          border: "1px solid #211E1E",
+          background: "#FFFFFF", color: "#DA3327",
+          border: "1px solid #DA3327",
           borderRadius: 4,
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 900, fontSize: 10.5,
+          fontFamily: "var(--font-mono)",
+          fontWeight: 600, fontSize: 10.5,
           letterSpacing: "0.08em", textTransform: "uppercase",
         }}>
           <IconShield size={11} stroke={2.5} /> Security
@@ -1589,8 +1486,8 @@ function PhishingCard({ onSubmit }) {
       </div>
 
       <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 22, fontWeight: 800, letterSpacing: "-0.025em", color: "#211E1E",
+        fontFamily: "var(--font-head)",
+        fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em", color: "#211E1E",
         lineHeight: 1.15, marginBottom: 8,
       }}>
         Got a suspicious email?
@@ -1617,7 +1514,7 @@ function PhishingCard({ onSubmit }) {
         fontSize: 11.5, color: "#78684C", fontWeight: 500,
       }}>
         <IconBolt size={11} stroke={2.2} />
-        <span>Also: forward to <strong style={{ color: "#211E1E", fontFamily: "'Archivo', monospace" }}>phishing@slice.com</strong></span>
+        <span>Also: forward to <strong style={{ color: "#211E1E", fontFamily: "var(--font-mono)" }}>phishing@slice.com</strong></span>
       </div>
     </div>
   );
@@ -1695,7 +1592,7 @@ function OpenTicketsShortcut({ onOpenTickets }) {
         .open-tix-tile { display:flex; flex-direction:column; gap:12px; padding:18px; text-align:left; font-family:inherit; color:inherit; width:100%; }
         .open-tix-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
         .open-tix-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 8px; background:#FFFFFF;
-          border:1px solid currentColor; border-radius:999px; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:800;
+          border:1px solid currentColor; border-radius:999px; font-family:var(--font-mono); font-size:10.5px; font-weight:600;
           letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; }
         .open-tix-chip i { width:7px; height:7px; border-radius:50%; flex:none; }
         .open-tix-subject { font-size:14px; font-weight:600; color:var(--ink); letter-spacing:-.012em; line-height:1.35;
@@ -1792,7 +1689,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         background: "#0A8A3E",
         border: "1px solid #211E1E",
         borderRadius: 14,
-        boxShadow: "3px 3px 0 #211E1E",
+        boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         color: "#FFFFFF",
         minHeight: 240,
         display: "flex", flexDirection: "column", justifyContent: "center",
@@ -1807,8 +1704,8 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           <IconCheck size={24} stroke={3} />
         </div>
         <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 6,
+          fontFamily: "var(--font-head)",
+          fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 6,
         }}>Ticket filed</div>
         <div style={{ fontSize: 13.5, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
           IT Support has it. You'll get an ack in Slack shortly. Track it in Freshservice any time.
@@ -1826,7 +1723,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         background: "#FFFDF4",
         border: "1px solid #211E1E",
         borderRadius: 14,
-        boxShadow: "3px 3px 0 #FDC831",
+        boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{
@@ -1835,8 +1732,8 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             background: "#211E1E", color: "#FDC831",
             border: "1px solid #211E1E",
             borderRadius: 4,
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 900, fontSize: 10.5,
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600, fontSize: 10.5,
             letterSpacing: "0.08em", textTransform: "uppercase",
           }}>
             <IconTicket size={11} stroke={2.5} /> New ticket
@@ -1883,8 +1780,8 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         </div>
 
         <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
+          fontFamily: "var(--font-mono)",
+          fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 8,
         }}>How urgent?</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
@@ -1914,9 +1811,9 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             background: canSend ? "#FDC831" : "#E8DFDD",
             color: "#211E1E",
             border: "1px solid #211E1E", borderRadius: 4,
-            boxShadow: canSend ? "1px 1px 0 #211E1E" : "none",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 12.5,
+            boxShadow: canSend ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600, fontSize: 12.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: canSend ? "pointer" : "not-allowed",
           }}>
@@ -1933,7 +1830,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
       background: "#FFFFFF",
       border: "1px solid #211E1E",
       borderRadius: 14,
-      boxShadow: "3px 3px 0 #FDC831",
+      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       position: "relative",
       minHeight: 240,
       display: "flex", flexDirection: "column",
@@ -1946,8 +1843,8 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           background: "#211E1E", color: "#FDC831",
           border: "1px solid #211E1E",
           borderRadius: 4,
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 900, fontSize: 10.5,
+          fontFamily: "var(--font-mono)",
+          fontWeight: 600, fontSize: 10.5,
           letterSpacing: "0.08em", textTransform: "uppercase",
         }}>
           <IconBolt size={11} stroke={2.5} /> IT Support
@@ -1955,8 +1852,8 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
       </div>
 
       <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
+        fontFamily: "var(--font-head)",
+        fontSize: 18, fontWeight: 400, letterSpacing: "-0.01em", color: "#211E1E",
         marginBottom: 4, lineHeight: 1.25,
       }}>Need a hand?</div>
       <div style={{
@@ -2007,8 +1904,8 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
         margin: "14px 0",
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 10, fontWeight: 800, letterSpacing: "0.1em",
+        fontFamily: "var(--font-mono)",
+        fontSize: 10, fontWeight: 600, letterSpacing: "0.1em",
         color: "#78684C", textTransform: "uppercase",
       }}>
         <div style={{ flex: 1, height: 1.5, background: "rgba(33,30,30,0.15)" }}/>
@@ -2156,34 +2053,34 @@ function QuestionFlow({ query, onBack, onDone }) {
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "7px 12px 7px 10px",
           background: "#FFFFFF", border: "1px solid #211E1E",
-          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 11.5,
+          borderRadius: 4, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+          fontFamily: "var(--font-mono)",
+          fontWeight: 600, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
           color: "#211E1E", cursor: "pointer",
           transition: "transform .15s ease, box-shadow .15s ease, background .15s",
         }}
         onMouseEnter={(e)=>{
-          e.currentTarget.style.transform="translate(-2px,-2px)";
-          e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";
+          e.currentTarget.style.transform="translate(0, 0)";
+          e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
           e.currentTarget.style.background="#FFF9E6";
           const arr = e.currentTarget.querySelector("[data-arrow]");
           if (arr) arr.style.transform = "translateX(-3px)";
         }}
         onMouseLeave={(e)=>{
           e.currentTarget.style.transform="none";
-          e.currentTarget.style.boxShadow="1px 1px 0 #211E1E";
+          e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
           e.currentTarget.style.background="#FFFFFF";
           const arr = e.currentTarget.querySelector("[data-arrow]");
           if (arr) arr.style.transform = "translateX(0)";
         }}
         onMouseDown={(e)=>{
-          e.currentTarget.style.transform="translate(1px,1px)";
-          e.currentTarget.style.boxShadow="1px 1px 0 #211E1E";
+          e.currentTarget.style.transform="translate(0, 0)";
+          e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
         }}
         onMouseUp={(e)=>{
-          e.currentTarget.style.transform="translate(-2px,-2px)";
-          e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";
+          e.currentTarget.style.transform="translate(0, 0)";
+          e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
         }}>
           <span data-arrow style={{ display: "inline-flex", transition: "transform .2s var(--ease)" }}>
             <IconArrowLeft size={13} stroke={2.5} />
@@ -2293,9 +2190,9 @@ function QuestionFlow({ query, onBack, onDone }) {
           </div>
 
           <h2 style={{
-            fontSize: 28, fontWeight: 700, letterSpacing: "-0.025em", lineHeight: 1.2,
+            fontSize: 28, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.2,
             margin: "0 0 24px", color: "#211E1E",
-            fontFamily: "'Archivo', sans-serif",
+            fontFamily: "var(--font-head)",
           }}>
             {question.label}
           </h2>
@@ -2363,7 +2260,7 @@ function QuestionFlow({ query, onBack, onDone }) {
             border: "1px solid #211E1E",
             borderRadius: 14,
             background: "#FFFFFF",
-            boxShadow: "2px 2px 0 #211E1E",
+            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             padding: "14px 16px",
             fontSize: 15, lineHeight: 1.5, color: "#211E1E",
             resize: "vertical",
@@ -2380,8 +2277,8 @@ function QuestionFlow({ query, onBack, onDone }) {
                 background: "transparent",
                 border: "none",
                 padding: "10px 14px",
-                fontFamily: "'Archivo', sans-serif",
-                fontWeight: 700, fontSize: 12,
+                fontFamily: "var(--font-mono)",
+                fontWeight: 600, fontSize: 12,
                 letterSpacing: "0.06em", textTransform: "uppercase",
                 color: "#78684C",
                 cursor: "pointer",
@@ -2401,9 +2298,9 @@ function QuestionFlow({ query, onBack, onDone }) {
                 background: canContinue() ? "#FDC831" : "#E8E1D0",
                 border: "1px solid #211E1E",
                 borderRadius: 4,
-                boxShadow: canContinue() ? "2px 2px 0 #211E1E" : "1px 1px 0 rgba(33,30,30,0.25)",
-                fontFamily: "'Archivo', sans-serif",
-                fontWeight: 800, fontSize: 13,
+                boxShadow: canContinue() ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+                fontFamily: "var(--font-mono)",
+                fontWeight: 600, fontSize: 13,
                 letterSpacing: "0.04em", textTransform: "uppercase",
                 color: "#211E1E",
                 cursor: canContinue() ? "pointer" : "not-allowed",
@@ -2412,8 +2309,8 @@ function QuestionFlow({ query, onBack, onDone }) {
               }}
               onMouseEnter={(e)=>{
                 if(!canContinue()) return;
-                e.currentTarget.style.transform="translate(-2px,-2px)";
-                e.currentTarget.style.boxShadow="3px 3px 0 #211E1E";
+                e.currentTarget.style.transform="translate(0, 0)";
+                e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
                 e.currentTarget.style.background="#FFD757";
                 const arr = e.currentTarget.querySelector("[data-arrow]");
                 if (arr) arr.style.transform = "translateX(3px)";
@@ -2421,20 +2318,20 @@ function QuestionFlow({ query, onBack, onDone }) {
               onMouseLeave={(e)=>{
                 if(!canContinue()) return;
                 e.currentTarget.style.transform="none";
-                e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";
+                e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
                 e.currentTarget.style.background="#FDC831";
                 const arr = e.currentTarget.querySelector("[data-arrow]");
                 if (arr) arr.style.transform = "translateX(0)";
               }}
               onMouseDown={(e)=>{
                 if(!canContinue()) return;
-                e.currentTarget.style.transform="translate(1px,1px)";
-                e.currentTarget.style.boxShadow="1px 1px 0 #211E1E";
+                e.currentTarget.style.transform="translate(0, 0)";
+                e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
               }}
               onMouseUp={(e)=>{
                 if(!canContinue()) return;
-                e.currentTarget.style.transform="translate(-2px,-2px)";
-                e.currentTarget.style.boxShadow="3px 3px 0 #211E1E";
+                e.currentTarget.style.transform="translate(0, 0)";
+                e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
               }}>
               {step === total - 1 ? t("see") : t("continue")}
               <span data-arrow style={{ display: "inline-flex", transition: "transform .2s var(--ease)" }}>
@@ -2465,15 +2362,15 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
         display: "inline-flex", alignItems: "center", gap: 6,
         padding: "7px 12px 7px 10px", marginBottom: 24,
         background: "#FFFFFF", border: "1px solid #211E1E",
-        borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-        fontFamily: "'Archivo', sans-serif",
-        fontWeight: 800, fontSize: 11.5,
+        borderRadius: 4, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+        fontFamily: "var(--font-mono)",
+        fontWeight: 600, fontSize: 11.5,
         letterSpacing: "0.04em", textTransform: "uppercase",
         color: "#211E1E", cursor: "pointer",
         transition: "transform .15s ease, box-shadow .15s ease",
       }}
-      onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1px,-1px)"; e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";}}
-      onMouseLeave={(e)=>{e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="1px 1px 0 #211E1E";}}>
+      onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(0, 0)"; e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";}}
+      onMouseLeave={(e)=>{e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";}}>
         <IconArrowLeft size={13} stroke={2.5} />
         Back to questions
       </button>
@@ -2522,7 +2419,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
             color: "#FFFFFF",
             border: "1px solid #211E1E",
             borderRadius: 14,
-            boxShadow: "2px 2px 0 #FDC831",
+            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "flex", gap: 14, alignItems: "center"
           }}>
             <div style={{
@@ -2549,14 +2446,14 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
               background: "#FDC831",
               border: "1px solid #211E1E",
               borderRadius: 4,
-              boxShadow: "1px 1px 0 #FDC831",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 12,
+              boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+              fontFamily: "var(--font-mono)",
+              fontWeight: 600, fontSize: 12,
               letterSpacing: "0.04em", textTransform: "uppercase",
               color: "#211E1E", cursor: "pointer",
               transition: "transform .15s ease",
             }}
-            onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1px,-1px)";}}
+            onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(0, 0)";}}
             onMouseLeave={(e)=>{e.currentTarget.style.transform="none";}}>
               Open Slack
             </button>
@@ -2572,17 +2469,17 @@ function SectionHead({ kicker, title, subtitle, style }) {
     <div style={{ marginBottom: 20, ...style }}>
       <div style={{
         display: "inline-block",
-        fontFamily: "'Archivo', sans-serif",
+        fontFamily: "var(--font-mono)",
         fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.08em",
-        color: "#211E1E", fontWeight: 800, marginBottom: 8,
+        color: "#211E1E", fontWeight: 600, marginBottom: 8,
         padding: "3px 8px",
         background: "#FDC831",
         border: "1px solid #211E1E",
         borderRadius: 4,
       }}>{kicker}</div>
       <h2 style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 24, fontWeight: 800, letterSpacing: "-0.025em", margin: "0 0 4px", color: "#211E1E"
+        fontFamily: "var(--font-head)",
+        fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", margin: "0 0 4px", color: "#211E1E"
       }}>
         {title}
       </h2>
@@ -2605,8 +2502,8 @@ function GuideCard({ guide, index, onOpen }) {
         background: "#FFFFFF",
         border: "1px solid #211E1E",
         borderRadius: 10,
-        boxShadow: hover ? "2px 2px 0 #211E1E" : "2px 2px 0 #211E1E",
-        transform: hover ? "translate(-1px,-1px)" : "none",
+        boxShadow: hover ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+        transform: hover ? "translate(0, 0)" : "none",
         cursor: "pointer",
         transition: "transform .15s ease, box-shadow .15s ease",
         animation: `fadeUp .5s ${index * 60}ms var(--ease) both`,
@@ -2628,8 +2525,8 @@ function GuideCard({ guide, index, onOpen }) {
               background: "#FFFFFF",
               border: "1px solid #211E1E",
               borderRadius: 3,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10, fontWeight: 800,
+              fontFamily: "var(--font-mono)",
+              fontSize: 10, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
               color: "#211E1E",
             }}>{guide.tag}</span>
@@ -2639,8 +2536,8 @@ function GuideCard({ guide, index, onOpen }) {
               color: "#FDC831",
               border: "1px solid #211E1E",
               borderRadius: 3,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10, fontWeight: 800,
+              fontFamily: "var(--font-mono)",
+              fontSize: 10, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
             }}>★ Popular</span>}
           </div>
@@ -2709,8 +2606,8 @@ function RelatedRow({ ticket, index }) {
         background: statusBg,
         border: `1.5px solid ${statusColor}`,
         borderRadius: 3,
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 10, fontWeight: 800,
+        fontFamily: "var(--font-mono)",
+        fontSize: 10, fontWeight: 600,
         letterSpacing: "0.04em", textTransform: "uppercase",
         color: statusColor,
       }}>{ticket.status}</span>
@@ -2739,7 +2636,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
       background: filed ? "#E8F5EC" : "#FFFFFF",
       border: "1px solid #211E1E",
       borderRadius: 10,
-      boxShadow: filed ? "2px 2px 0 #0A8A3E" : "2px 2px 0 #211E1E",
+      boxShadow: filed ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       animation: `fadeUp .5s ${index * 80}ms var(--ease) both`,
       transition: "background .35s ease, box-shadow .35s ease",
     }}>
@@ -2752,8 +2649,8 @@ function TicketCard({ ticket, onFile, filed, index }) {
               color: "#FFFFFF",
               border: `1.5px solid ${filed ? "#0A8A3E" : "#211E1E"}`,
               borderRadius: 3,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10.5, fontWeight: 800,
+              fontFamily: "var(--font-mono)",
+              fontSize: 10.5, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
             }}>{ticket.priority}</span>
             {ticket.hot && <span style={{
@@ -2762,8 +2659,8 @@ function TicketCard({ ticket, onFile, filed, index }) {
               color: "#211E1E",
               border: "1px solid #211E1E",
               borderRadius: 3,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10.5, fontWeight: 800,
+              fontFamily: "var(--font-mono)",
+              fontSize: 10.5, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
             }}>★ Recommended</span>}
           </div>
@@ -2786,8 +2683,8 @@ function TicketCard({ ticket, onFile, filed, index }) {
         fontSize: 12, marginBottom: 14,
       }}>
         <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
+          fontFamily: "var(--font-mono)",
+          fontSize: 9.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 3,
         }}>Historical avg</div>
         <div style={{ color: "#211E1E", fontWeight: 700, fontSize: 12.5 }}>{ticket.avg}</div>
@@ -2805,10 +2702,10 @@ function TicketCard({ ticket, onFile, filed, index }) {
           color: filed ? "#FFFFFF" : "#211E1E",
           border: "1px solid #211E1E",
           borderRadius: 4,
-          boxShadow: filed ? "none" : (hover ? "2px 2px 0 #211E1E" : "1px 1px 0 #211E1E"),
-          transform: !filed && hover ? "translate(-1px,-1px)" : "none",
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 13,
+          boxShadow: filed ? "none" : (hover ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"),
+          transform: !filed && hover ? "translate(0, 0)" : "none",
+          fontFamily: "var(--font-mono)",
+          fontWeight: 600, fontSize: 13,
           letterSpacing: "0.04em", textTransform: "uppercase",
           cursor: filed ? "default" : "pointer",
           transition: "transform .15s ease, box-shadow .15s ease",
@@ -2869,8 +2766,8 @@ function GuideSheet({ guide, onClose }) {
             background: "#FDC831",
             border: "1px solid #211E1E",
             borderRadius: 4,
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 10.5, fontWeight: 800,
+            fontFamily: "var(--font-mono)",
+            fontSize: 10.5, fontWeight: 600,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E",
           }}>
@@ -2881,7 +2778,7 @@ function GuideSheet({ guide, onClose }) {
             background: "#FFFFFF",
             border: "1px solid #211E1E",
             borderRadius: 4,
-            boxShadow: "1px 1px 0 #211E1E",
+            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
             color: "#211E1E", cursor: "pointer",
           }}>
@@ -2889,8 +2786,8 @@ function GuideSheet({ guide, onClose }) {
           </button>
         </div>
         <h1 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 32, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1,
+          fontFamily: "var(--font-head)",
+          fontSize: 32, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.1,
           margin: "0 0 10px", color: "#211E1E",
         }}>
           {guide.title}
@@ -2907,7 +2804,7 @@ function GuideSheet({ guide, onClose }) {
             background: "#FFFFFF",
             border: "1px solid #211E1E",
             borderRadius: 8,
-            boxShadow: "2px 2px 0 #211E1E",
+            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             marginBottom: 12,
           }}>
               <div style={{
@@ -2931,7 +2828,7 @@ function GuideSheet({ guide, onClose }) {
           background: "#FFFFFF",
           border: "1px solid #211E1E",
           borderRadius: 10,
-          boxShadow: "2px 2px 0 #211E1E",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           display: "flex", alignItems: "center", gap: 12,
         }}>
           <div style={{
@@ -2946,9 +2843,9 @@ function GuideSheet({ guide, onClose }) {
             background: "#FFFFFF",
             border: "1px solid #211E1E",
             borderRadius: 4,
-            boxShadow: "1px 1px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 11.5,
+            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600, fontSize: 11.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E", cursor: "pointer",
           }}>No, file ticket</button>
@@ -2957,9 +2854,9 @@ function GuideSheet({ guide, onClose }) {
             background: "#FDC831",
             border: "1px solid #211E1E",
             borderRadius: 4,
-            boxShadow: "1px 1px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 11.5,
+            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600, fontSize: 11.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E", cursor: "pointer",
             display: "inline-flex", alignItems: "center", gap: 6,
@@ -2990,7 +2887,7 @@ function FiledToast({ ticket, onClose, onView }) {
       background: "#FFFFFF",
       border: "1px solid #211E1E",
       borderRadius: 10,
-      boxShadow: "3px 3px 0 #FDC831, 5px 5px 0 2px #211E1E",
+      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       padding: "18px 20px",
       animation: "toastIn .4s var(--ease) both",
     }}>
@@ -3007,8 +2904,8 @@ function FiledToast({ ticket, onClose, onView }) {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
+            fontFamily: "var(--font-mono)",
+            fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
             color: "#0A8A3E", marginBottom: 3,
           }}>Ticket filed</div>
           <div style={{
@@ -3026,9 +2923,9 @@ function FiledToast({ ticket, onClose, onView }) {
               background: "#FDC831",
               border: "1px solid #211E1E",
               borderRadius: 4,
-              boxShadow: "1px 1px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 11,
+              boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+              fontFamily: "var(--font-mono)",
+              fontWeight: 600, fontSize: 11,
               letterSpacing: "0.04em", textTransform: "uppercase",
               color: "#211E1E", cursor: "pointer",
             }}>View ticket</button>
@@ -3036,8 +2933,8 @@ function FiledToast({ ticket, onClose, onView }) {
               padding: "7px 12px",
               background: "transparent",
               border: "none",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 700, fontSize: 11,
+              fontFamily: "var(--font-mono)",
+              fontWeight: 600, fontSize: 11,
               letterSpacing: "0.06em", textTransform: "uppercase",
               color: "#78684C", cursor: "pointer",
             }}>Dismiss</button>
@@ -3070,6 +2967,10 @@ const APP_BASE = (() => {
       if (trimmed) return trimmed;
     }
   }
+  // Same source main.jsx uses for the /api prefix: Vite's base ('/portal/' in
+  // prod, '/' when the dev server runs with VITE_BASE_PATH=/).
+  const viteBase = import.meta.env?.BASE_URL;
+  if (viteBase !== undefined) return String(viteBase).replace(/\/$/, "");
   return "/portal";
 })();
 const withBase = (p) => APP_BASE + p;
@@ -3094,9 +2995,6 @@ const STAGE_TO_PATH = {
   status: "/status",
   tickets: "/tickets",
   request: "/request",
-  onboarding: "/onboarding",
-  "onboarding-filed": "/onboarding",
-  offboarding: "/offboarding",
   notifications: "/notifications",
 };
 const PATH_TO_STAGE = {
@@ -3106,14 +3004,13 @@ const PATH_TO_STAGE = {
   "/status": "status",
   "/tickets": "tickets",
   "/request": "request",
-  "/onboarding": "onboarding",
-  "/offboarding": "offboarding",
   "/notifications": "notifications",
 };
 function stageFromPath(path) {
-  // Strip the deploy base path first so /portal/onboarding → /onboarding,
-  // then keep only the first path segment so /onboarding/foo still
-  // resolves to onboarding. Falls back to landing for unknown paths.
+  // Strip the deploy base path first so /portal/knowledge → /knowledge,
+  // then keep only the first path segment so /knowledge/foo still
+  // resolves to knowledge. Falls back to landing for unknown paths
+  // (including the retired /onboarding and /offboarding links).
   let p = path || "/";
   if (APP_BASE && p.startsWith(APP_BASE)) p = p.slice(APP_BASE.length) || "/";
   const seg = "/" + ((p || "/").split("/").filter(Boolean)[0] || "");
@@ -3139,7 +3036,7 @@ function App() {
   });
   // Wrap setStage so the address bar stays in sync. We only push when the
   // mapped path actually changes — transient sub-stages (questions, search-
-  // results, onboarding-filed) share their parent's path, so they don't
+  // results) share their parent's path, so they don't
   // pollute browser history.
   const setStage = React.useCallback((next) => {
     setStageRaw((prev) => {
@@ -3270,7 +3167,6 @@ function App() {
       return items;
     } catch { return []; }
   }, []);
-  const [onbForm, setOnbForm] = useState(null);
   // null = modal closed. {} = open with empty drop-zone. { file, note } = open
   // pre-loaded so analysis kicks off automatically (the new "paperclip in the
   // hero input" flow uses this — user attaches + types, hits enter, lands
@@ -3480,16 +3376,12 @@ function App() {
   // Scroll to top whenever we change pages — otherwise clicking nav while scrolled
   // leaves the new page offscreen and users think it didn't navigate.
   useScrollToTop([stage]);
-  const navActive = (stage === "onboarding" || stage === "onboarding-filed") ? "Onboarding"
-    : stage === "offboarding" ? "Offboarding"
-    : stage === "knowledge" ? "Knowledge"
+  const navActive = stage === "knowledge" ? "Knowledge"
     : stage === "status" ? "Status"
     : (stage === "tickets" || stage === "report" || stage === "request") ? "My Tickets"
     : "Help";
   const onNavigate = (label) => {
-    if (label === "Onboarding") setStage("onboarding");
-    else if (label === "Offboarding") setStage("offboarding");
-    else if (label === "Knowledge") setStage("knowledge");
+    if (label === "Knowledge") setStage("knowledge");
     else if (label === "Status") setStage("status");
     else if (label === "My Tickets") openTickets("mine");
     else if (label === "Help") goHome();
@@ -3517,7 +3409,7 @@ function App() {
   return (
     <TweakCtx.Provider value={tweaks}>
       <GlobalKeyframes />
-      <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenNotifications={() => setStage("notifications")} onOpenTickets={() => openTickets("mine")} onOpenApprovals={() => openTickets("approvals")} />
+      <Nav onHome={() => { setGuide(null); goHome(); }} onNavigate={(l) => { setGuide(null); onNavigate(l); }} active={navActive} onOpenNotifications={() => setStage("notifications")} onOpenTickets={() => openTickets("mine")} onOpenApprovals={() => openTickets("approvals")} />
 
 
       {/* __PORTAL2_SCROLL_WRAP_OPEN__ */}
@@ -3534,6 +3426,7 @@ function App() {
         onOpenScreenshot={(init) => openScreenshot(init)}
         onRequestItem={(id) => openCatalog({ itemId: id })}
         onBrowseCatalog={(q) => openCatalog(q ? { query: q } : {})}
+        onCustomRequest={(t) => openCatalog({ custom: t || '' })}
         onRequest={() => openCatalog()} />
       }
 
@@ -3572,22 +3465,6 @@ function App() {
         onFileTicket={() => openTicket({ source: 'answer' })} />
       }
 
-      {stage === "onboarding" &&
-      <Onboarding
-        onBack={goHome}
-        onFiled={(f) => { setOnbForm(f); setStage("onboarding-filed"); }} />
-      }
-
-      {stage === "onboarding-filed" && onbForm &&
-      <OnboardingFiled form={onbForm} onDone={() => { setOnbForm(null); goHome(); }} />
-      }
-
-      {stage === "offboarding" &&
-      <Offboarding
-        onBack={goHome}
-        onFiled={() => {}} />
-      }
-
       {stage === "knowledge" &&
       <KnowledgePage onBack={goHome} onOpenGuide={(g) => setGuide(g)} />
       }
@@ -3620,6 +3497,7 @@ function App() {
       <CatalogRequestModal
         asPage
         initialItemId={catalogReq && catalogReq.itemId}
+        initialCustom={catalogReq && catalogReq.custom != null ? catalogReq.custom : null}
         initialQuery={catalogReq && catalogReq.query}
         // Back (and Cancel) land on My Tickets — where requests live — rather
         // than wherever the catalog was opened from.
@@ -3634,9 +3512,13 @@ function App() {
       {/* Footer hidden on working surfaces — those flows have short content
           and the Footer would float in the middle of the viewport. Marketing
           surfaces (Help / Knowledge / Status) keep it. */}
-      {stage !== "onboarding" && stage !== "onboarding-filed" && stage !== "offboarding"
-        && stage !== "notifications"
+      {/* Inside SliceDesk (module iframe) the platform shows its own badge —
+          only the standalone IT portal shows "Built by the Slice IT team". */}
+      {!IS_EMBEDDED && stage !== "notifications"
         && stage !== "questions" && stage !== "search-results"
+        // The answer page pins its follow-up composer to the bottom; the
+        // footer badge would scroll up underneath it.
+        && stage !== "ask"
         && (
         <Footer />
       )}
@@ -3756,1606 +3638,6 @@ Object.assign(window, {
   IconCheck, IconClose, IconTicket, IconChip, IconPerson, IconBolt,
   IconKey, IconDatabase, IconPlug, IconStatus, IconShield, IconBuilding,
 });
-
-// ─── device-art (dfcb2145) ──────────────────────────────────
-// ============================================================================
-// DEVICE ART — line-art illustrations of each hardware item
-// Renders at any size; uses currentColor so it picks up the container ink color.
-// ============================================================================
-
-// Base wrapper: 64×44 viewBox by default, 1.6 stroke, consistent look.
-function DeviceFrame({ children, w = 64, h = 44, vb = "0 0 64 44", style }) {
-  return (
-    <svg
-      width={w} height={h} viewBox={vb}
-      fill="none"
-      stroke="currentColor" strokeWidth="1.6"
-      strokeLinecap="round" strokeLinejoin="round"
-      style={{ display: "block", flexShrink: 0, ...style }}
-    >{children}</svg>
-  );
-}
-
-// ---------- LAPTOPS ----------
-function ArtMacBookPro({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      {/* Closed body base */}
-      <rect x="6" y="28" width="52" height="4" rx="1.5" />
-      {/* Screen */}
-      <rect x="10" y="8" width="44" height="20" rx="2" />
-      {/* Camera notch */}
-      <rect x="30" y="7.5" width="4" height="1.5" rx="0.5" fill="currentColor" />
-      {/* Keyboard hint (base ridge) */}
-      <path d="M4 32 L60 32" strokeWidth="1.2" />
-      <path d="M26 32 L38 32" strokeWidth="2.5" />
-      {/* Bezel */}
-      <rect x="12" y="10" width="40" height="16" rx="1" strokeWidth="0.8" opacity="0.3" />
-      {/* Apple bite */}
-      <circle cx="32" cy="18" r="2.2" strokeWidth="1.2" opacity="0.5" />
-    </DeviceFrame>
-  );
-}
-function ArtMacBookAir({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      <rect x="7" y="28" width="50" height="4" rx="1.5" />
-      <rect x="11" y="9" width="42" height="19" rx="1.5" />
-      <path d="M4 32 L60 32" strokeWidth="1.2" />
-      <path d="M26 32 L38 32" strokeWidth="2.5" />
-      <rect x="13" y="11" width="38" height="15" rx="1" strokeWidth="0.8" opacity="0.3" />
-      {/* Thinner profile = more sky */}
-      <path d="M14 16 Q20 14 26 16" strokeWidth="0.8" opacity="0.35" />
-    </DeviceFrame>
-  );
-}
-function ArtDellLaptop({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      <rect x="6" y="28" width="52" height="4" rx="1" />
-      <rect x="10" y="8" width="44" height="20" rx="0.5" />
-      <path d="M4 32 L60 32" strokeWidth="1.2" />
-      {/* Dell-style centered logo hint */}
-      <circle cx="32" cy="18" r="1.4" strokeWidth="0.8" opacity="0.45" />
-      <path d="M30.2 18 L33.8 18" strokeWidth="0.6" opacity="0.45" />
-    </DeviceFrame>
-  );
-}
-
-// ---------- MONITORS ----------
-function ArtStudioDisplay({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      {/* Stand */}
-      <path d="M26 38 L38 38" strokeWidth="2" />
-      <path d="M32 32 L32 38" />
-      {/* Display */}
-      <rect x="6" y="6" width="52" height="26" rx="2" />
-      <rect x="8.5" y="8.5" width="47" height="21" rx="1" strokeWidth="0.8" opacity="0.35" />
-      {/* Camera */}
-      <circle cx="32" cy="8.5" r="0.6" fill="currentColor" opacity="0.6" />
-    </DeviceFrame>
-  );
-}
-function ArtUltraWide({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      <path d="M24 38 L40 38" strokeWidth="2" />
-      <path d="M32 32 L32 38" />
-      <rect x="3" y="9" width="58" height="23" rx="2" />
-      <rect x="5.5" y="11" width="53" height="18.5" rx="1" strokeWidth="0.8" opacity="0.35" />
-      {/* subtle curve hint */}
-      <path d="M3 9 Q32 7 61 9" strokeWidth="1" opacity="0.5" />
-    </DeviceFrame>
-  );
-}
-function ArtMonitor27({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      <path d="M26 38 L38 38" strokeWidth="2" />
-      <path d="M32 32 L32 38" />
-      <rect x="8" y="7" width="48" height="25" rx="1.5" />
-      <rect x="10.5" y="9.5" width="43" height="20" rx="0.8" strokeWidth="0.8" opacity="0.35" />
-    </DeviceFrame>
-  );
-}
-
-// ---------- KEYBOARDS ----------
-function ArtMagicKeyboard({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      <rect x="4" y="15" width="56" height="16" rx="2.5" />
-      {/* Key rows */}
-      {[19, 24, 29].map((y, i) => (
-        <g key={i}>
-          {Array.from({ length: 10 }).map((_, k) => (
-            <rect key={k} x={7 + k * 5.3} y={y - 1.3} width="4" height="2.6" rx="0.4"
-              strokeWidth="0.7" opacity="0.55" />
-          ))}
-        </g>
-      ))}
-    </DeviceFrame>
-  );
-}
-function ArtMXKeys({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      <rect x="3" y="14" width="58" height="17" rx="2" />
-      {[18, 23, 28].map((y, i) => (
-        <g key={i}>
-          {Array.from({ length: 12 }).map((_, k) => (
-            <circle key={k} cx={7 + k * 4.4} cy={y} r="1.1" strokeWidth="0.7" opacity="0.55" />
-          ))}
-        </g>
-      ))}
-    </DeviceFrame>
-  );
-}
-
-// ---------- MICE ----------
-function ArtMagicMouse({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      {/* Flat elongated oval */}
-      <rect x="20" y="14" width="24" height="20" rx="10" />
-      {/* Seam */}
-      <path d="M32 14 L32 34" strokeWidth="0.8" opacity="0.4" />
-    </DeviceFrame>
-  );
-}
-function ArtMX3Mouse({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      {/* Ergonomic bump */}
-      <path d="M18 34 Q18 14 32 13 Q46 12 46 34 Z" />
-      {/* Scroll wheel */}
-      <rect x="30" y="17" width="4" height="6" rx="1.5" strokeWidth="0.9" opacity="0.6" />
-      {/* Thumb rest */}
-      <path d="M18 26 Q14 26 14 30 L18 30" strokeWidth="0.9" opacity="0.6" />
-    </DeviceFrame>
-  );
-}
-
-// ---------- AUDIO ----------
-function ArtAirPods({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      {/* Left bud */}
-      <ellipse cx="22" cy="18" rx="5" ry="4" />
-      <path d="M22 22 Q21 30 23 36" />
-      {/* Right bud */}
-      <ellipse cx="42" cy="18" rx="5" ry="4" />
-      <path d="M42 22 Q43 30 41 36" />
-    </DeviceFrame>
-  );
-}
-function ArtOverEar({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      {/* Headband */}
-      <path d="M14 22 Q32 4 50 22" />
-      {/* Left cup */}
-      <rect x="9" y="18" width="10" height="14" rx="3" />
-      {/* Right cup */}
-      <rect x="45" y="18" width="10" height="14" rx="3" />
-      {/* Interior */}
-      <rect x="11" y="20" width="6" height="10" rx="1.5" strokeWidth="0.8" opacity="0.4" />
-      <rect x="47" y="20" width="6" height="10" rx="1.5" strokeWidth="0.8" opacity="0.4" />
-    </DeviceFrame>
-  );
-}
-
-// ---------- EXTRAS ----------
-function ArtDock({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      {/* Slim bar with ports */}
-      <rect x="6" y="18" width="52" height="10" rx="1.5" />
-      {/* Ports */}
-      <rect x="10" y="21" width="4" height="4" rx="0.5" strokeWidth="0.8" opacity="0.55" />
-      <rect x="16" y="21" width="4" height="4" rx="0.5" strokeWidth="0.8" opacity="0.55" />
-      <rect x="22" y="21" width="6" height="4" rx="0.5" strokeWidth="0.8" opacity="0.55" />
-      <rect x="30" y="21" width="6" height="4" rx="0.5" strokeWidth="0.8" opacity="0.55" />
-      <rect x="38" y="21" width="8" height="4" rx="0.5" strokeWidth="0.8" opacity="0.55" />
-      <circle cx="52" cy="23" r="1.5" strokeWidth="0.8" opacity="0.55" />
-    </DeviceFrame>
-  );
-}
-function ArtYubiKey({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      {/* Key fob shape */}
-      <rect x="18" y="18" width="22" height="10" rx="1.5" />
-      {/* USB tongue */}
-      <rect x="40" y="20.5" width="8" height="5" rx="0.5" />
-      <rect x="42" y="22" width="4" height="2" rx="0.3" strokeWidth="0.7" opacity="0.5" />
-      {/* Touch button */}
-      <circle cx="28" cy="23" r="2" strokeWidth="0.9" opacity="0.6" />
-      {/* Key ring */}
-      <circle cx="16.5" cy="23" r="2" strokeWidth="0.9" opacity="0.6" />
-    </DeviceFrame>
-  );
-}
-function ArtLaptopStand({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      {/* Tilted laptop outline */}
-      <path d="M12 30 L22 12 L52 12 L42 30 Z" />
-      {/* Legs */}
-      <path d="M16 30 L16 36" />
-      <path d="M48 30 L48 36" />
-      {/* Keyboard line */}
-      <path d="M22 16 L48 16" strokeWidth="0.9" opacity="0.45" />
-      <path d="M20 20 L46 20" strokeWidth="0.9" opacity="0.45" />
-    </DeviceFrame>
-  );
-}
-function ArtWebcam({ w, h, style }) {
-  return (
-    <DeviceFrame w={w} h={h} style={style}>
-      <rect x="18" y="14" width="28" height="14" rx="6" />
-      <circle cx="32" cy="21" r="4" />
-      <circle cx="32" cy="21" r="1.4" fill="currentColor" />
-      {/* Clip */}
-      <path d="M22 28 L22 34 L42 34 L42 28" />
-    </DeviceFrame>
-  );
-}
-
-// ---------- DISPATCH ----------
-// Maps hardware item id → art component. Fallback = generic device box.
-const DEVICE_ART_MAP = {
-  // Laptops
-  mbp14: ArtMacBookPro, mbp16: ArtMacBookPro, mba15: ArtMacBookAir, tp14: ArtDellLaptop,
-  // Monitors
-  studio: ArtStudioDisplay, lg27: ArtMonitor27, dell27: ArtMonitor27, dell34: ArtUltraWide,
-  // Keyboards
-  mag: ArtMagicKeyboard, mxmini: ArtMXKeys, mxkeys: ArtMXKeys,
-  // Mice
-  magic: ArtMagicMouse, mx3: ArtMX3Mouse,
-  // Audio
-  airpods: ArtAirPods, sony: ArtOverEar, bose: ArtOverEar,
-  // Extras
-  dock: ArtDock, yubi: ArtYubiKey, stand: ArtLaptopStand, webcam: ArtWebcam,
-};
-
-function DeviceArt({ id, w = 56, h = 38, style, category }) {
-  const Comp = DEVICE_ART_MAP[id];
-  if (Comp) return <Comp w={w} h={h} style={style} />;
-  // Fallback by category
-  if (category === "Laptop") return <ArtMacBookPro w={w} h={h} style={style} />;
-  if (category === "Monitor") return <ArtMonitor27 w={w} h={h} style={style} />;
-  if (category === "Keyboard") return <ArtMagicKeyboard w={w} h={h} style={style} />;
-  if (category === "Mouse") return <ArtMX3Mouse w={w} h={h} style={style} />;
-  if (category === "Audio") return <ArtAirPods w={w} h={h} style={style} />;
-  return <ArtDock w={w} h={h} style={style} />;
-}
-
-Object.assign(window, { DeviceArt, DEVICE_ART_MAP });
-
-// ─── slice-pickers (a42a53a8) ──────────────────────────────────
-// ============================================================================
-// SLICE PICKERS — v2
-// Keyboard-first, parse-as-you-type date + time inputs with brutalist Slice
-// chrome. Replaces the OS-native <input type="date/time"> which was breaking
-// the visual language.
-//
-// Design decisions (distilled from Linear, Cal.com, Raycast, Notion):
-//   - Type-to-pick: "next fri", "in 2 weeks", "5/10", "jun 3", "tomorrow"
-//   - Keyboard nav: ↑↓←→ moves day, PgUp/PgDn moves month, Enter selects, Esc closes
-//   - Dense connected grid (no gaps, just 1px dividers) for that spreadsheet feel
-//   - Today = yellow underline chip (not a dashed border — too noisy)
-//   - Time: segmented hour / minute text inputs with auto-advance + AM/PM toggle
-//     (scroll columns feel like iOS wheels, always slow)
-//   - Single combined <SliceDateTimePicker> for offboarding — one datetime
-//
-// Exports:
-//   <SliceDatePicker value onChange label required error minDate />
-//   <SliceTimePicker value onChange label required error />
-//   <SliceDateTimePicker dateValue timeValue onDateChange onTimeChange ... />
-// ============================================================================
-
-const SP_DAY_MS = 24 * 60 * 60 * 1000;
-
-// --- date helpers ----------------------------------------------------------
-function spParseISO(s) {
-  if (!s || typeof s !== "string") return null;
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  return new Date(+m[1], +m[2] - 1, +m[3]);
-}
-function spFormatISO(d) {
-  if (!d) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-function spSameDay(a, b) {
-  if (!a || !b) return false;
-  return a.getFullYear() === b.getFullYear() &&
-         a.getMonth() === b.getMonth() &&
-         a.getDate() === b.getDate();
-}
-function spAddDays(d, n) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-function spStartOfMonth(d) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-function spWeekdayMon0(d) {
-  // Monday = 0 ... Sunday = 6
-  return (d.getDay() + 6) % 7;
-}
-function spMonthLabel(d) {
-  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-}
-function spPrettyDate(d) {
-  // "Fri, May 10 · 2025" — compact but readable
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
-}
-
-// Natural-language parser. Returns a Date or null.
-function spParseFuzzy(input, today) {
-  if (!input) return null;
-  const q = input.trim().toLowerCase();
-  if (!q) return null;
-  const base = new Date(today);
-  base.setHours(0, 0, 0, 0);
-
-  if (q === "today") return base;
-  if (q === "tomorrow" || q === "tmr" || q === "tmrw") return spAddDays(base, 1);
-  if (q === "yesterday") return spAddDays(base, -1);
-
-  // "in N days/weeks/months"
-  let m = q.match(/^in\s+(\d+)\s+(day|days|d|week|weeks|w|month|months|mo)s?$/);
-  if (m) {
-    const n = +m[1];
-    const u = m[2];
-    if (u.startsWith("d")) return spAddDays(base, n);
-    if (u.startsWith("w")) return spAddDays(base, n * 7);
-    if (u.startsWith("mo") || u.startsWith("m")) {
-      const r = new Date(base); r.setMonth(r.getMonth() + n); return r;
-    }
-  }
-
-  // "next friday", "this tuesday"
-  const dayNames = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
-  const dayShort = ["sun","mon","tue","wed","thu","fri","sat"];
-  m = q.match(/^(next|this|coming)?\s*(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sunday|monday|tuesday|wednesday|thursday|friday|saturday)$/);
-  if (m) {
-    const prefix = m[1] || "this";
-    const name = m[2].slice(0, 3);
-    const target = dayShort.indexOf(name);
-    if (target >= 0) {
-      const todayDow = base.getDay();
-      let delta = (target - todayDow + 7) % 7;
-      if (delta === 0) delta = prefix === "next" ? 7 : 0;
-      else if (prefix === "next") delta += 0; // "next fri" already in the future
-      return spAddDays(base, delta || 7);
-    }
-  }
-
-  // ISO direct
-  const iso = spParseISO(q);
-  if (iso) return iso;
-
-  // "5/10", "5/10/2025", "10-5", "10-5-25"
-  m = q.match(/^(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?$/);
-  if (m) {
-    const a = +m[1], b = +m[2], y = m[3] ? +m[3] : base.getFullYear();
-    // Default MM/DD (US); swap if the first number is obviously a day (>12)
-    let month, day;
-    if (a > 12) { day = a; month = b; } else { month = a; day = b; }
-    const yr = y < 100 ? 2000 + y : y;
-    const d = new Date(yr, month - 1, day);
-    if (!isNaN(d)) return d;
-  }
-
-  // "jun 3", "june 3", "3 jun"
-  const months = ["january","february","march","april","may","june","july","august","september","october","november","december"];
-  const monthsShort = months.map(x => x.slice(0, 3));
-  const monRe = monthsShort.join("|");
-  m = q.match(new RegExp(`^(${monRe})\\w*\\s+(\\d{1,2})(?:,?\\s+(\\d{2,4}))?$`));
-  if (!m) m = q.match(new RegExp(`^(\\d{1,2})\\s+(${monRe})\\w*(?:,?\\s+(\\d{2,4}))?$`));
-  if (m) {
-    const isMonthFirst = isNaN(+m[1]);
-    const mon = isMonthFirst ? monthsShort.indexOf(m[1]) : monthsShort.indexOf(m[2]);
-    const day = +(isMonthFirst ? m[2] : m[1]);
-    const y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : base.getFullYear();
-    const d = new Date(y, mon, day);
-    // If day has passed this year and no year specified, next year
-    if (!m[3] && d < base) d.setFullYear(y + 1);
-    if (!isNaN(d)) return d;
-  }
-
-  return null;
-}
-
-// HR-style presets
-function spBuildDatePresets(today) {
-  const out = [];
-  out.push({ label: "Today", date: today });
-  out.push({ label: "Tomorrow", date: spAddDays(today, 1) });
-  const daysUntilFri = (5 - today.getDay() + 7) % 7 || 7;
-  out.push({ label: "This Fri", date: spAddDays(today, daysUntilFri) });
-  out.push({ label: "In 2 weeks", date: spAddDays(today, 14) });
-  const eom = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  out.push({ label: "End of month", date: eom });
-  return out;
-}
-
-// ============================================================================
-// <SliceDatePicker>
-// ============================================================================
-function SliceDatePicker({ value, onChange, label, required, error, minDate, placeholder = "Type or pick a date" }) {
-  const [open, setOpen] = React.useState(false);
-  const [text, setText] = React.useState("");
-  const [focused, setFocused] = React.useState(false);
-  const selected = spParseISO(value);
-  const today = React.useMemo(() => {
-    const t = new Date();
-    t.setHours(0, 0, 0, 0);
-    return t;
-  }, []);
-  const min = minDate ? (minDate instanceof Date ? minDate : spParseISO(minDate)) : null;
-  const [cursor, setCursor] = React.useState(() => spStartOfMonth(selected || today));
-  const [focusDate, setFocusDate] = React.useState(() => selected || today);
-  const rootRef = React.useRef(null);
-  const inputRef = React.useRef(null);
-
-  // Keep cursor near focus/selection when opening
-  React.useEffect(() => {
-    if (open) {
-      const anchor = selected || today;
-      setCursor(spStartOfMonth(anchor));
-      setFocusDate(anchor);
-      setText(selected ? spPrettyDate(selected) : "");
-    }
-  }, [open]);
-
-  // Close outside
-  React.useEffect(() => {
-    if (!open) return;
-    const handler = (e) => {
-      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const presets = React.useMemo(() => spBuildDatePresets(today), [today]);
-
-  const grid = React.useMemo(() => {
-    const first = spStartOfMonth(cursor);
-    const offset = spWeekdayMon0(first);
-    const start = spAddDays(first, -offset);
-    return Array.from({ length: 42 }, (_, i) => spAddDays(start, i));
-  }, [cursor]);
-
-  const commit = (d) => {
-    if (min && d < min) return;
-    onChange(spFormatISO(d));
-    setText(spPrettyDate(d));
-    setOpen(false);
-  };
-
-  const onKeyDown = (e) => {
-    if (!open) {
-      if (e.key === "ArrowDown" || e.key === "Enter") { setOpen(true); e.preventDefault(); }
-      return;
-    }
-    const k = e.key;
-    if (k === "Escape") { setOpen(false); e.preventDefault(); return; }
-    if (k === "Enter") {
-      // First try parsing the textual input
-      const parsed = spParseFuzzy(text, today);
-      if (parsed) { commit(parsed); e.preventDefault(); return; }
-      commit(focusDate);
-      e.preventDefault();
-      return;
-    }
-    let delta = 0;
-    if (k === "ArrowLeft") delta = -1;
-    else if (k === "ArrowRight") delta = 1;
-    else if (k === "ArrowUp") delta = -7;
-    else if (k === "ArrowDown") delta = 7;
-    else if (k === "PageUp") delta = e.shiftKey ? -365 : -30;
-    else if (k === "PageDown") delta = e.shiftKey ? 365 : 30;
-    if (delta) {
-      const next = spAddDays(focusDate, delta);
-      setFocusDate(next);
-      setCursor(spStartOfMonth(next));
-      e.preventDefault();
-    }
-  };
-
-  const parsePreview = spParseFuzzy(text, today);
-  const showParsePreview = text && !spSameDay(parsePreview, selected) && parsePreview;
-
-  const displayValue = open
-    ? text
-    : (selected ? spPrettyDate(selected) : "");
-
-  const trigger = {
-    display: "flex", alignItems: "center", gap: 10,
-    width: "100%",
-    padding: "11px 12px 11px 14px",
-    background: "#FFFFFF",
-    border: `2px solid ${error ? "#B92323" : (focused || open) ? "#211E1E" : "#211E1E"}`,
-    borderRadius: 6,
-    fontFamily: "'Archivo', sans-serif",
-    fontSize: 14, fontWeight: 700,
-    color: "#211E1E",
-    cursor: "text",
-    boxShadow: error && !open ? "2px 2px 0 #B92323" : (open || focused ? "2px 2px 0 #211E1E" : "none"),
-    transition: "box-shadow 80ms ease, transform 80ms ease",
-    transform: open || focused ? "translate(-1px, -1px)" : "none",
-    textAlign: "left",
-  };
-
-  return (
-    <div style={{ position: "relative" }} ref={rootRef} data-err={error && !open ? "1" : undefined}>
-      {label && (
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 11, fontWeight: 800, color: "#211E1E",
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          marginBottom: 6,
-          display: "flex", alignItems: "center", gap: 6,
-        }}>
-          <span>{label}{required && <span style={{ color: "#B92323", marginLeft: 4 }}>*</span>}</span>
-          {error && !open && (
-            <span style={{
-              fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-              padding: "1px 6px",
-              background: "#B92323", color: "#FFFFFF",
-              borderRadius: 2,
-              animation: "shake .4s ease-in-out",
-            }}>Required</span>
-          )}
-        </div>
-      )}
-
-      <div style={trigger} onClick={() => { setOpen(true); inputRef.current?.focus(); }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
-          <rect x="3" y="5" width="18" height="16" rx="1.5"/>
-          <path d="M3 10h18M8 3v4M16 3v4"/>
-        </svg>
-        <input
-          ref={inputRef}
-          type="text"
-          value={displayValue}
-          placeholder={placeholder}
-          onFocus={() => { setFocused(true); setOpen(true); }}
-          onBlur={() => setFocused(false)}
-          onChange={(e) => { setText(e.target.value); setOpen(true); }}
-          onKeyDown={onKeyDown}
-          style={{
-            flex: 1, minWidth: 0,
-            border: "none", outline: "none", background: "transparent",
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 14, fontWeight: 700, color: "#211E1E",
-            padding: 0,
-          }}
-        />
-        {selected && !open && (
-          <button type="button" onClick={(e) => { e.stopPropagation(); onChange(""); setText(""); }}
-            style={spClearBtn} aria-label="Clear date">×</button>
-        )}
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-          style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 120ms" }}>
-          <path d="M6 9l6 6 6-6"/>
-        </svg>
-      </div>
-
-      {error && !open && (
-        <div style={{ color: "#B92323", fontSize: 11.5, fontWeight: 700, marginTop: 4 }}>{error}</div>
-      )}
-
-      {open && (
-        <div style={{
-          position: "absolute", zIndex: 200,
-          top: "calc(100% + 6px)", left: 0,
-          width: 320,
-          background: "#FFFFFF",
-          border: "1px solid #211E1E",
-          borderRadius: 8,
-          boxShadow: "2px 2px 0 #211E1E",
-          overflow: "hidden",
-        }}>
-          {/* Parse preview */}
-          {showParsePreview && (
-            <button type="button" onClick={() => commit(parsePreview)}
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                background: "#FDC831",
-                border: "none",
-                borderBottom: "1px solid #211E1E",
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 12, fontWeight: 800, color: "#211E1E",
-                textAlign: "left",
-                cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 8,
-              }}>
-              <span style={{
-                padding: "2px 6px",
-                background: "#211E1E", color: "#FDC831",
-                borderRadius: 3,
-                fontSize: 9, fontWeight: 900, letterSpacing: "0.08em",
-              }}>↵ ENTER</span>
-              <span>Use <u>{spPrettyDate(parsePreview)}</u></span>
-            </button>
-          )}
-
-          {/* Presets row */}
-          <div style={{
-            display: "flex", flexWrap: "wrap", gap: 4,
-            padding: "8px 10px",
-            background: "#FFF9E6",
-            borderBottom: "1px solid #211E1E",
-          }}>
-            {presets.filter(p => !min || p.date >= min).map(p => {
-              const active = spSameDay(p.date, selected);
-              return (
-                <button key={p.label} type="button" onClick={() => commit(p.date)}
-                  style={{
-                    padding: "4px 8px",
-                    background: active ? "#FDC831" : "#FFFFFF",
-                    border: "1px solid #211E1E",
-                    borderRadius: 3,
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 10.5, fontWeight: 800, letterSpacing: "0.02em",
-                    color: "#211E1E",
-                    cursor: "pointer",
-                  }}>{p.label}</button>
-              );
-            })}
-          </div>
-
-          {/* Month nav */}
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "8px 10px",
-            borderBottom: "1px solid #211E1E",
-          }}>
-            <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-              style={spNavBtn} aria-label="Previous month">‹</button>
-            <button type="button" onClick={() => { setCursor(spStartOfMonth(today)); setFocusDate(today); }}
-              style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 13, fontWeight: 800, color: "#211E1E",
-                background: "transparent", border: "none",
-                cursor: "pointer", padding: "4px 8px",
-                letterSpacing: "0.01em",
-              }}>{spMonthLabel(cursor)}</button>
-            <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-              style={spNavBtn} aria-label="Next month">›</button>
-          </div>
-
-          {/* Weekday row — connected, no gaps */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(7, 1fr)",
-            padding: "6px 10px 0",
-          }}>
-            {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d, i) => (
-              <div key={d} style={{
-                textAlign: "center",
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em",
-                color: i >= 5 ? "#B92323" : "#78684C",
-                textTransform: "uppercase",
-                padding: "4px 0",
-              }}>{d}</div>
-            ))}
-          </div>
-
-          {/* Day grid — dense, no gaps, 1px dividers via borders */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(7, 1fr)",
-            padding: "4px 10px 8px",
-          }}>
-            {grid.map((d, i) => {
-              const inMonth = d.getMonth() === cursor.getMonth();
-              const isSel = spSameDay(d, selected);
-              const isToday = spSameDay(d, today);
-              const isFocus = spSameDay(d, focusDate);
-              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-              const disabled = min && d < min;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => commit(d)}
-                  onMouseEnter={() => setFocusDate(d)}
-                  style={{
-                    position: "relative",
-                    height: 34,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: isSel ? "#FDC831"
-                             : isFocus && !disabled ? "#FFF2B8"
-                             : "transparent",
-                    border: "none",
-                    borderRadius: 4,
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 13,
-                    fontWeight: isSel ? 900 : (isToday ? 800 : 600),
-                    color: disabled ? "rgba(33,30,30,0.2)"
-                         : !inMonth ? "rgba(33,30,30,0.28)"
-                         : isWeekend && !isSel ? "#78684C"
-                         : "#211E1E",
-                    cursor: disabled ? "not-allowed" : "pointer",
-                    outline: isSel ? "2px solid #211E1E" : "none",
-                    outlineOffset: -2,
-                    transition: "background 60ms",
-                  }}
-                >
-                  {d.getDate()}
-                  {isToday && !isSel && (
-                    <span style={{
-                      position: "absolute", bottom: 4,
-                      width: 14, height: 2,
-                      background: "#FDC831",
-                      borderRadius: 1,
-                    }}/>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Keyboard hint */}
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "6px 12px",
-            background: "#211E1E", color: "#FDC831",
-            fontFamily: "'Archivo', monospace",
-            fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em",
-          }}>
-            <span>↑↓←→ NAV · ↵ PICK</span>
-            <span>ESC CLOSE</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const spClearBtn = {
-  width: 18, height: 18,
-  display: "flex", alignItems: "center", justifyContent: "center",
-  background: "#FFF2B8",
-  border: "1px solid #211E1E",
-  borderRadius: 3,
-  fontFamily: "'Archivo', sans-serif",
-  fontSize: 13, fontWeight: 900, lineHeight: 1, color: "#211E1E",
-  cursor: "pointer",
-  padding: 0,
-  flexShrink: 0,
-};
-
-const spNavBtn = {
-  width: 26, height: 26,
-  display: "flex", alignItems: "center", justifyContent: "center",
-  background: "#FDC831",
-  border: "1px solid #211E1E",
-  borderRadius: 4,
-  fontFamily: "'Archivo', sans-serif",
-  fontSize: 18, fontWeight: 900, lineHeight: 1, color: "#211E1E",
-  cursor: "pointer",
-  padding: 0,
-};
-
-// ============================================================================
-// <SliceTimePicker>
-// Segmented HH : MM with AM/PM toggle. Type to enter, scroll-wheel on focus
-// to nudge, chips for common picks.
-// ============================================================================
-function SliceTimePicker({ value, onChange, label, required, error, placeholder = "—" }) {
-  const [hh, mm] = React.useMemo(() => {
-    if (!value || typeof value !== "string") return [null, null];
-    const m = value.match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return [null, null];
-    return [+m[1], +m[2]];
-  }, [value]);
-
-  const setTime = (h, m) => {
-    const nh = Math.max(0, Math.min(23, h == null ? (hh ?? 17) : h));
-    const nm = Math.max(0, Math.min(59, m == null ? (mm ?? 0) : m));
-    onChange(`${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`);
-  };
-
-  const isPM = hh != null ? hh >= 12 : false;
-  const display12 = hh == null ? null : (hh % 12 === 0 ? 12 : hh % 12);
-
-  const hRef = React.useRef(null);
-  const mRef = React.useRef(null);
-
-  // Text buffer so user can freely type "5" -> "05" etc without jank
-  const [hBuf, setHBuf] = React.useState("");
-  const [mBuf, setMBuf] = React.useState("");
-
-  React.useEffect(() => {
-    setHBuf(display12 != null ? String(display12).padStart(2, "0") : "");
-    setMBuf(mm != null ? String(mm).padStart(2, "0") : "");
-  }, [value]);
-
-  const commitHour = () => {
-    const n = parseInt(hBuf, 10);
-    if (isNaN(n)) { setHBuf(display12 != null ? String(display12).padStart(2, "0") : ""); return; }
-    let h24;
-    if (n === 0) h24 = 0;             // "0" → midnight (shows as 12 AM)
-    else if (n === 12) h24 = isPM ? 12 : 0;
-    else if (n === 24) h24 = 0;       // typing 24 wraps to midnight
-    else if (n > 12 && n < 24) h24 = n; // treat as 24h (13-23) — overrides AM/PM
-    else if (n > 24) h24 = 23;        // clamp anything wild
-    else h24 = isPM ? n + 12 : n;     // 1-11
-    setTime(h24, null);
-  };
-  const commitMin = () => {
-    const n = parseInt(mBuf, 10);
-    if (isNaN(n)) { setMBuf(mm != null ? String(mm).padStart(2, "0") : ""); return; }
-    setTime(null, Math.max(0, Math.min(59, n)));
-  };
-
-  const bumpHour = (delta) => setTime(((hh ?? 17) + delta + 24) % 24, null);
-  const bumpMin = (delta) => {
-    const cur = mm ?? 0;
-    const next = (cur + delta + 60) % 60;
-    setTime(null, next);
-  };
-
-  const toggleMeridiem = () => {
-    if (hh == null) { setTime(isPM ? 9 : 17, 0); return; }
-    setTime((hh + 12) % 24, null);
-  };
-
-  const quickChips = [
-    { label: "9am",  t: "09:00" },
-    { label: "12pm", t: "12:00" },
-    { label: "5pm",  t: "17:00" },
-    { label: "6pm",  t: "18:00" },
-    { label: "EOD",  t: "17:00" },
-  ];
-
-  const segStyle = {
-    width: 42, height: 36,
-    display: "flex", alignItems: "center", justifyContent: "center",
-    background: "#FFFFFF",
-    border: "none", outline: "none",
-    fontFamily: "'Archivo', monospace",
-    fontSize: 17, fontWeight: 800, color: "#211E1E",
-    textAlign: "center",
-    padding: 0,
-  };
-
-  return (
-    <div>
-      {label && (
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 11, fontWeight: 800, color: "#211E1E",
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          marginBottom: 6,
-        }}>
-          {label}{required && <span style={{ color: "#B92323", marginLeft: 4 }}>*</span>}
-        </div>
-      )}
-
-      <div style={{ display: "flex", alignItems: "stretch", gap: 10, flexWrap: "wrap" }}>
-        {/* Segmented time input */}
-        <div style={{
-          display: "flex", alignItems: "center",
-          background: "#FFFFFF",
-          border: `2px solid ${error ? "#B92323" : "#211E1E"}`,
-          borderRadius: 6,
-          overflow: "hidden",
-          boxShadow: "none",
-        }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.5" strokeLinecap="round"
-            style={{ margin: "0 6px 0 10px", flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="9"/>
-            <path d="M12 7v5l3 2"/>
-          </svg>
-
-          <input
-            ref={hRef}
-            type="text"
-            inputMode="numeric"
-            value={hBuf}
-            placeholder="--"
-            onFocus={(e) => e.target.select()}
-            onChange={(e) => {
-              const v = e.target.value.replace(/\D/g, "").slice(0, 2);
-              setHBuf(v);
-              if (v.length === 2) { mRef.current?.focus(); mRef.current?.select(); }
-            }}
-            onBlur={commitHour}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowUp") { bumpHour(1); e.preventDefault(); }
-              else if (e.key === "ArrowDown") { bumpHour(-1); e.preventDefault(); }
-              else if (e.key === "Enter") { commitHour(); e.preventDefault(); }
-            }}
-            onWheel={(e) => {
-              if (document.activeElement !== e.currentTarget) return;
-              bumpHour(e.deltaY < 0 ? 1 : -1);
-            }}
-            style={segStyle}
-          />
-          <span style={{
-            fontFamily: "'Archivo', monospace",
-            fontSize: 17, fontWeight: 900, color: "#211E1E",
-            lineHeight: 1,
-          }}>:</span>
-          <input
-            ref={mRef}
-            type="text"
-            inputMode="numeric"
-            value={mBuf}
-            placeholder="--"
-            onFocus={(e) => e.target.select()}
-            onChange={(e) => {
-              const v = e.target.value.replace(/\D/g, "").slice(0, 2);
-              setMBuf(v);
-            }}
-            onBlur={commitMin}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowUp") { bumpMin(5); e.preventDefault(); }
-              else if (e.key === "ArrowDown") { bumpMin(-5); e.preventDefault(); }
-              else if (e.key === "Enter") { commitMin(); e.preventDefault(); }
-            }}
-            onWheel={(e) => {
-              if (document.activeElement !== e.currentTarget) return;
-              bumpMin(e.deltaY < 0 ? 5 : -5);
-            }}
-            style={segStyle}
-          />
-          <button type="button" onClick={toggleMeridiem}
-            style={{
-              height: 36, padding: "0 12px",
-              background: "#211E1E", color: "#FDC831",
-              border: "none", borderLeft: "1px solid #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 11.5, fontWeight: 900, letterSpacing: "0.1em",
-              cursor: "pointer",
-            }}>{isPM ? "PM" : "AM"}</button>
-        </div>
-
-        {/* Quick chips */}
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-          {quickChips.map(c => {
-            const active = value === c.t;
-            return (
-              <button key={c.label} type="button" onClick={() => onChange(c.t)}
-                style={{
-                  padding: "6px 10px",
-                  background: active ? "#FDC831" : "#FFFFFF",
-                  border: "1px solid #211E1E",
-                  borderRadius: 4,
-                  fontFamily: "'Archivo', sans-serif",
-                  fontSize: 11, fontWeight: 800, letterSpacing: "0.02em",
-                  color: "#211E1E",
-                  cursor: "pointer",
-                  boxShadow: active ? "1px 1px 0 #211E1E" : "none",
-                }}>{c.label}</button>
-            );
-          })}
-        </div>
-      </div>
-
-      {error && (
-        <div style={{ color: "#B92323", fontSize: 11.5, fontWeight: 700, marginTop: 4 }}>{error}</div>
-      )}
-    </div>
-  );
-}
-
-// Expose
-Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPrettyDate });
-
-// ─── it-checklist (863c4f7a) ──────────────────────────────────
-// ---------- IT CHECKLIST MODULE ----------
-// Lives between onboarding + offboarding. Provides:
-//   - Item definitions (with stage mapping for auto-pipeline-advance)
-//   - useITWorkLog() hook — ticks, per-item notes, running log, persisted to localStorage
-//   - ITWorkPanel — the full interactive UI (checklist + inline notes + log)
-//   - getItProgress() — pure helper for the IT Queue tab
-//
-// Item shape:
-//   { id, label, desc, stage, autoFromHire?: (hire) => string[] }
-//   - stage: bumps the hire/offboard's pipeline stage when ticked. Multiple items
-//     can map to the same stage; the most-advanced ticked stage wins.
-//   - autoFromHire: returns sub-bullets to render under the item (read-only).
-//     Lets us show "App access provisioned" with the actual app names from
-//     the hire's apps list, without baking app data into the checklist.
-
-(function () {
-  // ---------- ITEM DEFINITIONS ----------
-  // Onboarding — the order matters. Top of list = earliest stage IT works on.
-  const IT_ONBOARD_ITEMS = [
-    {
-      id: "sso",
-      label: "OneLogin / SSO accounts created",
-      desc: "Identity provider account, group membership, MFA seeded.",
-      stage: "Accounts provisioning",
-    },
-    {
-      id: "apps",
-      label: "App access provisioned",
-      desc: "Per the hire's app list — auto-derived below.",
-      stage: "Accounts provisioning",
-      autoFromHire: (hire) => {
-        if (!hire?.apps) return [];
-        const apps = (window.ONB_APPS || []).filter(a => hire.apps.has?.(a.id));
-        return apps.map(a => a.name);
-      },
-    },
-    {
-      id: "hardware",
-      label: "Hardware imaged & shipped",
-      desc: "Laptop reset, peripherals packed, tracking number filed.",
-      stage: "Hardware shipped",
-      autoFromHire: (hire) => {
-        const hw = hire?.hardware; if (!hw) return [];
-        const out = [];
-        const pick = (pool, id) => (pool || []).find(p => p.id === id);
-        const lap = pick(window.ONB_HARDWARE?.laptops, hw.laptop);
-        if (lap) out.push(lap.name);
-        const mon = pick(window.ONB_HARDWARE?.monitors, hw.monitor);
-        if (mon) out.push(mon.name);
-        const kb = pick(window.ONB_HARDWARE?.keyboards, hw.keyboard);
-        if (kb) out.push(kb.name);
-        const ms = pick(window.ONB_HARDWARE?.mice, hw.mouse);
-        if (ms) out.push(ms.name);
-        (hw.extras || new Set()).forEach(id => {
-          const x = pick(window.ONB_HARDWARE?.extras, id);
-          if (x) out.push(x.name);
-        });
-        return out;
-      },
-    },
-    {
-      id: "welcome",
-      label: "Welcome packet email sent",
-      desc: "Day-1 instructions, login URLs, IT contact card.",
-      stage: "Welcome packet",
-    },
-  ];
-
-  // Offboarding — destructive operations. Order = most-urgent first.
-  const IT_OFFBOARD_ITEMS = [
-    {
-      id: "disable",
-      label: "Disable accounts",
-      desc: "Suspend OneLogin, Slack, Email, calendar resources.",
-      stage: "Access being revoked",
-    },
-    {
-      id: "revoke_apps",
-      label: "Revoke app access",
-      desc: "Per the Slicer's app list — auto-derived below.",
-      stage: "Access being revoked",
-      autoFromHire: (hire) => {
-        if (!hire?.apps) return [];
-        const apps = (window.ONB_APPS || []).filter(a => hire.apps.has?.(a.id));
-        return apps.map(a => a.name);
-      },
-    },
-    {
-      id: "wipe",
-      label: "Wipe & collect laptop + peripherals",
-      desc: "Remote wipe, return label sent, expected back within 7 days.",
-      stage: "Hardware return scheduled",
-      autoFromHire: (hire) => {
-        const hw = hire?.hardware; if (!hw) return [];
-        const pick = (pool, id) => (pool || []).find(p => p.id === id);
-        const out = [];
-        const lap = pick(window.ONB_HARDWARE?.laptops, hw.laptop);
-        if (lap) out.push(lap.name);
-        if (hw.monitor) out.push("Monitor");
-        return out;
-      },
-    },
-  ];
-
-  // ---------- STORAGE ----------
-  // localStorage key shape: it-work::onboard::p_nora  →  { ticks: { sso: { at, by } }, notes: { sso: "…" }, log: [{ at, by, text }] }
-  const STORAGE_PREFIX = "it-work::";
-  // For demo realism, the "current IT person" is hardcoded. In a real app this
-  // would come from auth context.
-  const CURRENT_IT_USER = (typeof window !== "undefined" && window.PORTAL_CURRENT_USER) || "IT";
-
-  function storageKey(kind, id) {
-    return STORAGE_PREFIX + kind + "::" + id;
-  }
-
-  function loadWork(kind, id) {
-    if (!id) return { ticks: {}, notes: {}, log: [] };
-    try {
-      const raw = localStorage.getItem(storageKey(kind, id));
-      if (!raw) return { ticks: {}, notes: {}, log: [] };
-      const parsed = JSON.parse(raw);
-      return {
-        ticks: parsed.ticks || {},
-        notes: parsed.notes || {},
-        log:   parsed.log   || [],
-      };
-    } catch {
-      return { ticks: {}, notes: {}, log: [] };
-    }
-  }
-
-  function saveWork(kind, id, work) {
-    if (!id) return;
-    try {
-      localStorage.setItem(storageKey(kind, id), JSON.stringify(work));
-    } catch { /* quota or disabled — ignore */ }
-  }
-
-  // ---------- HOOK ----------
-  // Returns the full work record + mutation helpers. Used by ITWorkPanel
-  // and (read-only) by the IT Queue tab via getItProgress.
-  function useITWorkLog(kind, id) {
-    const [work, setWork] = React.useState(() => loadWork(kind, id));
-
-    // Re-load if id changes (different hire opened in same session).
-    React.useEffect(() => {
-      setWork(loadWork(kind, id));
-    }, [kind, id]);
-
-    const persist = (next) => { setWork(next); saveWork(kind, id, next); };
-
-    const toggle = (itemId) => {
-      const ticks = { ...work.ticks };
-      const log = [...work.log];
-      if (ticks[itemId]) {
-        delete ticks[itemId];
-        log.push({ at: Date.now(), by: CURRENT_IT_USER, text: `Unticked "${itemId}"`, kind: "untick", item: itemId });
-      } else {
-        ticks[itemId] = { at: Date.now(), by: CURRENT_IT_USER };
-        log.push({ at: Date.now(), by: CURRENT_IT_USER, text: `Marked "${itemId}" complete`, kind: "tick", item: itemId });
-      }
-      persist({ ...work, ticks, log });
-    };
-
-    const setItemNote = (itemId, text) => {
-      const notes = { ...work.notes, [itemId]: text };
-      persist({ ...work, notes });
-    };
-
-    // Add a free-form log entry (general note). Doesn't auto-create on every keystroke;
-    // call this only when the user explicitly submits.
-    const addLog = (text) => {
-      if (!text || !text.trim()) return;
-      const entry = { at: Date.now(), by: CURRENT_IT_USER, text: text.trim(), kind: "note" };
-      persist({ ...work, log: [...work.log, entry] });
-    };
-
-    return { ...work, toggle, setItemNote, addLog };
-  }
-
-  // ---------- PURE HELPERS ----------
-  // Stage progression order — most-advanced wins. Unknown stages ranked low.
-  const STAGE_ORDER_ONBOARD = [
-    "Request filed",
-    "Hardware shipped",
-    "Accounts provisioning",
-    "Welcome packet",
-    "Awaiting start date",
-  ];
-  const STAGE_ORDER_OFFBOARD = [
-    "Hardware return scheduled",
-    "Access being revoked",
-    "Final security review",
-  ];
-  function stageRank(kind, stage) {
-    const order = kind === "offboard" ? STAGE_ORDER_OFFBOARD : STAGE_ORDER_ONBOARD;
-    const i = order.indexOf(stage);
-    return i < 0 ? -1 : i;
-  }
-
-  // Compute IT progress for a hire/offboard — used by the IT Queue tab.
-  // Returns { done, total, stage } where stage is the highest-rank stage
-  // among ticked items (or the original stage if nothing ticked yet).
-  function getItProgress(kind, id, originalStage) {
-    const items = kind === "offboard" ? IT_OFFBOARD_ITEMS : IT_ONBOARD_ITEMS;
-    const work = loadWork(kind, id);
-    const ticked = items.filter(it => work.ticks[it.id]);
-    let bestStage = originalStage || null;
-    ticked.forEach(it => {
-      if (stageRank(kind, it.stage) > stageRank(kind, bestStage)) bestStage = it.stage;
-    });
-    return {
-      done: ticked.length,
-      total: items.length,
-      stage: bestStage,
-      lastTouched: work.log.length ? work.log[work.log.length - 1].at : null,
-      claimedBy: ticked.length ? (work.ticks[ticked[0].id]?.by || null) : null,
-    };
-  }
-
-  // ---------- TIME HELPERS ----------
-  function formatTimeAgo(ms) {
-    const diff = Date.now() - ms;
-    const m = Math.floor(diff / 60000);
-    if (m < 1) return "just now";
-    if (m < 60) return m + "m ago";
-    const h = Math.floor(m / 60);
-    if (h < 24) return h + "h ago";
-    const d = Math.floor(h / 24);
-    return d + "d ago";
-  }
-
-  function formatTime(ms) {
-    const d = new Date(ms);
-    return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  }
-
-  // ---------- INITIALS HELPER ----------
-  function initials(name) {
-    return name.split(" ").map(s => s[0]).join("").toUpperCase().slice(0, 2);
-  }
-
-  // ---------- UI: ITWorkPanel ----------
-  // Drop-in for the detail modal. kind: "onboard" | "offboard". hire: the
-  // hire/slicer record (for auto-derived sub-bullets). id: the work-log id
-  // (e.g. "p_nora" for onboarding, "o_mira" for offboarding).
-  function ITWorkPanel({ kind, hire, id, onStageChange }) {
-    const items = kind === "offboard" ? IT_OFFBOARD_ITEMS : IT_ONBOARD_ITEMS;
-    const work = useITWorkLog(kind, id);
-    const [expanded, setExpanded] = React.useState(null); // item id with notes shown
-    const [logDraft, setLogDraft] = React.useState("");
-
-    // Notify parent when computed stage advances. Parent decides whether to
-    // show the "auto-advance" indicator on the pipeline.
-    React.useEffect(() => {
-      if (!onStageChange) return;
-      const ticked = items.filter(it => work.ticks[it.id]);
-      let bestStage = null;
-      ticked.forEach(it => {
-        if (stageRank(kind, it.stage) > stageRank(kind, bestStage)) bestStage = it.stage;
-      });
-      if (bestStage) onStageChange(bestStage);
-    }, [work.ticks]);
-
-    const done = items.filter(it => work.ticks[it.id]).length;
-    const claimedBy = done > 0 ? CURRENT_IT_USER : null;
-
-    return (
-      <div style={{
-        padding: "14px 16px",
-        background: "#FFF9E6",
-        border: "1px solid #211E1E",
-        borderRadius: 8,
-        boxShadow: "2px 2px 0 #211E1E",
-      }}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 4,
-            background: "#211E1E", color: "#FDC831",
-            display: "grid", placeItems: "center",
-            fontFamily: "'Archivo', sans-serif", fontSize: 9, fontWeight: 900,
-            letterSpacing: "0.04em",
-          }}>IT</div>
-          <div style={{ flex: 1 }}>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 12.5, fontWeight: 900,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#211E1E",
-            }}>IT workspace</div>
-            <div style={{ fontSize: 11, color: "#78684C", marginTop: 1, fontWeight: 600 }}>
-              {done}/{items.length} complete
-              {claimedBy && <> · claimed by <strong style={{ color: "#211E1E" }}>{claimedBy}</strong></>}
-            </div>
-          </div>
-          {/* Progress bar — flips to "All done" pill at 100% */}
-          {done === items.length ? (
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "5px 10px",
-              background: "#211E1E",
-              color: "#FDC831",
-              border: "1px solid #211E1E",
-              borderRadius: 4,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10, fontWeight: 900,
-              letterSpacing: "0.06em", textTransform: "uppercase",
-            }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                stroke="#FDC831" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-              All done
-            </div>
-          ) : (
-            <div style={{
-              width: 120, height: 8,
-              background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 4,
-              overflow: "hidden",
-            }}>
-              <div style={{
-                width: `${(done / items.length) * 100}%`,
-                height: "100%",
-                background: "#211E1E",
-                transition: "width .25s ease",
-              }}/>
-            </div>
-          )}
-        </div>
-
-        {/* Checklist */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {items.map((item) => {
-            const tick = work.ticks[item.id];
-            const isExpanded = expanded === item.id;
-            const subBullets = item.autoFromHire ? item.autoFromHire(hire) : [];
-            const note = work.notes[item.id] || "";
-            return (
-              <div key={item.id} style={{
-                background: tick ? "rgba(255,255,255,0.7)" : "#FFFFFF",
-                border: `1.5px solid ${tick ? "rgba(33,30,30,0.4)" : "rgba(33,30,30,0.25)"}`,
-                borderRadius: 6,
-                overflow: "hidden",
-                transition: "background .15s ease, border-color .15s ease",
-              }}>
-                {/* Row */}
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "auto 1fr auto",
-                  gap: 10, alignItems: tick ? "center" : "flex-start",
-                  padding: tick ? "5px 11px" : "9px 11px",
-                  transition: "padding .15s ease",
-                }}>
-                  {/* Checkbox */}
-                  <button onClick={() => work.toggle(item.id)} style={{
-                    width: tick ? 18 : 22, height: tick ? 18 : 22, borderRadius: 4,
-                    background: tick ? "#211E1E" : "#FFFFFF",
-                    border: "1px solid #211E1E",
-                    display: "grid", placeItems: "center",
-                    cursor: "pointer", flexShrink: 0,
-                    marginTop: tick ? 0 : 1,
-                    transition: "width .15s ease, height .15s ease",
-                  }} title={tick ? "Untick" : "Mark complete"}>
-                    {tick && (
-                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none"
-                        stroke="#FDC831" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    )}
-                  </button>
-                  <div
-                    onClick={() => work.toggle(item.id)}
-                    style={{
-                      minWidth: 0, display: "flex", flexDirection: "column", gap: tick ? 0 : 2,
-                      cursor: "pointer", userSelect: "none",
-                    }}
-                    title={tick ? "Untick" : "Mark complete"}
-                  >
-                    <div style={{
-                      display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
-                    }}>
-                      <div style={{
-                        fontFamily: "'Archivo', sans-serif",
-                        fontSize: tick ? 12 : 13, fontWeight: tick ? 700 : 800,
-                        color: tick ? "#78684C" : "#211E1E",
-                        letterSpacing: "-0.005em",
-                        textDecoration: tick ? "line-through" : "none",
-                        textDecorationColor: "rgba(33,30,30,0.35)",
-                        transition: "font-size .15s ease",
-                      }}>{item.label}</div>
-                      {/* Inline tick metadata when compact */}
-                      {tick && (
-                        <span style={{
-                          fontFamily: "'Archivo', monospace",
-                          fontSize: 10, fontWeight: 700,
-                          color: "#78684C",
-                        }}>✓ {tick.by} · {formatTimeAgo(tick.at)}</span>
-                      )}
-                    </div>
-                    {/* Description + sub-bullets — only when not ticked */}
-                    {!tick && (
-                      <>
-                        <div style={{
-                          fontFamily: "'Archivo', sans-serif",
-                          fontSize: 11.5, fontWeight: 600,
-                          color: "#78684C",
-                          lineHeight: 1.4,
-                        }}>{item.desc}</div>
-                        {subBullets.length > 0 && (
-                          <div style={{
-                            display: "flex", flexWrap: "wrap", gap: 4,
-                            marginTop: 4,
-                          }}>
-                            {subBullets.slice(0, 8).map((b, i) => (
-                              <span key={i} style={{
-                                display: "inline-block",
-                                padding: "2px 7px",
-                                background: "#FFF9E6",
-                                border: "1px solid rgba(33,30,30,0.25)",
-                                borderRadius: 3,
-                                fontFamily: "'Archivo', monospace",
-                                fontSize: 10, fontWeight: 700,
-                                color: "#4A3F2E",
-                              }}>{b}</span>
-                            ))}
-                            {subBullets.length > 8 && (
-                              <span style={{
-                                fontFamily: "'Archivo', monospace",
-                                fontSize: 10, fontWeight: 700,
-                                color: "#78684C",
-                                padding: "2px 4px",
-                              }}>+{subBullets.length - 8} more</span>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  {/* Note button */}
-                  <button onClick={() => setExpanded(isExpanded ? null : item.id)} style={{
-                    padding: "5px 9px",
-                    background: note ? "#FDC831" : "#FFFFFF",
-                    border: "1px solid #211E1E",
-                    borderRadius: 3,
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 10, fontWeight: 800,
-                    letterSpacing: "0.04em", textTransform: "uppercase",
-                    color: "#211E1E",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    height: 24,
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                  }} title={note ? "Has note" : "Add note"}>
-                    {note ? "Note" : "+ Note"}
-                  </button>
-                </div>
-                {/* Notes editor — drops out below when expanded */}
-                {isExpanded && (
-                  <div style={{
-                    padding: "0 11px 10px 41px",
-                    borderTop: "1px dashed rgba(33,30,30,0.15)",
-                    paddingTop: 8,
-                    background: "#FFF9E6",
-                  }}>
-                    <textarea
-                      value={note}
-                      onChange={(e) => work.setItemNote(item.id, e.target.value)}
-                      placeholder="Note for this step…"
-                      rows={2}
-                      style={{
-                        width: "100%",
-                        padding: "7px 9px",
-                        background: "#FFFFFF",
-                        border: "1px solid #211E1E",
-                        borderRadius: 3,
-                        fontFamily: "'Archivo', sans-serif",
-                        fontSize: 12, fontWeight: 600,
-                        color: "#211E1E", outline: "none",
-                        resize: "vertical",
-                        minHeight: 40,
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Running log */}
-        <div style={{ marginTop: 14 }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 10.5, fontWeight: 900,
-            letterSpacing: "0.08em", textTransform: "uppercase",
-            color: "#78684C",
-            marginBottom: 6,
-          }}>Activity log</div>
-          <div style={{
-            background: "#FFFFFF",
-            border: "1px solid #211E1E",
-            borderRadius: 6,
-            maxHeight: 160, overflowY: "auto",
-            padding: work.log.length ? "6px 10px" : "12px",
-          }}>
-            {work.log.length === 0 && (
-              <div style={{ fontSize: 11.5, color: "#78684C", textAlign: "center", fontStyle: "italic" }}>
-                No activity yet — tick an item or leave a note below.
-              </div>
-            )}
-            {[...work.log].reverse().slice(0, 30).map((entry, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "flex-start", gap: 8,
-                padding: "5px 0",
-                borderBottom: i < Math.min(work.log.length, 30) - 1 ? "1px dashed rgba(33,30,30,0.1)" : "none",
-              }}>
-                <div style={{
-                  width: 22, height: 22, borderRadius: "50%",
-                  background: "#211E1E", color: "#FDC831",
-                  display: "grid", placeItems: "center",
-                  fontFamily: "'Archivo', sans-serif", fontSize: 8.5, fontWeight: 900,
-                  flexShrink: 0,
-                }}>{initials(entry.by)}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 700,
-                    color: "#211E1E", lineHeight: 1.4,
-                  }}>
-                    <strong>{entry.by}</strong>{" "}
-                    <span style={{ color: "#78684C", fontWeight: 600 }}>{entry.text}</span>
-                  </div>
-                  <div style={{
-                    fontFamily: "'Archivo', monospace", fontSize: 9.5, fontWeight: 700,
-                    color: "#78684C", marginTop: 1,
-                  }}>{formatTime(entry.at)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Compose box */}
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <input
-              type="text"
-              value={logDraft}
-              onChange={(e) => setLogDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && logDraft.trim()) {
-                  work.addLog(logDraft);
-                  setLogDraft("");
-                }
-              }}
-              placeholder="Add a note to the log… (Enter to send)"
-              style={{
-                flex: 1,
-                padding: "8px 11px",
-                background: "#FFFFFF",
-                border: "1px solid #211E1E",
-                borderRadius: 4,
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 12, fontWeight: 600,
-                color: "#211E1E", outline: "none",
-              }}
-            />
-            <button onClick={() => {
-              if (logDraft.trim()) {
-                work.addLog(logDraft);
-                setLogDraft("");
-              }
-            }} style={{
-              padding: "8px 14px",
-              background: logDraft.trim() ? "#FDC831" : "rgba(253,200,49,0.4)",
-              border: "1px solid #211E1E",
-              borderRadius: 4,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 11, fontWeight: 800,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#211E1E",
-              cursor: logDraft.trim() ? "pointer" : "not-allowed",
-            }}>Post</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Expose to global scope
-  Object.assign(window, {
-    IT_ONBOARD_ITEMS,
-    IT_OFFBOARD_ITEMS,
-    useITWorkLog,
-    getItProgress,
-    ITWorkPanel,
-    IT_CURRENT_USER: CURRENT_IT_USER,
-  });
-})();
 
 // ─── components (dfe64fda) ──────────────────────────────────
 // ------ Shared building blocks ------
@@ -5625,8 +3907,6 @@ const NAV_ICONS = { Help: IconLifebuoy, Knowledge: IconBook, Status: IconPulse, 
 function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOpenTickets, onOpenApprovals }) {
   const [activeLocal, setActiveLocal] = React.useState("Help");
   const active = activeProp || activeLocal;
-  // Onboarding + Offboarding are hidden for now — those features are still WIP.
-  // To restore: add "Onboarding", "Offboarding" back into this list.
   // "My Tickets" jumps to the tickets page; Approvals also lives in the account
   // menu (UserMenu).
   const links = ["Help", "Knowledge", "Status", "My Tickets"];
@@ -5666,7 +3946,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
   return (
     <nav className={"topnav" + (scrolled ? " is-scrolled" : "")} aria-label="IT Hub">
       <button onClick={onHome} className="topnav-brand" aria-label="IT Hub home">
-        <img src={withBase("/assets/slice-logo.png")} alt="Slice" width="30" height="30" />
+        <img src={withBase("/assets/slice-wordmark-yellow.svg")} alt="Slice" width="48" height="35" />
         <span>IT Hub</span>
       </button>
 
@@ -5674,7 +3954,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
         onMouseLeave={() => setGlide(null)}>
         <span aria-hidden="true" className={"topnav-glide" + (glide ? " is-on" : "")}
           style={glide ? { width: glide.w, height: glide.h, transform: `translate(${glide.x}px, ${glide.y}px)` } : undefined} />
-        <SlideIndicator activeKey={active + (scrolled ? ':s' : '')} radius={999} />
+        <SlideIndicator activeKey={active + (scrolled ? ':s' : '')} radius={0} />
         {links.map((l) => {
           const isActive = active === l;
           const Icon = NAV_ICONS[l] || IconSpark;
@@ -5705,7 +3985,8 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
 // --- Back-to-SliceDesk button -------------------------------------------------
 // Sits between the Notifications bell and the user avatar. Same-tab nav (no
 // target=_blank) so it works inside the Slice Mac App wrapper, which doesn't
-// honor new-tab requests. Brand red + black border to match other Slice CTAs.
+// honor new-tab requests. Ghost outline to match the other controls on the
+// charcoal top bar (2026 brand: Tomato is never a fill).
 // Standalone only: embedded as a SliceDesk module the shell's own chrome is
 // already around us, and the link would nav the iframe to SliceDesk-in-SliceDesk.
 function ItServicesButton() {
@@ -5720,23 +4001,16 @@ function ItServicesButton() {
         height: 28,
         padding: "0 9px",
         display: "inline-flex", alignItems: "center", gap: 6,
-        background: "#B92323",
+        background: "rgba(255,255,255,.04)",
         color: "#FFFFFF",
-        borderRadius: 4, border: "1px solid #211E1E",
-        boxShadow: "1px 1px 0 #211E1E",
+        borderRadius: 999, border: "1px solid rgba(255,255,255,.22)",
+        boxShadow: "none",
         cursor: "pointer", textDecoration: "none",
         fontFamily: "'Archivo', sans-serif",
         fontWeight: 600, fontSize: 12, letterSpacing: "0.01em",
         transition: "transform .15s ease, box-shadow .15s ease",
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
-      }}
+
     >
       {/* Arrow slides left on hover via the .back-to-slicedesk:hover svg rule
           injected once below — keeps the React handlers free of arrow state. */}
@@ -6185,15 +4459,14 @@ function Footer() {
         onClick={pulse}
         aria-label="Say hi to the Slice IT team"
         style={{
-          display: "inline-flex", alignItems: "center", gap: 7,
-          padding: "7px 14px",
+          display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "4px 10px",
           background: skin.bg,
-          border: "1px solid #000000",
+          border: "1px solid rgba(33,30,30,.18)",
           borderRadius: 999,
-          boxShadow: "2.5px 2.5px 0 #000000",
-          fontSize: 12, fontWeight: 600, color: "#000000",
+          fontSize: 11, fontWeight: 500, color: "#78684C",
           letterSpacing: "-0.005em",
-          transition: "transform .2s var(--ease), box-shadow .2s var(--ease), background .25s ease",
+          transition: "border-color .2s ease, background .25s ease",
           cursor: "pointer",
           fontFamily: "inherit",
           // Tiny wiggle once the streak is going so the user knows the button noticed.
@@ -6203,13 +4476,13 @@ function Footer() {
           // so we use the beats counter as a render trigger and the animation
           // re-runs because skin.bg changes.
         }}
-        onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1.5px,-1.5px)";e.currentTarget.style.boxShadow="2px 2px 0 #000000";}}
-        onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="2.5px 2.5px 0 #000000";}}
+        onMouseEnter={(e)=>{e.currentTarget.style.borderColor="#211E1E";}}
+        onMouseLeave={(e)=>{e.currentTarget.style.borderColor="rgba(33,30,30,.18)";}}
       >
         <span>Built by the</span>
         <span style={{
-          fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13,
-          letterSpacing: "-0.015em", textTransform: "uppercase",
+          fontFamily: "var(--font-mono)", fontWeight: 500, fontSize: 10.5,
+          letterSpacing: ".04em", textTransform: "uppercase", color: "#211E1E",
         }}>Slice IT Team</span>
         <span style={{
           position: "relative",
@@ -6230,7 +4503,7 @@ function Footer() {
           )}
           <svg
             key={`h-${beats}`}
-            width="13" height="12" viewBox="0 0 24 22"
+            width="11" height="10" viewBox="0 0 24 22"
             fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"
             style={{
               display: "block",
@@ -6292,27 +4565,27 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
       onClick={onSelect}
       onMouseEnter={(e) => {
         if (selected) return;
-        e.currentTarget.style.transform = "translate(-2px, -2px)";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.transform = "translate(0, 0)";
+        e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
         e.currentTarget.style.background = "#FFF9E6";
       }}
       onMouseLeave={(e) => {
         if (selected) return;
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
         e.currentTarget.style.background = "#FFFFFF";
       }}
       onMouseDown={(e) => {
-        e.currentTarget.style.transform = "translate(1px, 1px)";
-        e.currentTarget.style.boxShadow = selected ? "2px 2px 0 #211E1E" : "1px 1px 0 #211E1E";
+        e.currentTarget.style.transform = "translate(0, 0)";
+        e.currentTarget.style.boxShadow = selected ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
       }}
       onMouseUp={(e) => {
         if (selected) {
           e.currentTarget.style.transform = "none";
-          e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+          e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
         } else {
-          e.currentTarget.style.transform = "translate(-2px, -2px)";
-          e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+          e.currentTarget.style.transform = "translate(0, 0)";
+          e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
         }
       }}
       style={{
@@ -6325,7 +4598,7 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
         borderRadius: 14,
         cursor: "pointer",
         transition: "transform .15s var(--ease), box-shadow .15s var(--ease), background .15s",
-        boxShadow: selected ? "3px 3px 0 #211E1E" : "2px 2px 0 #211E1E",
+        boxShadow: selected ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         transform: "translateZ(0)",
         animation: `fadeUp .45s var(--ease) both`,
         animationDelay: `${(index||0) * 50}ms`,
@@ -6357,14 +4630,14 @@ function MultiChip({ selected, title, onSelect, index }) {
       style={{
         display: "inline-flex", alignItems: "center", gap: 8,
         padding: "10px 16px",
-        background: selected ? "#DA3327" : "#FFFFFF",
-        color: selected ? "#FFFFFF" : "#211E1E",
-        border: `2px solid ${selected ? "#DA3327" : "#211E1E"}`,
+        background: selected ? "#211E1E" : "#FFFFFF",
+        color: selected ? "#FDC831" : "#211E1E",
+        border: `2px solid ${selected ? "#211E1E" : "#211E1E"}`,
         borderRadius: 4,
         fontSize: 13, fontWeight: 700,
         letterSpacing: "-0.005em",
         cursor: "pointer",
-        boxShadow: selected ? "2px 2px 0 #211E1E" : "2px 2px 0 #211E1E",
+        boxShadow: selected ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         transition: "transform .18s var(--ease), box-shadow .18s var(--ease), background .18s",
         animation: `fadeUp .45s var(--ease) both`,
         animationDelay: `${(index||0) * 40}ms`,
@@ -6372,23 +4645,23 @@ function MultiChip({ selected, title, onSelect, index }) {
       }}
       onMouseEnter={(e) => {
         if (selected) return;
-        e.currentTarget.style.transform = "translate(-2px,-2px)";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.transform = "translate(0, 0)";
+        e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
         e.currentTarget.style.background = "#FFF9E6";
       }}
       onMouseLeave={(e) => {
         if (selected) return;
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
         e.currentTarget.style.background = "#FFFFFF";
       }}
       onMouseDown={(e) => {
-        e.currentTarget.style.transform = "translate(1px,1px)";
-        e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
+        e.currentTarget.style.transform = "translate(0, 0)";
+        e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
       }}
       onMouseUp={(e) => {
-        e.currentTarget.style.transform = "translate(-2px,-2px)";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.transform = "translate(0, 0)";
+        e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
       }}
     >
       <span style={{
@@ -6494,7 +4767,7 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
         background: "#FFF9E6",
         border: "1px solid #211E1E",
         borderRadius: 12,
-        boxShadow: "2px 2px 0 #211E1E",
+        boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         display: "flex",
         gap: 12,
         alignItems: "flex-start",
@@ -6514,8 +4787,8 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
       >💡</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em",
+          fontFamily: "var(--font-mono)",
+          fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
           textTransform: "uppercase", color: "#78684C",
           marginBottom: 4,
         }}>Tip</div>
@@ -6619,7 +4892,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
   };
 
   return (
-    <div className="page" style={{ minHeight: "100vh", background: "#FDC831" }}>
+    <div className="page" style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <style>{`
         .np-row { display:flex; align-items:flex-start; gap:14px; width:100%; padding:16px 18px; background:transparent; border:0;
           border-bottom:1.5px solid #E7E1D4; cursor:pointer; text-align:left; font-family:inherit; color:inherit; position:relative;
@@ -6635,7 +4908,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         .np-ticket { font-size:12.5px; color:#5A4B28; margin-top:2px; }
         .np-body { font-size:13px; color:#4A4233; line-height:1.5; margin-top:6px; }
         .np-body.is-quote { font-style:italic; padding-left:10px; border-left:3px solid #E7E1D4; }
-        .np-tag { display:inline-block; margin-top:8px; font-family:'Archivo',sans-serif; font-size:9.5px; font-weight:800; letter-spacing:.06em;
+        .np-tag { display:inline-block; margin-top:8px; font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:.06em;
           text-transform:uppercase; color:#4A3F2E; padding:2px 7px; background:#FFF9E6; border:1px solid #211E1E; border-radius:3px; }
         .np-when { font-size:11px; color:#8A7A4E; font-weight:600; font-family:'Archivo',sans-serif; flex-shrink:0; white-space:nowrap; }
         .np-x { flex-shrink:0; width:26px; height:26px; background:transparent; border:1px solid transparent; border-radius:999px;
@@ -6652,8 +4925,8 @@ function NotificationsPage({ onBack, onOpenTickets }) {
           <button type="button" onClick={markAllRead} disabled={unreadCount === 0}
             style={{
               padding: "8px 14px", background: unreadCount ? "#FFFFFF" : "#F7F4EF",
-              border: "1px solid #211E1E", borderRadius: 999, boxShadow: unreadCount ? "1px 1px 0 #211E1E" : "none",
-              fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "0.04em", textTransform: "uppercase",
+              border: "1px solid #211E1E", borderRadius: 999, boxShadow: unreadCount ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
+              fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 12, letterSpacing: "0.04em", textTransform: "uppercase",
               color: "#211E1E", cursor: unreadCount === 0 ? "default" : "pointer", opacity: unreadCount === 0 ? 0.5 : 1,
             }}>
             {unreadCount > 0 ? `Mark ${unreadCount} read` : "All caught up"}
@@ -6662,7 +4935,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
       </div>
 
       <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 80px" }}>
-        <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 40, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.02, margin: "0 0 8px", color: "#211E1E" }}>Notifications</h1>
+        <h1 style={{ fontFamily: "var(--font-head)", fontSize: 40, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.02, margin: "0 0 8px", color: "#211E1E" }}>Notifications</h1>
         <p style={{ margin: "0 0 22px", fontSize: 14, color: "#4A3F2E", fontWeight: 500 }}>
           Replies from IT and changes to your tickets — status, approvals and priority. Your own actions never show up here.
         </p>
@@ -6689,8 +4962,8 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         ) : (
           [...grouped.entries()].map(([group, list]) => (
             <div key={group} style={{ marginBottom: 28 }}>
-              <div className="eyebrow" style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 10 }}>{group}</div>
-              <div style={{ background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 14, boxShadow: "2px 2px 0 #211E1E", overflow: "hidden" }}>
+              <div className="eyebrow" style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 10 }}>{group}</div>
+              <div style={{ background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 14, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)", overflow: "hidden" }}>
                 {list.map((it) => (
                   <div key={it.id} role="button" tabIndex={0} onClick={() => openIt(it)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openIt(it); } }}
@@ -6797,7 +5070,7 @@ const __TWEAKS_STYLE = `
   .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
 
   .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-    color:rgba(41,38,27,.45);padding:10px 0 0}
+    color:rgba(41,38,27,.45);padding:10px 0 0; font-family:var(--font-mono);}
   .twk-sect:first-child{padding-top:0}
 
   .twk-field{appearance:none;width:100%;height:26px;padding:0 8px;
@@ -7144,1258 +5417,7 @@ Object.assign(window, {
   TweakText, TweakNumber, TweakColor, TweakButton,
 });
 
-// ─── approval-cards (00d73044) ──────────────────────────────────
-// ============================================================================
-// MANAGER APPROVAL FLOW — Step 2 of onboarding goes to the Slicer's manager,
-// not HR. HR fills identity + role (Step 1), submits, and the request fans out
-// to managers. Each manager sees a focused "Approve onboarding kit" page with
-// just apps + hardware. HR sees a "Waiting on Manager" status until approved.
-//
-// Bulk fan-out: 10 hires across 3 managers => 3 approval requests, each
-// containing only that manager's hires (combined approval).
-//
-// Built as a sibling flow that wraps the existing Onboarding component, so the
-// 5000-line wizard stays untouched. State for in-flight approvals lives in a
-// shared store (window.__APPROVAL_STORE) so HR and Manager views can both read.
-// ============================================================================
-
-// ---------- SHARED APPROVAL STORE ----------
-// Realistic seed data: a few requests already in flight when HR opens the app.
-// HR's "Awaiting Manager" view + Manager inbox both render off this list.
-const APPROVAL_SEED = [
-  {
-    id: "ap_001",
-    manager: "Liridon Selmani",
-    sentBy: "Jamie Wu",
-    sentAt: Date.now() - 1000 * 60 * 60 * 26, // 26h ago
-    status: "pending", // 'pending' | 'approved' | 'returned' | 'hr-completed'
-    nudgedAt: null,
-    hires: [
-      {
-        id: "h_seed_a",
-        firstName: "Elena", lastName: "Marković", preferredName: "",
-        workEmail: "elena.markovic@slice.com",
-        title: "Senior Software Engineer",
-        topDept: "Engineering", department: "Platform", team: "Identity",
-        location: "xk_prs", startDate: "2026-05-18", workMode: "hybrid",
-        manager: "Liridon Selmani",
-      },
-      {
-        id: "h_seed_b",
-        firstName: "Tomas", lastName: "Jensen", preferredName: "",
-        workEmail: "tomas.jensen@slice.com",
-        title: "Software Engineer",
-        topDept: "Engineering", department: "Platform", team: "Payments Core",
-        location: "ie_bfs", startDate: "2026-05-25", workMode: "remote",
-        manager: "Liridon Selmani",
-      },
-    ],
-  },
-  {
-    id: "ap_002",
-    manager: "Maeve O'Brien",
-    sentBy: "Jamie Wu",
-    sentAt: Date.now() - 1000 * 60 * 60 * 50, // 50h — overdue
-    status: "pending",
-    nudgedAt: null,
-    hires: [
-      {
-        id: "h_seed_c",
-        firstName: "Aaliyah", lastName: "Reyes", preferredName: "Ali",
-        workEmail: "aaliyah.reyes@slice.com",
-        title: "Account Executive",
-        topDept: "Sales", department: "Mid‑Market", team: "West",
-        location: "us_ny", startDate: "2026-05-11", workMode: "office",
-        manager: "Maeve O'Brien",
-      },
-    ],
-  },
-  {
-    id: "ap_003",
-    manager: "Petra Nowak",
-    sentBy: "Jamie Wu",
-    sentAt: Date.now() - 1000 * 60 * 30, // 30 min — fresh
-    status: "pending",
-    nudgedAt: null,
-    hires: [
-      {
-        id: "h_seed_d",
-        firstName: "Kenji", lastName: "Watanabe", preferredName: "",
-        workEmail: "kenji.watanabe@slice.com",
-        title: "Senior Designer",
-        topDept: "Design", department: "Product Design", team: "Mobile Design",
-        location: "us_ny", startDate: "2026-06-01", workMode: "hybrid",
-        manager: "Petra Nowak",
-      },
-    ],
-  },
-];
-
-// Hydrate apps/hardware as Sets on every seed hire so the existing wizard
-// helpers (form.apps.has, form.hardware.extras.has) keep working.
-APPROVAL_SEED.forEach(req => {
-  req.hires.forEach(h => {
-    if (!h.apps) h.apps = new Set(window.ESSENTIAL_APP_IDS || []);
-    if (!h.hardware) h.hardware = { laptop: "", monitor: "", keyboard: "", mouse: "", audio: "", extras: new Set() };
-    if (!(h.hardware.extras instanceof Set)) h.hardware.extras = new Set(h.hardware.extras || []);
-  });
-});
-
-window.__APPROVAL_STORE = window.__APPROVAL_STORE || APPROVAL_SEED.slice();
-
-// Tiny event bus so views re-render when the store mutates.
-const APPROVAL_LISTENERS = new Set();
-function notifyApprovals() { APPROVAL_LISTENERS.forEach(fn => fn()); }
-function useApprovals() {
-  const [, force] = React.useReducer(x => x + 1, 0);
-  React.useEffect(() => {
-    APPROVAL_LISTENERS.add(force);
-    return () => { APPROVAL_LISTENERS.delete(force); };
-  }, []);
-  return window.__APPROVAL_STORE;
-}
-
-// ---------- API ----------
-// Group an array of hires by their manager and create one approval request per
-// distinct manager. Returns the new request ids in order.
-function submitForApproval(hires, sentBy = "Jamie Wu") {
-  const byMgr = new Map();
-  hires.forEach(h => {
-    const key = h.manager || "Unassigned";
-    if (!byMgr.has(key)) byMgr.set(key, []);
-    byMgr.get(key).push(h);
-  });
-  const newIds = [];
-  byMgr.forEach((group, manager) => {
-    const id = "ap_" + Math.random().toString(36).slice(2, 8);
-    window.__APPROVAL_STORE.unshift({
-      id, manager, sentBy,
-      sentAt: Date.now(),
-      status: "pending",
-      nudgedAt: null,
-      hires: group,
-    });
-    newIds.push(id);
-  });
-  notifyApprovals();
-  return newIds;
-}
-
-function nudgeApproval(id) {
-  const req = window.__APPROVAL_STORE.find(r => r.id === id);
-  if (req) { req.nudgedAt = Date.now(); notifyApprovals(); }
-}
-
-function approveRequest(id, hires) {
-  const req = window.__APPROVAL_STORE.find(r => r.id === id);
-  if (!req) return;
-  req.status = "approved";
-  req.approvedAt = Date.now();
-  req.hires = hires;
-  notifyApprovals();
-}
-
-function returnRequest(id, note) {
-  const req = window.__APPROVAL_STORE.find(r => r.id === id);
-  if (!req) return;
-  req.status = "returned";
-  req.returnNote = note;
-  req.returnedAt = Date.now();
-  notifyApprovals();
-}
-
-function hrCompleteRequest(id, reason) {
-  const req = window.__APPROVAL_STORE.find(r => r.id === id);
-  if (!req) return;
-  req.status = "hr-completed";
-  req.hrReason = reason;
-  req.hrCompletedAt = Date.now();
-  notifyApprovals();
-}
-
-// ---------- HELPERS ----------
-function timeAgo(ts) {
-  const diff = Date.now() - ts;
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
-function isOverdue(req) { return Date.now() - req.sentAt > 1000 * 60 * 60 * 48 && req.status === "pending"; }
-function initialsFor(name) {
-  const parts = (name || "").trim().split(/\s+/);
-  return ((parts[0]?.[0] || "?") + (parts[1]?.[0] || "")).toUpperCase();
-}
-
-// ============================================================================
-// HR-SIDE: AWAITING MANAGER STATUS CARDS (rendered on the Onboarding roster)
-// ============================================================================
-function ApprovalStatusCards({ onOpen }) {
-  const reqs = useApprovals();
-  const pending = reqs.filter(r => r.status === "pending" || r.status === "returned");
-  if (pending.length === 0) return null;
-  return (
-    <div style={{ marginBottom: 32 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <h2 style={{
-          fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800,
-          letterSpacing: "-0.02em", color: "#211E1E", margin: 0, lineHeight: 1,
-        }}>Waiting on Manager</h2>
-        <div style={{
-          fontFamily: "'Archivo', monospace", fontSize: 12, fontWeight: 800, lineHeight: 1,
-          minWidth: 22, height: 22, padding: "0 7px",
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          background: "#FFE08A", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 3,
-        }}>{pending.length}</div>
-        <div style={{ flex: 1 }}/>
-        <div className="eyebrow" style={{ color: "#78684C", fontSize: 10 }}>Apps & hardware approval</div>
-      </div>
-      <div style={{ display: "grid", gap: 10 }}>
-        {pending.map(r => <ApprovalRow key={r.id} req={r} onOpen={() => onOpen(r.id)} />)}
-      </div>
-    </div>
-  );
-}
-
-function ApprovalRow({ req, onOpen }) {
-  // hover state for avatar pop is handled via CSS (.onb-row-hover hover .onb-row-avatar)
-  const overdue = isOverdue(req);
-  const returned = req.status === "returned";
-  const nudged = !!req.nudgedAt;
-  const handleNudge = (e) => { e.stopPropagation(); nudgeApproval(req.id); };
-  return (
-    <div role="button" tabIndex={0} onClick={onOpen} className="onb-row-hover"
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
-      style={{
-      display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 14, alignItems: "center",
-      padding: "14px 16px",
-      background: "#FFFFFF",
-      border: `2px solid ${returned ? "#B92323" : "#211E1E"}`,
-      borderRadius: 10,
-      boxShadow: returned ? "2px 2px 0 #B92323" : (overdue ? "2px 2px 0 #D97706" : "2px 2px 0 #211E1E"),
-      cursor: "pointer", textAlign: "left",
-      fontFamily: "'Archivo', sans-serif",
-      transition: "transform .12s ease, box-shadow .12s ease",
-    }}
-      onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; }}
-    >
-      <div className="onb-row-avatar" style={{
-        width: 40, height: 40, borderRadius: "50%",
-        background: returned ? "#B92323" : (overdue ? "#D97706" : "#FFE08A"),
-        color: returned || overdue ? "#FFFFFF" : "#211E1E",
-        display: "grid", placeItems: "center",
-        border: "1px solid #211E1E",
-        fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 900,
-      }}>{initialsFor(req.manager)}</div>
-
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ fontWeight: 800, fontSize: 14.5, color: "#211E1E" }}>
-            Sent to {req.manager}
-          </div>
-          {returned && <span style={{
-            fontSize: 9, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
-            padding: "2px 6px", background: "#B92323", color: "#FFFFFF",
-            border: "1px solid #B92323", borderRadius: 3,
-          }}>Returned · needs HR fix</span>}
-          {!returned && overdue && <span style={{
-            fontSize: 9, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
-            padding: "2px 6px", background: "#D97706", color: "#FFFFFF",
-            border: "1px solid #D97706", borderRadius: 3,
-          }}>Overdue · 48h+</span>}
-          {!returned && nudged && <span style={{
-            fontSize: 9, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
-            padding: "2px 6px", background: "#FFFFFF", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 3,
-          }}>Nudged {timeAgo(req.nudgedAt)}</span>}
-        </div>
-        <div style={{ fontSize: 11.5, color: "#78684C", fontWeight: 600, marginTop: 3 }}>
-          {req.hires.length} {req.hires.length === 1 ? "hire" : "hires"}
-          {": "}
-          {req.hires.map(h => `${h.firstName} ${h.lastName}`).join(", ")}
-          {" · "} sent {timeAgo(req.sentAt)}
-        </div>
-      </div>
-
-      <button
-        onClick={handleNudge}
-        disabled={nudged || returned}
-        style={{
-          padding: "6px 10px",
-          background: nudged ? "#F0EDE5" : "#FFFFFF",
-          color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 4,
-          fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 10.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          cursor: nudged || returned ? "default" : "pointer",
-          opacity: returned ? 0.4 : 1,
-        }}
-        title="Send a Slack reminder">
-        {nudged ? "Nudged" : "Nudge manager"}
-      </button>
-
-      <div style={{
-        padding: "6px 12px",
-        background: "#211E1E", color: "#FDC831",
-        border: "1px solid #211E1E", borderRadius: 6,
-        textAlign: "center", minWidth: 80,
-      }}>
-        <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-          View
-        </div>
-        <div style={{ fontSize: 11, fontWeight: 800, marginTop: 2 }}>Status</div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// HR-SIDE: WAITING DETAIL — opened from a status card. Shows what was sent,
-// a preview of the proposed kit (role-preset), and "Skip Manager" affordance.
-// ============================================================================
-function HRApprovalDetail({ requestId, onBack, onOpenManagerView }) {
-  const reqs = useApprovals();
-  const req = reqs.find(r => r.id === requestId);
-  const [skipOpen, setSkipOpen] = React.useState(false);
-  if (!req) return null;
-  const overdue = isOverdue(req);
-  const returned = req.status === "returned";
-  const nudged = !!req.nudgedAt;
-
-  return (
-    <div data-screen-label="HR · Awaiting Manager" className="page" style={{ minHeight: "100vh", background: "#FDC831" }}>
-      {/* Hero strip */}
-      <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "20px 32px",
-      }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={onBack} className="kb-back-btn"><svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back to dashboard</button>
-
-        <div style={{ flex: 1 }}/>
-
-        <button onClick={() => onOpenManagerView(req.id)} style={{
-          padding: "8px 14px",
-          background: "#FFFFFF", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 4,
-          boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          cursor: "pointer",
-        }} title="Demo: see what the manager sees">
-          👁 Open Manager view
-        </button>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 80px" }}>
-
-      {/* Status hero */}
-      <div style={{
-        padding: "24px 28px",
-        background: returned ? "#FFE8E8" : (overdue ? "#FFF1DC" : "#FFF9E6"),
-        border: `2px solid ${returned ? "#B92323" : "#211E1E"}`,
-        borderRadius: 14,
-        boxShadow: `5px 5px 0 ${returned ? "#B92323" : (overdue ? "#D97706" : "#FDC831")}`,
-        marginBottom: 24,
-      }}>
-        <div className="eyebrow" style={{ color: returned ? "#B92323" : "#78684C", fontSize: 11, marginBottom: 6 }}>
-          {returned ? "Returned for HR fix" : (req.status === "approved" ? "Approved" : "Awaiting Manager input")}
-        </div>
-        <h1 style={{
-          fontFamily: "'Archivo', sans-serif", fontSize: 36, fontWeight: 800,
-          letterSpacing: "-0.03em", color: "#211E1E", margin: 0, lineHeight: 1.1,
-        }}>{req.manager} hasn't approved yet</h1>
-        <p style={{ fontSize: 14, color: "#4A3F2E", margin: "10px 0 16px", lineHeight: 1.5, maxWidth: 640 }}>
-          Sent {timeAgo(req.sentAt)} · {req.hires.length} {req.hires.length === 1 ? "hire" : "hires"} in this request.
-          {overdue && !returned && " It's been more than 48h — consider nudging or filling on the manager's behalf."}
-          {returned && ` They flagged a correction: "${req.returnNote || "see notes"}". Edit the hire's identity and resend.`}
-        </p>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={() => nudgeApproval(req.id)} disabled={nudged || returned} style={{
-            padding: "10px 16px",
-            background: "#211E1E", color: "#FDC831",
-            border: "1px solid #211E1E", borderRadius: 4,
-            boxShadow: "2px 2px 0 #FDC831",
-            fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: nudged || returned ? "default" : "pointer",
-            opacity: nudged || returned ? 0.5 : 1,
-          }}>{nudged ? `Nudged ${timeAgo(req.nudgedAt)}` : "Nudge manager in Slack"}</button>
-          <button onClick={() => setSkipOpen(true)} style={{
-            padding: "10px 16px",
-            background: "#FFFFFF", color: "#211E1E",
-            border: "1px dashed #211E1E", borderRadius: 4,
-            fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-          }}>Fill on manager's behalf</button>
-        </div>
-      </div>
-
-      {/* Hires in this request */}
-      <div style={{ marginBottom: 20 }}>
-        <div className="eyebrow" style={{ color: "#78684C", fontSize: 10.5, marginBottom: 10 }}>
-          Hires in this request · {req.hires.length}
-        </div>
-        <div style={{ display: "grid", gap: 10 }}>
-          {req.hires.map(h => <HRWaitingHireCard key={h.id} hire={h} />)}
-        </div>
-      </div>
-
-      {/* Audit timeline */}
-      <div style={{
-        padding: "16px 20px",
-        background: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 10,
-        boxShadow: "2px 2px 0 #211E1E",
-      }}>
-        <div className="eyebrow" style={{ color: "#78684C", fontSize: 10.5, marginBottom: 10 }}>Activity</div>
-        <div style={{ display: "grid", gap: 8, fontSize: 12.5 }}>
-          <TimelineRow when={timeAgo(req.sentAt)} who={req.sentBy} what={`Sent for approval to ${req.manager}`} />
-          {nudged && <TimelineRow when={timeAgo(req.nudgedAt)} who={req.sentBy} what="Nudged manager in Slack" />}
-          {returned && <TimelineRow when={timeAgo(req.returnedAt)} who={req.manager} what={`Returned: "${req.returnNote || ""}"`} dot="#B92323" />}
-        </div>
-      </div>
-
-      {skipOpen && (
-        <SkipManagerModal
-          req={req}
-          onCancel={() => setSkipOpen(false)}
-          onConfirm={(reason) => { hrCompleteRequest(req.id, reason); setSkipOpen(false); onBack(); }}
-        />
-      )}
-      </div>
-    </div>
-  );
-}
-
-function TimelineRow({ when, who, what, dot = "#211E1E" }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "auto 90px 1fr", gap: 12, alignItems: "baseline" }}>
-      <span style={{ width: 8, height: 8, borderRadius: "50%", background: dot, marginTop: 5 }}/>
-      <span style={{ fontFamily: "'Archivo', monospace", fontSize: 11, fontWeight: 700, color: "#78684C" }}>{when}</span>
-      <span style={{ color: "#211E1E" }}>
-        <strong>{who}</strong> {what}
-      </span>
-    </div>
-  );
-}
-
-function HRWaitingHireCard({ hire }) {
-  const loc = (window.ONB_LOCATIONS || []).find(l => l.id === hire.location);
-  return (
-    <div style={{
-      display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center",
-      padding: "12px 16px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 8,
-      boxShadow: "1px 1px 0 #211E1E",
-    }}>
-      <div style={{
-        width: 36, height: 36, borderRadius: "50%",
-        background: "#FDC831", color: "#211E1E",
-        display: "grid", placeItems: "center",
-        border: "1px solid #211E1E",
-        fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 900,
-      }}>{(hire.firstName?.[0] || "") + (hire.lastName?.[0] || "")}</div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 14, color: "#211E1E" }}>
-          {hire.firstName} {hire.lastName}
-        </div>
-        <div style={{ fontSize: 11.5, color: "#78684C", fontWeight: 600, marginTop: 2 }}>
-          {hire.title} · {hire.topDept}{hire.department ? ` / ${hire.department}` : ""} · {loc?.site || "—"}
-        </div>
-      </div>
-      <div style={{
-        fontFamily: "'Archivo', monospace", fontSize: 10.5, fontWeight: 800,
-        padding: "3px 8px", background: "#FFF9E6", color: "#211E1E",
-        border: "1px solid #211E1E", borderRadius: 3,
-        letterSpacing: "0.04em", textTransform: "uppercase",
-      }}>Awaiting kit</div>
-    </div>
-  );
-}
-
-function SkipManagerModal({ req, onCancel, onConfirm }) {
-  const [reason, setReason] = React.useState("");
-  const valid = reason.trim().length >= 8;
-  return (
-    <ModalShell title="Fill on manager's behalf" kicker="Required: reason for audit" onClose={onCancel}>
-      <p style={{ fontSize: 13, color: "#4A3F2E", lineHeight: 1.55, margin: "0 0 14px" }}>
-        Skipping {req.manager}'s approval will let you fill in apps & hardware yourself. The hire will be flagged
-        as <strong>HR‑completed</strong> in the audit log, and {req.manager} will get a Slack notice.
-      </p>
-      <label style={{
-        display: "block",
-        fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11,
-        letterSpacing: "0.06em", textTransform: "uppercase", color: "#211E1E",
-        marginBottom: 6,
-      }}>Why are you skipping?</label>
-      <textarea
-        autoFocus
-        value={reason}
-        onChange={e => setReason(e.target.value)}
-        placeholder="e.g. Manager on PTO until next week — start date is in 3 days"
-        rows={4}
-        style={{
-          width: "100%", boxSizing: "border-box",
-          padding: "10px 12px",
-          background: "#FFF9E6", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 6,
-          fontFamily: "'Archivo', sans-serif", fontSize: 13,
-          outline: "none", resize: "vertical",
-        }}/>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
-        <button onClick={onCancel} style={btnSecondary}>Cancel</button>
-        <button onClick={() => valid && onConfirm(reason.trim())} disabled={!valid}
-          style={{ ...btnPrimary, opacity: valid ? 1 : 0.4, cursor: valid ? "pointer" : "default" }}>
-          Skip & continue myself
-        </button>
-      </div>
-    </ModalShell>
-  );
-}
-
-// ============================================================================
-// MANAGER-SIDE: INBOX — list of pending approvals assigned to the active manager
-// ============================================================================
-function ManagerInbox({ managerName, onOpen, onBackToHR }) {
-  const reqs = useApprovals();
-  const myReqs = reqs.filter(r => r.manager === managerName && r.status === "pending");
-  return (
-    <div data-screen-label="Manager Inbox" className="page" style={{ minHeight: "100vh", background: "#FDC831" }}>
-      {/* Hero strip */}
-      <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "28px 32px 32px",
-      }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <button onClick={onBackToHR} className="kb-back-btn"><svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back to HR view</button>
-        <span style={{
-          fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
-          padding: "3px 8px", background: "#211E1E", color: "#FDC831",
-          border: "1px solid #211E1E", borderRadius: 3,
-          letterSpacing: "0.06em", textTransform: "uppercase",
-        }}>Demo · Manager view</span>
-      </div>
-
-      <div>
-        <h1 style={{
-          fontFamily: "'Archivo', sans-serif", fontSize: 40, fontWeight: 900,
-          letterSpacing: "-0.025em", color: "#211E1E", margin: 0, lineHeight: 1.05,
-        }}>Welcome, {managerName.split(" ")[0]}.</h1>
-      </div>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 80px" }}>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <h2 style={{
-          fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800,
-          letterSpacing: "-0.02em", color: "#211E1E", margin: 0,
-        }}>Needs your approval</h2>
-        <div style={{
-          fontFamily: "'Archivo', monospace", fontSize: 12, fontWeight: 800,
-          minWidth: 22, height: 22, padding: "0 7px",
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          background: "#FDC831", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 3,
-        }}>{myReqs.length}</div>
-      </div>
-
-      {myReqs.length === 0 ? (
-        <div style={{
-          padding: "40px 20px", textAlign: "center",
-          background: "#FFFFFF",
-          border: "1px dashed rgba(33,30,30,0.25)", borderRadius: 10,
-          fontFamily: "'Archivo', sans-serif", fontSize: 14, color: "#78684C", fontWeight: 600,
-        }}>
-          You're all caught up — nothing waiting on you.
-        </div>
-      ) : (
-        <div style={{ display: "grid", gap: 12 }}>
-          {myReqs.map(r => <ManagerInboxRow key={r.id} req={r} onOpen={() => onOpen(r.id)} />)}
-        </div>
-      )}
-      </div>
-    </div>
-  );
-}
-
-function ManagerInboxRow({ req, onOpen }) {
-  const overdue = isOverdue(req);
-  const ONB_LOCATIONS = window.ONB_LOCATIONS || [];
-  return (
-    <button onClick={onOpen} style={{
-      display: "block", width: "100%", textAlign: "left",
-      padding: "18px 20px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 12,
-      boxShadow: "2px 2px 0 #FDC831",
-      cursor: "pointer",
-      fontFamily: "'Archivo', sans-serif",
-      transition: "transform .12s ease, box-shadow .12s ease",
-    }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translate(-2px,-2px)";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #FDC831";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div className="eyebrow" style={{ color: "#78684C", fontSize: 10.5 }}>From {req.sentBy} · People Ops</div>
-        <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#78684C" }}/>
-        <div style={{ fontFamily: "'Archivo', monospace", fontSize: 11, color: "#78684C", fontWeight: 700 }}>
-          {timeAgo(req.sentAt)}
-        </div>
-        {overdue && <span style={{
-          fontSize: 9, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
-          padding: "2px 6px", background: "#D97706", color: "#FFFFFF",
-          border: "1px solid #D97706", borderRadius: 3,
-        }}>Overdue · 48h+</span>}
-        <div style={{ flex: 1 }}/>
-        <span style={{
-          padding: "5px 12px",
-          background: "#FDC831", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 4,
-          boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-        }}>Review kit →</span>
-      </div>
-
-      <h3 style={{
-        fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800,
-        letterSpacing: "-0.02em", color: "#211E1E", margin: "0 0 10px",
-      }}>
-        Approve onboarding kit for {req.hires.length === 1
-          ? `${req.hires[0].firstName} ${req.hires[0].lastName}`
-          : `${req.hires.length} new hires`}
-      </h3>
-
-      <div style={{ display: "grid", gap: 6 }}>
-        {req.hires.map(h => {
-          const loc = ONB_LOCATIONS.find(l => l.id === h.location);
-          return (
-            <div key={h.id} style={{
-              display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 10, alignItems: "center",
-              padding: "8px 10px",
-              background: "#FFF9E6",
-              border: "1px solid rgba(33,30,30,0.2)", borderRadius: 6,
-            }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%",
-                background: "#211E1E", color: "#FDC831",
-                display: "grid", placeItems: "center",
-                fontFamily: "'Archivo', sans-serif", fontSize: 10, fontWeight: 900,
-              }}>{(h.firstName?.[0] || "") + (h.lastName?.[0] || "")}</div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 800, fontSize: 13, color: "#211E1E" }}>
-                  {h.firstName} {h.lastName}
-                </div>
-                <div style={{ fontSize: 11, color: "#78684C", fontWeight: 600 }}>
-                  {h.title} · starts {h.startDate}
-                </div>
-              </div>
-              <div style={{
-                fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
-                color: "#211E1E", letterSpacing: "0.04em", textTransform: "uppercase",
-              }}>{loc?.site || "—"}</div>
-            </div>
-          );
-        })}
-      </div>
-    </button>
-  );
-}
-
-// ============================================================================
-// MANAGER-SIDE: APPROVE KIT PAGE — focused, just apps + hardware. Identity is
-// shown read-only at the top with a "Flag correction" button.
-// ============================================================================
-function ManagerApprove({ requestId, managerName, onBack, onSubmitted }) {
-  const reqs = useApprovals();
-  const req = reqs.find(r => r.id === requestId);
-  const [hires, setHiresLocal] = React.useState(() =>
-    (req?.hires || []).map(h => ({
-      ...h,
-      apps: new Set(h.apps),
-      hardware: { ...h.hardware, extras: new Set(h.hardware?.extras || []) },
-    }))
-  );
-  const [activeIdx, setActiveIdx] = React.useState(0);
-  const [returnOpen, setReturnOpen] = React.useState(false);
-  // Track which hires the manager has marked "done". On bulk approvals
-  // (2+ hires) the manager flips through hires one at a time, ticking each
-  // off; once every hire is done the bottom bar promotes "Approve all" as
-  // the primary action. Solo approvals skip the done-tracking entirely.
-  const [doneIdxs, setDoneIdxs] = React.useState(() => new Set());
-  // Set when the manager tries to approve but a hire's kit is empty. Carries
-  // a list of {idx, name, missing} so the modal can name what's missing.
-  const [emptyKitConfirm, setEmptyKitConfirm] = React.useState(null);
-
-  if (!req) return null;
-  const active = hires[activeIdx];
-  const setActive = (updater) => {
-    setHiresLocal(prev => prev.map((h, i) => i === activeIdx ? (typeof updater === "function" ? updater(h) : updater) : h));
-  };
-
-  const toggleApp = (id) => setActive(h => {
-    const next = new Set(h.apps); next.has(id) ? next.delete(id) : next.add(id);
-    return { ...h, apps: next };
-  });
-  const setHW = (key, val) => setActive(h => ({ ...h, hardware: { ...h.hardware, [key]: val } }));
-  const toggleExtra = (id) => setActive(h => {
-    const next = new Set(h.hardware.extras); next.has(id) ? next.delete(id) : next.add(id);
-    return { ...h, hardware: { ...h.hardware, extras: next } };
-  });
-
-  const StepAppsHardware = window.StepAppsHardware;
-  const ONB_LOCATIONS = window.ONB_LOCATIONS || [];
-  const loc = ONB_LOCATIONS.find(l => l.id === active.location);
-
-  // A hire's kit is "empty" if they have zero apps selected OR no hardware
-  // categories filled in. Hardware is considered "set" if at least one of
-  // laptop / monitor / keyboard / mouse / audio is picked, OR there are
-  // extras. We surface this so HR doesn't get a blank approval.
-  const findEmptyKits = () => {
-    return hires.map((h, idx) => {
-      const noApps = !(h.apps instanceof Set ? h.apps.size : (h.apps || []).length);
-      const hw = h.hardware || {};
-      const hasHwBase = !!(hw.laptop || hw.monitor || hw.keyboard || hw.mouse || hw.audio);
-      const extras = hw.extras instanceof Set ? hw.extras.size : (hw.extras || []).length;
-      const noHardware = !hasHwBase && !extras;
-      const missing = [];
-      if (noApps) missing.push("apps");
-      if (noHardware) missing.push("hardware");
-      return missing.length ? {
-        idx,
-        name: `${h.preferredName || h.firstName || ""} ${h.lastName || ""}`.trim() || `Hire ${idx + 1}`,
-        missing,
-      } : null;
-    }).filter(Boolean);
-  };
-
-  const doApprove = () => {
-    approveRequest(req.id, hires);
-    onSubmitted();
-  };
-
-  const handleApprove = () => {
-    const empties = findEmptyKits();
-    if (empties.length > 0) {
-      setEmptyKitConfirm(empties);
-      return;
-    }
-    doApprove();
-  };
-
-  // Mark current hire done, then advance to the next un-done hire if there
-  // is one. Otherwise just mark done (the sticky bar will promote Approve
-  // All to primary).
-  const markDoneAndNext = () => {
-    setDoneIdxs(prev => {
-      const next = new Set(prev); next.add(activeIdx); return next;
-    });
-    // Advance: pick the first index that isn't done and isn't the current one.
-    const upcoming = hires.findIndex((_, i) => i !== activeIdx && !doneIdxs.has(i));
-    if (upcoming !== -1) setActiveIdx(upcoming);
-  };
-
-  const isBulk = hires.length > 1;
-  const allDone = isBulk && hires.every((_, i) => doneIdxs.has(i));
-  const remaining = hires.length - doneIdxs.size - (doneIdxs.has(activeIdx) ? 0 : 1);
-
-  return (
-    <div data-screen-label="Manager · Approve Kit" className="page" style={{ minHeight: "100vh", background: "#FDC831", display: "flex", flexDirection: "column" }}>
-      {/* Hero strip — 60px tall, sticks to the top so Approve / Return are
-          always reachable while the manager reads the kit. */}
-      <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        height: 60,
-        flexShrink: 0,
-        padding: "0 32px",
-        display: "flex", alignItems: "center",
-        position: "sticky", top: 0, zIndex: 30,
-        boxShadow: "0 2px 12px rgba(33,30,30,0.06)",
-      }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", width: "100%", display: "flex", alignItems: "center", gap: 10, flexWrap: "nowrap" }}>
-        <button onClick={onBack} className="kb-back-btn"><svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Inbox</button>
-        <span style={{
-          fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
-          padding: "3px 8px", background: "#211E1E", color: "#FDC831",
-          border: "1px solid #211E1E", borderRadius: 3,
-          letterSpacing: "0.06em", textTransform: "uppercase",
-          flexShrink: 0,
-        }}>Demo · {managerName}</span>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 600,
-          color: "#5A5755", marginLeft: 4,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>
-          From {req.sentBy} · sent {timeAgo(req.sentAt)}
-        </div>
-        <span style={{ flex: 1 }} />
-        {/* Primary actions — Return + Approve. Logic mirrors what used to live
-            in the bottom sticky bar. */}
-        <button onClick={() => setReturnOpen(true)} style={{
-          padding: "7px 12px",
-          background: "#FFFFFF", border: "1px solid #211E1E",
-          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          color: "#211E1E", cursor: "pointer",
-          flexShrink: 0,
-        }}>⚑ Return to HR</button>
-        {isBulk && !allDone ? (
-          <button onClick={markDoneAndNext} style={{
-            padding: "7px 14px",
-            background: "#FDC831", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 4,
-            boxShadow: "1px 1px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-            flexShrink: 0,
-          }}>✓ Done — next →</button>
-        ) : (
-          <button onClick={handleApprove} style={{
-            padding: "7px 14px",
-            background: "#0A8A3E", color: "#FFFFFF",
-            border: "1px solid #211E1E", borderRadius: 4,
-            boxShadow: "1px 1px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-            flexShrink: 0,
-          }}>✓ {isBulk ? `Approve all ${hires.length}` : "Approve"} &amp; send to HR</button>
-        )}
-        </div>
-      </div>
-
-      {/* Body — flex:1 so the yellow page extends to the footer on short reviews. */}
-      <div style={{ flex: 1, maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "24px 32px 80px", width: "100%" }}>
-
-      {/* Two-column layout: left rail (hire list, only when bulk) + main */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: isBulk ? "240px 1fr" : "1fr",
-        gap: 20,
-        alignItems: "flex-start",
-      }}>
-        {isBulk && (
-          <ManagerHireRail
-            hires={hires}
-            activeIdx={activeIdx}
-            doneIdxs={doneIdxs}
-            onPick={setActiveIdx}
-          />
-        )}
-
-        <div>
-          {/* Compact hire identity card — replaces the dark banner. Inline
-              with the apps/hardware below so the manager always sees who
-              they're approving for without dedicating a hero strip to it. */}
-          <ManagerHireIdentityInline
-            hire={active}
-            loc={loc}
-            onFlag={() => setReturnOpen(true)}
-          />
-
-          {/* Apps & Hardware — reuse the existing combined wizard step.
-              We pass onContinue=null so the inner StepHardware "Continue to
-              review" button is hidden — managers approve via the sticky bar
-              at the bottom of THIS page instead. */}
-          {StepAppsHardware ? (
-            <StepAppsHardware
-              form={active}
-              toggleApp={toggleApp}
-              patch={() => {}}
-              errors={{}}
-              setHW={setHW}
-              toggleExtra={toggleExtra}
-              hires={[active]}
-              currentIdx={0}
-              appsResetPrompt={null}
-              onAcceptAppsReset={() => {}}
-              onDismissAppsReset={() => {}}
-              onContinue={null}
-            />
-          ) : (
-            <div style={{ padding: 20, color: "#B92323", fontWeight: 700 }}>
-              (Apps & hardware step component not loaded.)
-            </div>
-          )}
-
-          {/* Approve / Return moved to the cream hero strip at the top of the
-              page so the manager can act without scrolling once they've
-              reviewed the kit. */}
-        </div>
-      </div>
-
-      {returnOpen && (
-        <ReturnToHRModal
-          onCancel={() => setReturnOpen(false)}
-          onConfirm={(note) => { returnRequest(req.id, note); setReturnOpen(false); onSubmitted(); }}
-        />
-      )}
-
-      {emptyKitConfirm && (
-        <EmptyKitConfirmModal
-          empties={emptyKitConfirm}
-          onCancel={() => setEmptyKitConfirm(null)}
-          onJumpTo={(idx) => { setEmptyKitConfirm(null); setActiveIdx(idx); }}
-          onConfirm={() => { setEmptyKitConfirm(null); doApprove(); }}
-        />
-      )}
-      </div>
-    </div>
-  );
-}
-
-// Confirmation prompt shown when the manager tries to approve a kit with
-// missing apps or hardware. Lists each affected hire + what's missing,
-// gives the manager three exits: cancel, jump back to the hire to fix it,
-// or approve anyway (knowingly empty).
-function EmptyKitConfirmModal({ empties, onCancel, onJumpTo, onConfirm }) {
-  const isMulti = empties.length > 1;
-  const allMissingBoth = empties.every(e => e.missing.includes("apps") && e.missing.includes("hardware"));
-  return ReactDOM.createPortal(
-    <div onClick={onCancel} style={{
-      position: "fixed", inset: 0, zIndex: 2147483600,
-      background: "rgba(33,30,30,0.55)",
-      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
-      display: "grid", placeItems: "center", padding: 24,
-      animation: "fadeUp .18s var(--ease, cubic-bezier(.22,.61,.36,1)) both",
-    }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        width: "min(540px, 100%)",
-        background: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 16,
-        boxShadow: "5px 5px 0 #211E1E, 0 30px 60px rgba(33,30,30,0.30)",
-        padding: 28,
-      }}>
-        {/* Warning icon + title */}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 16 }}>
-          <div style={{
-            width: 44, height: 44, flexShrink: 0,
-            background: "#FFE8A3", border: "1px solid #211E1E",
-            borderRadius: 10, display: "grid", placeItems: "center",
-            color: "#211E1E", boxShadow: "2px 2px 0 #211E1E",
-          }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 9v4M12 17h0"/>
-              <path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            </svg>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h2 style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 20, fontWeight: 900, letterSpacing: "-0.015em",
-              margin: "0 0 6px", color: "#211E1E",
-            }}>Are you sure?</h2>
-            <p style={{
-              margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "#4A3F2E",
-            }}>
-              {isMulti
-                ? `${empties.length} hires don't have ${allMissingBoth ? "any apps or hardware" : "a complete kit"} selected yet.`
-                : `${empties[0].name} doesn't have ${allMissingBoth ? "any apps or hardware" : empties[0].missing.join(" or ")} selected yet.`}
-              {" "}If you approve now, IT will only provision what's filled in.
-            </p>
-          </div>
-        </div>
-
-        {/* List of affected hires */}
-        <div style={{
-          background: "#FFF9E6",
-          border: "1px solid #211E1E",
-          borderRadius: 10,
-          padding: 4,
-          marginBottom: 18,
-          maxHeight: 220,
-          overflowY: "auto",
-        }}>
-          {empties.map((e) => (
-            <button key={e.idx}
-              type="button"
-              onClick={() => onJumpTo(e.idx)}
-              style={{
-                width: "100%", textAlign: "left",
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "8px 10px",
-                background: "transparent",
-                border: "none", borderRadius: 6,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                transition: "background .12s ease",
-              }}
-              onMouseEnter={(ev) => ev.currentTarget.style.background = "#FFF1B8"}
-              onMouseLeave={(ev) => ev.currentTarget.style.background = "transparent"}>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 13.5, fontWeight: 800, color: "#211E1E", flex: 1, minWidth: 0,
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>{e.name}</div>
-              {e.missing.map((m) => (
-                <span key={m} style={{
-                  fontFamily: "'Archivo', sans-serif",
-                  fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  color: "#B45309",
-                  background: "#FFFFFF", border: "1px solid #B45309",
-                  padding: "2px 7px", borderRadius: 3,
-                }}>No {m}</span>
-              ))}
-              <span style={{ color: "#78684C", fontSize: 14, fontWeight: 700 }}>›</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          <button type="button" onClick={onCancel} style={{
-            padding: "10px 18px",
-            background: "#FFFFFF", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 8,
-            boxShadow: "1px 1px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 13,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-            transition: "transform .15s ease, box-shadow .15s ease",
-          }}
-            onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1.5px,-1.5px)";e.currentTarget.style.boxShadow="3.5px 3.5px 0 #211E1E";}}
-            onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="1px 1px 0 #211E1E";}}>
-            Keep editing
-          </button>
-          <button type="button" onClick={onConfirm} style={{
-            padding: "10px 18px",
-            background: "#0A8A3E", color: "#FFFFFF",
-            border: "1px solid #211E1E", borderRadius: 8,
-            boxShadow: "1px 1px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 13,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-            transition: "transform .15s ease, box-shadow .15s ease, background .15s ease",
-          }}
-            onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1.5px,-1.5px)";e.currentTarget.style.boxShadow="3.5px 3.5px 0 #211E1E";e.currentTarget.style.background="#0FA34A";}}
-            onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="1px 1px 0 #211E1E";e.currentTarget.style.background="#0A8A3E";}}>
-            Approve anyway
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-// ----------------------------------------------------------------------------
-// Sticky left rail listing every hire in a bulk approval. Each row shows the
-// hire's name + a check (✓ done / circle todo). Tap a row to switch focus.
-// ----------------------------------------------------------------------------
-function ManagerHireRail({ hires, activeIdx, doneIdxs, onPick }) {
-  return (
-    <div style={{
-      // Sticky from a higher offset so the rail clears the global Nav bar.
-      // The Nav uses position:sticky top:0 z:50 — we sit ~80px below that.
-      // alignSelf:flex-start ensures the rail (rather than the column) is
-      // the sticky element when the parent grid is the scroll context.
-      position: "sticky", top: 80,
-      alignSelf: "flex-start",
-      maxHeight: "calc(100vh - 100px)", overflowY: "auto",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 10,
-      boxShadow: "2px 2px 0 #211E1E",
-      padding: "12px 10px",
-    }}>
-      <div className="eyebrow" style={{
-        color: "#78684C", fontSize: 9.5, fontWeight: 900, letterSpacing: "0.1em",
-        textTransform: "uppercase", padding: "0 4px 8px",
-        borderBottom: "1px solid #F0E5C7", marginBottom: 8,
-      }}>
-        Hires · {doneIdxs.size}/{hires.length} done
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {hires.map((h, i) => {
-          const done   = doneIdxs.has(i);
-          const active = i === activeIdx;
-          return (
-            <button key={h.id} onClick={() => onPick(i)} style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "9px 10px",
-              background: active ? "#FDC831" : "transparent",
-              color: "#211E1E",
-              border: active ? "2px solid #211E1E" : "2px solid transparent",
-              borderRadius: 6,
-              boxShadow: active ? "1px 1px 0 #211E1E" : "none",
-              fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13,
-              cursor: "pointer", textAlign: "left",
-              transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
-            }}>
-              {/* Status dot */}
-              <span style={{
-                display: "grid", placeItems: "center",
-                width: 18, height: 18, borderRadius: "50%",
-                background: done ? "#0A8A3E" : "#FFFFFF",
-                border: `2px solid ${done ? "#0A8A3E" : "#211E1E"}`,
-                color: "#FFFFFF",
-                flexShrink: 0,
-              }}>
-                {done && (
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                )}
-              </span>
-              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {h.firstName} {h.lastName}
-              </span>
-              <span style={{
-                fontSize: 9.5, fontWeight: 800, color: "#78684C",
-                fontFamily: "'Archivo', monospace",
-              }}>{i + 1}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------------
-// Inline identity card replacing the old dark banner. Compact: avatar + name
-// + role/dept/office on one line, plus the "Flag correction" CTA on the right.
-// ----------------------------------------------------------------------------
-function ManagerHireIdentityInline({ hire, loc, posLabel, onFlag }) {
-  // posLabel is intentionally ignored — the rail already shows position.
-  // We surface country flag (next to office) and work email instead so the
-  // manager has at-a-glance context for who they're approving for.
-  return (
-    <div style={{
-      marginBottom: 16,
-      padding: "12px 16px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 10,
-      boxShadow: "2px 2px 0 #211E1E",
-      display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center",
-    }}>
-      <div style={{
-        width: 40, height: 40, borderRadius: "50%",
-        background: "#211E1E", color: "#FDC831",
-        display: "grid", placeItems: "center",
-        fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 900,
-      }}>{(hire.firstName?.[0] || "") + (hire.lastName?.[0] || "")}</div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
-          marginBottom: 2,
-        }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif", fontSize: 17, fontWeight: 800,
-            letterSpacing: "-0.02em", color: "#211E1E", lineHeight: 1.1,
-          }}>{hire.firstName} {hire.lastName}</div>
-          <span style={{
-            fontFamily: "'Archivo', monospace", fontSize: 9, fontWeight: 700,
-            color: "#78684C", letterSpacing: "0.06em", textTransform: "uppercase",
-          }}>HR-locked</span>
-        </div>
-        <div style={{
-          display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center",
-          fontSize: 11.5, color: "#5A5755", fontWeight: 600,
-        }}>
-          <span>{hire.title}</span>
-          <span style={{ color: "#C5BCA9" }}>·</span>
-          <span>{hire.topDept}{hire.department ? ` / ${hire.department}` : ""}</span>
-          {loc && (
-            <>
-              <span style={{ color: "#C5BCA9" }}>·</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                <CountryFlag country={loc.country} size={11} />
-                {loc.label} · {loc.site}
-              </span>
-            </>
-          )}
-          {hire.workEmail && (
-            <>
-              <span style={{ color: "#C5BCA9" }}>·</span>
-              <span style={{
-                fontFamily: "'Archivo', monospace", fontSize: 10.5,
-                color: "#211E1E", fontWeight: 700,
-              }}>{hire.workEmail}</span>
-            </>
-          )}
-          <span style={{ color: "#C5BCA9" }}>·</span>
-          <span>Starts {hire.startDate}</span>
-        </div>
-      </div>
-      <button onClick={onFlag} style={{
-        padding: "7px 12px",
-        background: "transparent", color: "#B92323",
-        border: "1px dashed #B92323", borderRadius: 4,
-        fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 10.5,
-        letterSpacing: "0.04em", textTransform: "uppercase",
-        cursor: "pointer", whiteSpace: "nowrap",
-      }} title="Send back to HR with a note">⚑ Flag correction</button>
-    </div>
-  );
-}
-
-function ReturnToHRModal({ onCancel, onConfirm }) {
-  const [note, setNote] = React.useState("");
-  const valid = note.trim().length >= 5;
-  return (
-    <ModalShell title="Flag correction to HR" kicker="Identity / role only" onClose={onCancel}>
-      <p style={{ fontSize: 13, color: "#4A3F2E", lineHeight: 1.55, margin: "0 0 14px" }}>
-        Use this if the title, team, or location is wrong. HR will fix it and resend the request.
-      </p>
-      <label style={{
-        display: "block",
-        fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11,
-        letterSpacing: "0.06em", textTransform: "uppercase", color: "#211E1E",
-        marginBottom: 6,
-      }}>What needs fixing?</label>
-      <textarea
-        autoFocus
-        value={note}
-        onChange={e => setNote(e.target.value)}
-        placeholder="e.g. Title should be 'Staff Engineer', not 'Senior'. Reports to me, not Priya."
-        rows={4}
-        style={{
-          width: "100%", boxSizing: "border-box",
-          padding: "10px 12px",
-          background: "#FFF9E6", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 6,
-          fontFamily: "'Archivo', sans-serif", fontSize: 13,
-          outline: "none", resize: "vertical",
-        }}/>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
-        <button onClick={onCancel} style={btnSecondary}>Cancel</button>
-        <button onClick={() => valid && onConfirm(note.trim())} disabled={!valid}
-          style={{ ...btnPrimary, opacity: valid ? 1 : 0.4, cursor: valid ? "pointer" : "default" }}>
-          Send back to HR
-        </button>
-      </div>
-    </ModalShell>
-  );
-}
-
+// ─── tickets (00d73044) ──────────────────────────────────
 // ============================================================================
 // SHARED MODAL SHELL + BUTTON STYLES
 // ============================================================================
@@ -8497,7 +5519,7 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
         width: "100%", maxWidth,
         background: "#FFFFFF",
         border: "1px solid #211E1E", borderRadius: 12,
-        boxShadow: "3px 3px 0 #FDC831",
+        boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         <div style={{
           padding: "16px 22px",
@@ -8508,8 +5530,8 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
           <div style={{ minWidth: 0 }}>
             {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 4 }}>{kicker}</div>}
             <h2 style={{
-              fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800,
-              letterSpacing: "-0.02em", color: "#211E1E", margin: 0,
+              fontFamily: "var(--font-head)", fontSize: 20, fontWeight: 400,
+              letterSpacing: "-0.01em", color: "#211E1E", margin: 0,
             }}>{title}</h2>
           </div>
         </div>
@@ -8577,8 +5599,8 @@ const btnPrimary = {
   padding: "10px 16px",
   background: "#211E1E", color: "#FFFFFF",
   border: "1px solid #211E1E", borderRadius: 4,
-  boxShadow: "2px 2px 0 #FDC831",
-  fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12,
+  boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+  fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 12,
   letterSpacing: "0.04em", textTransform: "uppercase",
   cursor: "pointer",
 };
@@ -8586,7 +5608,7 @@ const btnSecondary = {
   padding: "10px 16px",
   background: "#FFFFFF", color: "#211E1E",
   border: "1px solid #211E1E", borderRadius: 4,
-  fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12,
+  fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 12,
   letterSpacing: "0.04em", textTransform: "uppercase",
   cursor: "pointer",
 };
@@ -8896,7 +5918,7 @@ const TK = {
   ink: '#211E1E', cheese: '#FDC831', cream: '#FFFDF4', muted: '#78684C', red: '#B92323',
   field: { width: '100%', padding: '10px 12px', border: '1px solid #211E1E', borderRadius: 7, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
   label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#55503F', marginBottom: 6, marginTop: 14 },
-  card: { background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '3px 3px 0 #211E1E' },
+  card: { background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' },
   // Spread onto a TK.card row to make it feel clickable (lift on hover, press in).
   rowTransition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)',
 };
@@ -8904,10 +5926,10 @@ const TK = {
 // Hover/press handlers for the clickable list rows (they carry an inline
 // box-shadow from TK.card, so :hover CSS would lose to it — drive it inline).
 const ROW_HOVER = {
-  onMouseEnter: (e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '5px 5px 0 #211E1E'; },
-  onMouseLeave: (e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '3px 3px 0 #211E1E'; },
-  onMouseDown: (e) => { e.currentTarget.style.transform = 'translate(1px,1px)'; e.currentTarget.style.boxShadow = '2px 2px 0 #211E1E'; },
-  onMouseUp: (e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '5px 5px 0 #211E1E'; },
+  onMouseEnter: (e) => { e.currentTarget.style.transform = 'translate(0, 0)'; e.currentTarget.style.boxShadow = '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)'; },
+  onMouseLeave: (e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)'; },
+  onMouseDown: (e) => { e.currentTarget.style.transform = 'translate(0, 0)'; e.currentTarget.style.boxShadow = '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)'; },
+  onMouseUp: (e) => { e.currentTarget.style.transform = 'translate(0, 0)'; e.currentTarget.style.boxShadow = '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)'; },
 };
 
 // fetch + JSON + error-unwrap. The network shim in main.jsx already prefixes the
@@ -9069,6 +6091,15 @@ function ticketInitials(name) {
 // sanitizeHtml(). No external editor dependency — execCommand drives formatting.
 
 // True when an HTML string has no visible content (empty <p>, stray <br>, &nbsp;).
+// The editor leaves empty lines behind (`<div><br></div>`, `<p><br></p>`)
+// when you press Enter at the end — trim them so a one-line reply doesn't
+// arrive as a tall, half-empty bubble.
+function trimTrailingBlankHtml(html) {
+  let out = String(html || '');
+  const blank = /(\s|&nbsp;|<br\s*\/?>|<(div|p)>(\s|&nbsp;|<br\s*\/?>)*<\/\2>)+$/i;
+  const lead = /^(\s|&nbsp;|<br\s*\/?>|<(div|p)>(\s|&nbsp;|<br\s*\/?>)*<\/\2>)+/i;
+  return out.replace(blank, '').replace(lead, '');
+}
 function htmlIsEmpty(html) {
   if (!html) return true;
   const txt = String(html)
@@ -9172,7 +6203,7 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
   );
 
   return (
-    <div style={{ border: '1px solid #211E1E', borderRadius: 10, background: '#FFFFFF', boxShadow: '2px 2px 0 #211E1E', overflow: 'hidden' }}>
+    <div className="rr-shell" style={{ border: '1px solid rgba(33,30,30,.22)', borderRadius: 12, background: '#FFFFFF', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, padding: '5px 7px', borderBottom: '1px solid #EFEAE0', background: '#FBF8F2' }}>
         <TB title="Bold (⌘B)" onClick={() => exec('bold')}><RTIcon d={["M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"]} /></TB>
         <TB title="Italic (⌘I)" onClick={() => exec('italic')}><RTIcon extra={<><line x1="19" x2="10" y1="4" y2="4" /><line x1="14" x2="5" y1="20" y2="20" /><line x1="15" x2="9" y1="4" y2="20" /></>} /></TB>
@@ -9212,7 +6243,7 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
 // opens combined "send &…" actions (resolve, escalate priority). Priority options
 // only appear when they'd actually raise the level. Hidden on resolved/closed
 // tickets (there the plain button drives the reopen-confirm flow instead).
-function ReplySend({ ticket, sending, disabled, reopenOnReply, onSend }) {
+function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend }) {
   const [open, setOpen] = React.useState(false);
   const wrapRef = React.useRef(null);
   React.useEffect(() => {
@@ -9229,7 +6260,8 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, onSend }) {
   const items = [{ key: 'resolve', label: 'Send & mark resolved', tint: '#0A8A3E', icon: Check, opts: { resolve: true } }];
   if (pr === 'low' || pr === 'medium') items.push({ key: 'high', label: 'Send & raise priority to High', tint: '#B5830F', icon: ArrowUp, opts: { priority: 'high' } });
   if (pr === 'low' || pr === 'medium' || pr === 'high') items.push({ key: 'critical', label: 'Send & raise priority to Critical', tint: '#B92323', icon: ArrowUp, opts: { priority: 'critical' } });
-  const showMenu = !reopenOnReply && items.length > 0;
+  // No send options on a reopen or a declined request (nothing to resolve).
+  const showMenu = !reopenOnReply && !declined && items.length > 0;
 
   const choose = (opts) => { setOpen(false); onSend(opts); };
 
@@ -9238,7 +6270,7 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, onSend }) {
       {/* One physical button: the send action and its ▾ options share a
           border and a shadow, so they lift together on hover. */}
       <div className={'tkt-split' + (disabled && !sending ? ' is-disabled' : '') + (open ? ' is-open' : '')}>
-        <button onClick={() => onSend()} disabled={disabled} className="tkt-life-btn is-send tkt-split-main" style={{ minWidth: 152 }}>
+        <button onClick={() => onSend()} disabled={disabled} className="tkt-life-btn is-send tkt-split-main" style={{ minWidth: 152 }} title="Send (⌘/Ctrl + Enter)">
           {sending
             ? <span className="tkt-life-spin" aria-hidden="true" />
             : <svg className="tkt-send-plane" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7Z" /></svg>}
@@ -9254,7 +6286,7 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, onSend }) {
       {showMenu && open && (
         <div role="menu" style={{
           position: 'absolute', bottom: 'calc(100% + 6px)', right: 0, minWidth: 250, zIndex: 60,
-          background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '3px 3px 0 #211E1E', overflow: 'hidden',
+          background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', overflow: 'hidden',
         }}>
           {items.map((it, i) => (
             <button key={it.key} role="menuitem" disabled={disabled} onClick={() => choose(it.opts)}
@@ -9305,7 +6337,7 @@ function convoDay(iso) {
   const diff = Math.round((today - that) / 86400000);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Yesterday';
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
 }
 
 function ConversationDay({ label }) {
@@ -9411,15 +6443,15 @@ function useAttachmentObjectUrl(source) {
 function AttachmentItem({ name, source, size, isImage, onOpenImage }) {
   const { url, loading, err } = useAttachmentObjectUrl(source);
   const paperclip = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
-  const chip = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 11px', background: '#FFFDF4', border: '1px solid #211E1E', borderRadius: 6, fontSize: 12.5, color: '#211E1E', textDecoration: 'none', boxShadow: '2px 2px 0 #211E1E' };
+  const chip = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 10, fontSize: 13, color: '#211E1E', textDecoration: 'none' };
   if (isImage && url && !err) {
     const thumb = (
       <>
         <img src={url} alt={name} style={{ display: 'block', maxWidth: 260, maxHeight: 220, objectFit: 'cover' }} />
-        <span style={{ display: 'block', padding: '5px 9px', fontSize: 11.5, color: '#211E1E', borderTop: '1px solid #211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+        <span style={{ display: 'block', padding: '7px 10px', fontSize: 12, color: '#5C5240', borderTop: '1px solid #F0EADC', background: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
       </>
     );
-    const frame = { display: 'inline-block', border: '1px solid #211E1E', borderRadius: 8, overflow: 'hidden', background: '#FFFDF4', boxShadow: '2px 2px 0 #211E1E', maxWidth: 260, padding: 0, cursor: 'zoom-in' };
+    const frame = { display: 'inline-block', border: '1px solid rgba(33,30,30,.16)', borderRadius: 12, overflow: 'hidden', background: '#FFFFFF', maxWidth: 260, padding: 0, cursor: 'zoom-in' };
     // Click opens the in-page lightbox; fall back to a new tab if no handler.
     return onOpenImage
       ? <button type="button" onClick={() => onOpenImage(url, name)} title={'Open ' + name} style={{ ...frame, textAlign: 'left' }}>{thumb}</button>
@@ -9428,7 +6460,7 @@ function AttachmentItem({ name, source, size, isImage, onOpenImage }) {
   if (loading) {
     return <span style={{ ...chip, color: '#9A8E78' }}>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span><span style={{ fontSize: 11 }}>loading…</span></span>;
   }
-  const inner = <>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span>{Number(size) > 0 && <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(size)}</span>}{url && <span style={{ color: '#B92323', fontWeight: 800, fontSize: 11 }}>{isImage ? 'OPEN →' : 'DOWNLOAD →'}</span>}</>;
+  const inner = <>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span>{Number(size) > 0 && <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(size)}</span>}{url && <span style={{ color: '#211E1E', fontWeight: 600, fontSize: 12, marginLeft: 2, textDecoration: 'underline', textUnderlineOffset: 2, textDecorationColor: 'rgba(33,30,30,.3)' }}>{isImage ? 'Open' : 'Download'}</span>}</>;
   return url
     ? <a href={url} target="_blank" rel="noopener noreferrer" download={isImage ? undefined : name} style={chip}>{inner}</a>
     : <span style={chip} title={err ? 'Couldn’t load this attachment' : 'Open this attachment from the ticket in SliceDesk'}>{inner}</span>;
@@ -9453,7 +6485,7 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
     <div>
       <input ref={inputRef} type="file" multiple style={{ display: 'none' }}
         onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
-      <button type="button" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()} className="tkt-life-btn tkt-attach-btn">
+      <button type="button" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()} className="tkt-life-btn tkt-attach-btn" title={label}>
         <svg className="tkt-attach-clip" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
         {label}
         {(files || []).length > 0 && <span className="tkt-attach-n" aria-label={`${files.length} attached`}>{files.length}</span>}
@@ -9461,7 +6493,7 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
       {(files || []).length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
           {files.map((f, i) => (
-            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 8px 5px 10px', background: '#FFFDF4', border: '1px solid #211E1E', borderRadius: 6, fontSize: 12.5, color: '#211E1E', maxWidth: 280 }}>
+            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 8px 5px 10px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 10, fontSize: 12.5, color: '#211E1E', maxWidth: 280 }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
               <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(f.size)}</span>
               {!disabled && (
@@ -9582,20 +6614,38 @@ function matchCatalogItem(catalog, text) {
   };
 }
 
+const STATUS_TINT = {
+  open: '#ECE7DD', new: '#ECE7DD', in_progress: '#FFF1C2',
+  pending: '#FDEFD9', waiting: '#FDEFD9', on_hold: '#FDEFD9',
+  resolved: '#DFF1E5', approved: '#DFF1E5', closed: '#F1ECE2', cancelled: '#F1ECE2', rejected: '#FBE3E0',
+};
+const STATUS_DOT = {
+  open: '#211E1E', new: '#211E1E', in_progress: '#FDC831',
+  pending: '#E08A1E', waiting: '#E08A1E', on_hold: '#E08A1E',
+  resolved: '#0A8A3E', approved: '#0A8A3E', closed: '#9A8E78', cancelled: '#9A8E78', rejected: '#DA3327',
+};
 function TicketStatusBadge({ status, small, label, type }) {
   const m = ticketStatusMeta(status);
   // A request that's "pending" is really waiting for approval — say so.
   const isReqPending = type && ticketTypeMeta(type).kind === 'request' && String(status || '').toLowerCase() === 'pending';
   const text = label || (isReqPending ? 'Pending approval' : m.label);
+  // One pill style for every state — white, hairline border, coloured dot —
+  // so a list of tickets reads calm and the dot carries the meaning.
+  const s = String(status || '').toLowerCase();
+  const dot = isReqPending ? '#E08A1E' : (STATUS_DOT[s] || '#9A8E78');
+  const tint = isReqPending ? '#FDEFD9' : (STATUS_TINT[s] || '#F1ECE2');
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      padding: small ? '2px 8px' : '3px 11px',
-      background: m.bg, color: m.fg, border: '1px solid ' + (m.bd || m.fg),
-      borderRadius: 999, fontSize: small ? 10 : 12, fontWeight: 800,
-      fontFamily: "'Archivo', sans-serif", letterSpacing: '0.03em',
-      textTransform: 'uppercase', whiteSpace: 'nowrap',
-    }}>{text}</span>
+      display: 'inline-flex', alignItems: 'center', gap: 7,
+      padding: small ? '3px 10px 3px 8px' : '5px 12px 5px 10px',
+      background: tint, color: '#211E1E', border: 'none',
+      borderRadius: 999, fontSize: small ? 12 : 12.5, fontWeight: 600,
+      fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
+      whiteSpace: 'nowrap', lineHeight: 1.2,
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot, flexShrink: 0, boxShadow: dot === '#FDC831' ? 'inset 0 0 0 1px rgba(33,30,30,.35)' : 'none' }} />
+      {text}
+    </span>
   );
 }
 
@@ -9609,7 +6659,7 @@ function TicketTypeBadge({ type }) {
       background: filled ? '#211E1E' : '#FFFFFF',
       color: filled ? '#FDC831' : '#211E1E',
       border: '1px solid #211E1E', borderRadius: 4,
-      fontSize: 10, fontWeight: 800, fontFamily: "'Archivo', sans-serif",
+      fontSize: 10, fontWeight: 600, fontFamily: "var(--font-mono)",
       letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap',
     }}>{m.label}</span>
   );
@@ -9717,11 +6767,14 @@ function useCatalogStackItems() {
 // Catalog/app icon with a letter fallback — mirrors the catalog grid's tile.
 function AppIcon({ name, iconUrl, size = 30, className }) {
   if (iconUrl) {
-    return <img className={className} src={iconUrl} alt="" width={size} height={size} style={{ borderRadius: 7, objectFit: 'contain', flexShrink: 0, border: '1px solid #EFEAE0', background: '#fff' }} />;
+    // App-icon corners scale with size (~24%, like iOS) so the frame nests
+    // the logo's own rounded square; a faint hairline instead of a cream
+    // border keeps dark logos crisp and white ones separated.
+    return <img className={className} src={iconUrl} alt="" width={size} height={size} style={{ borderRadius: Math.round(size * 0.24), objectFit: 'cover', flexShrink: 0, border: 'none', background: '#fff', boxShadow: '0 0 0 1px rgba(33,30,30,.08)' }} />;
   }
   return (
     <span className={className} style={{
-      width: size, height: size, borderRadius: 7, background: '#FBF0CB', border: '1px solid #211E1E',
+      width: size, height: size, borderRadius: Math.round(size * 0.24), background: '#FBF0CB', border: 'none', boxShadow: '0 0 0 1px rgba(33,30,30,.08)',
       display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif",
       fontSize: Math.round(size * 0.46), color: '#211E1E', flexShrink: 0,
     }}>{String(name || '?').charAt(0).toUpperCase()}</span>
@@ -9772,19 +6825,22 @@ function TicketLeadIcon({ ticket, app, size = 34, className }) {
   // Freeform requests get a neutral charcoal/cheese spark tile. Issues get a
   // tile for what they're about (issueTopic) with a red "!" corner, falling
   // back to the amber alert when nothing in the text gives the topic away.
+  // One neutral tile for every non-app ticket — white, hairline, charcoal
+  // glyph — so the list reads as one system next to real app logos instead
+  // of a patchwork of pastel boxes. The glyph alone says what it's about.
   const isRequest = ticketTypeMeta(ticket && ticket.type).kind === 'request';
   const topic = isRequest ? null : issueTopic(ticket);
   const Glyph = isRequest ? IconSpark : (topic ? topic.Glyph : IconAlert);
-  const bg = isRequest ? '#211E1E' : (topic ? topic.bg : '#FBE9E2');
-  const fg = isRequest ? '#FDC831' : (topic ? topic.fg : '#C2410C');
+  const bg = '#FFFFFF';
+  const fg = '#211E1E';
   const flag = !isRequest && topic && size >= 28;
   const flagSize = Math.max(13, Math.round(size * 0.36));
   return (
     <span className={className} title={topic ? `Issue · ${topic.label}` : undefined} style={{
-      position: 'relative', width: size, height: size, borderRadius: Math.round(size * 0.22), flexShrink: 0, background: bg,
-      border: '1px solid #211E1E', display: 'grid', placeItems: 'center', boxSizing: 'border-box',
+      position: 'relative', width: size, height: size, borderRadius: Math.round(size * 0.24), flexShrink: 0, background: bg,
+      border: '1px solid rgba(33,30,30,.18)', display: 'grid', placeItems: 'center', boxSizing: 'border-box',
     }}>
-      <Glyph size={Math.round(size * 0.52)} stroke={2} style={{ color: fg }} />
+      <Glyph size={Math.round(size * 0.5)} stroke={1.9} style={{ color: fg }} />
       {flag && (
         <span aria-hidden="true" style={{
           position: 'absolute', right: -Math.round(flagSize * 0.35), bottom: -Math.round(flagSize * 0.35),
@@ -9817,12 +6873,13 @@ function ApprovalPill({ state }) {
   if (!meta) return null;
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 11px 3px 9px',
-      background: '#FFFFFF', color: meta.color, border: '1px solid ' + meta.color, borderRadius: 999,
-      fontSize: 12, fontWeight: 800, fontFamily: "'Archivo', sans-serif", letterSpacing: '0.03em',
-      textTransform: 'uppercase', whiteSpace: 'nowrap',
+      display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 12px 5px 10px',
+      background: { pending: '#FDEFD9', approved: '#DFF1E5', rejected: '#FBE3E0' }[String(state || '').toLowerCase()] || '#F1ECE2',
+      color: '#211E1E', border: 'none', borderRadius: 999,
+      fontSize: 12.5, fontWeight: 600, fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
+      whiteSpace: 'nowrap', lineHeight: 1.2,
     }}>
-      <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.dot, flexShrink: 0 }} />
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot, flexShrink: 0 }} />
       {meta.label}
     </span>
   );
@@ -9854,7 +6911,7 @@ function TicketNumber({ value, size = 13 }) {
       }}>
       {value}
       {copied
-        ? <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: Math.max(9.5, size - 3), fontWeight: 800, color: '#0A8A3E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Copied</span>
+        ? <span style={{ fontFamily: "var(--font-mono)", fontSize: Math.max(9.5, size - 3), fontWeight: 600, color: '#0A8A3E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Copied</span>
         : <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>}
     </span>
   );
@@ -9862,7 +6919,7 @@ function TicketNumber({ value, size = 13 }) {
 
 // ── Full page — tabs over My Tickets + Approvals, plus the two create paths ──
 function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) {
-  const { preview: reqStack } = useCatalogStackItems();
+  const { preview: reqStack, total: reqTotal } = useCatalogStackItems();
   const [tab, setTab] = React.useState(initialTab === 'approvals' ? 'approvals' : 'mine');
   const [query, setQuery] = React.useState('');
   // When a ticket/approval detail is open, hide the page chrome (title, tabs,
@@ -9895,83 +6952,94 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
   const unseen = { tickets: Object.keys(notif.byTicket || {}).length, approvals: pendingApprovals };
 
   return (
-    <div className="page" style={{ background: '#FDC831', display: 'flex', flexDirection: 'column' }}>
+    <div className="page" style={{ background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       {!detailOpen && (
-      <div style={{ background: '#F7F4EF', borderBottom: '1px solid #211E1E', padding: '34px 32px' }}>
+      <div style={{ background: 'var(--bg)', padding: '34px 32px 8px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-          {/* Top bar: Back on the left, the two important actions on the right — one line. */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 22 }}>
-            <button onClick={onBack} className="kb-back-btn">
-              <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back
-            </button>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <button onClick={() => onReportIssue && onReportIssue()} className="tkt-action tkt-action-issue">
-                {/* Siren-style alert: the same "something's wrong" mark the
-                    issue rows use, in a circle so it sits like the app stack. */}
-                <span className="tkt-action-glyph" aria-hidden="true">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" />
-                  </svg>
-                </span>
-                Report an issue
-              </button>
-              <button onClick={() => onRequest && onRequest()} className="tkt-action is-primary tkt-action-request">
-                {/* The top catalog apps, same stack as the Help page's "Request
-                    app access" bar — says "apps & services" before you read it. */}
-                {reqStack.length > 0 ? (
-                  <span className="tkt-action-stack" aria-hidden="true">
-                    {reqStack.slice(0, 3).map((it) => (
-                      <span key={it.id} className="tkt-action-chip" title={it.name}>
-                        {it.icon_url
-                          ? <img src={it.icon_url} alt="" width="24" height="24" loading="lazy" />
-                          : <span className="tkt-action-chip-letter">{String(it.name || '?').charAt(0).toUpperCase()}</span>}
-                      </span>
-                    ))}
-                  </span>
-                ) : (
-                  <span className="tkt-action-glyph" aria-hidden="true">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                  </span>
-                )}
-                Request something
-              </button>
+          {/* Title + one-line purpose on the left, the two actions on the right.
+              No Back button: this is a top-level section, the nav is right there. */}
+          <div className="tkt-head">
+            <div style={{ minWidth: 0 }}>
+              <h1 className="tkt-title">My tickets</h1>
+              <p className="tkt-sub">Follow your issues and requests, and sign off on requests waiting on you.</p>
             </div>
           </div>
-          <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 40, fontWeight: 900, margin: 0, letterSpacing: '-0.03em', color: '#211E1E', lineHeight: 1 }}>Tickets</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
+          {/* The two ways to start something — big, side by side, first thing
+              under the title. They used to be small buttons in the corner and
+              people walked straight past them. */}
+          <div className="tkt-start">
+            <button onClick={() => onReportIssue && onReportIssue()} className="tkt-start-card">
+              <span className="tkt-start-ic" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" />
+                </svg>
+              </span>
+              <span className="tkt-start-text">
+                <span className="tkt-start-title">Report an issue</span>
+                <span className="tkt-start-sub">Something broken, slow or not working</span>
+              </span>
+              <span className="tkt-start-go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></span>
+            </button>
+            <button onClick={() => onRequest && onRequest()} className="tkt-start-card is-request">
+              {reqStack.length > 0 ? (
+                <span className="tkt-start-stack" aria-hidden="true">
+                  {reqStack.slice(0, 3).map((it) => (
+                    <span key={it.id} className="tkt-start-chip" title={it.name}>
+                      {it.icon_url
+                        ? <img src={it.icon_url} alt="" width="48" height="48" decoding="async" />
+                        : String(it.name || '?').charAt(0).toUpperCase()}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                <span className="tkt-start-ic" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                </span>
+              )}
+              <span className="tkt-start-text">
+                <span className="tkt-start-title">Request something</span>
+                <span className="tkt-start-sub">Apps, access and hardware{reqTotal > 0 ? ` · ${reqTotal} available` : ''}</span>
+              </span>
+              <span className="tkt-start-go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></span>
+            </button>
+          </div>
+          <div className="tkt-tabsrow">
             <style>{`
               /* Segmented switch — one track holds both options, so it reads as a
                  single "which view?" control. The active option is a filled charcoal
                  pill with a cheese label; the idle one stays quiet until hover. */
-              .tkt-switch { display:inline-flex; gap:4px; padding:4px; background:#ECE3D3;
-                border:1px solid #211E1E; border-radius:12px; box-shadow:2px 2px 0 #211E1E; }
-              .tkt-tab { min-width:120px; justify-content:center; padding:8px 18px; border-radius:9px;
-                cursor:pointer; border:1px solid transparent; background:transparent; color:#7A6E58;
-                font-family:'Archivo',sans-serif; font-weight:800; font-size:12.5px; letter-spacing:0.03em; text-transform:uppercase;
-                display:inline-flex; align-items:center; gap:7px;
-                transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
-              /* Idle: transparent on the track; a soft fill appears on hover. */
-              .tkt-tab.is-idle:hover { background:rgba(33,30,30,.07); color:#211E1E; }
-              /* Active: charcoal pill + cheese label — unmistakably the selected one. */
-              .tkt-tab.is-active { background:#211E1E; color:#FDC831; box-shadow:0 1px 2px rgba(0,0,0,.22); }
-              /* Header actions — share the Back button's cheese-on-hover identity, but
-                 bolder and bigger so they read as the page's most important actions. */
-              .tkt-action { display:inline-flex; align-items:center; gap:8px; padding:11px 20px; cursor:pointer;
-                background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:8px;
-                box-shadow:2px 2px 0 #211E1E, 0 3px 8px rgba(33,30,30,.06);
-                font-family:'Archivo',sans-serif; font-weight:800; font-size:13px; letter-spacing:0.04em; text-transform:uppercase;
-                transition: transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease, background .18s ease; }
-              .tkt-action:hover { transform:translate(-2px,-2px); background:#FDC831;
-                box-shadow:4px 4px 0 #211E1E, 0 10px 20px rgba(33,30,30,.16); }
-              .tkt-action:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #211E1E; }
-              /* Primary CTA — filled cheese so it's unmistakably the most important action. */
-              .tkt-action.is-primary { background:#FDC831; box-shadow:3px 3px 0 #211E1E, 0 4px 10px rgba(33,30,30,.12); }
-              .tkt-action.is-primary:hover { background:#FFD84D;
-                box-shadow:5px 5px 0 #211E1E, 0 12px 22px rgba(33,30,30,.18); }
+              /* Page header. */
+              .tkt-head { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+              .tkt-title { font-family:var(--font-head); font-size:44px; font-weight:400; line-height:1.05; letter-spacing:-0.01em; color:#211E1E; margin:0; }
+              .tkt-sub { margin:8px 0 0; font-size:15px; line-height:1.5; color:#5C5240; }
+              /* View tabs sit on a hairline, search on the right of the same line.
+                 The selected tab gets a charcoal underline (SlideIndicator). */
+              .tkt-tabsrow { display:flex; align-items:flex-end; gap:16px; margin-top:28px; flex-wrap:wrap;
+                border-bottom:1px solid rgba(33,30,30,.14); }
+              .tkt-switch { position:relative; display:inline-flex; gap:6px; align-self:stretch; }
+              .tkt-switch .tab-slider { background:transparent !important; box-shadow:inset 0 -2px 0 #211E1E !important; border-radius:0 !important; }
+              .tkt-tab { position:relative; z-index:1; justify-content:center; padding:12px 4px 13px; margin:0 8px; cursor:pointer;
+                border:none; background:transparent; color:#78684C;
+                font-family:'Archivo',sans-serif; font-weight:650; font-size:15px; letter-spacing:-0.005em;
+                display:inline-flex; align-items:center; gap:8px; transition: color .16s ease; }
+              .tkt-tab:first-child, .tkt-switch > .tab-slider + .tkt-tab { margin-left:0; }
+              .tkt-tab.is-idle:hover { color:#211E1E; }
+              .tkt-tab.is-active { color:#211E1E; }
+              .tkt-tabsrow > div:last-child { margin-bottom:10px; }
+              /* Header actions — flat, no hard shadows. Secondary is an outline,
+                 primary is charcoal with a cheese label like every primary CTA. */
+              .tkt-action { display:inline-flex; align-items:center; gap:9px; height:42px; padding:0 18px 0 12px; cursor:pointer;
+                background:#FFFFFF; color:#211E1E; border:1px solid rgba(33,30,30,.22); border-radius:12px;
+                font-family:'Archivo',sans-serif; font-weight:650; font-size:14px; letter-spacing:-0.005em;
+                transition: background .16s ease, border-color .16s ease, box-shadow .16s ease; }
+              .tkt-action:hover { background:#FFF6D6; border-color:#211E1E; }
+              .tkt-action:focus-visible { outline:2px solid #211E1E; outline-offset:2px; }
+              .tkt-action.is-primary { background:#211E1E; border-color:#211E1E; color:#FFFFFF; }
+              .tkt-action.is-primary:hover { background:#211E1E; box-shadow:0 0 0 3px rgba(253,200,49,.6); }
               /* Leading marks on the two actions. */
               .tkt-action { padding-left:12px; }
               .tkt-action-glyph { width:26px; height:26px; flex:none; display:grid; place-items:center; border-radius:50%;
-                border:1.5px solid #211E1E; background:#FFF1EF; color:#B92323;
+                border:1px solid rgba(33,30,30,.18); background:#F7F4EF; color:#211E1E;
                 transition: transform .3s cubic-bezier(.34,1.56,.64,1), background .18s ease; }
               .tkt-action-issue:hover .tkt-action-glyph { animation: tktGlyphNudge .5s ease both; background:#FFFFFF; }
               .tkt-action.is-primary .tkt-action-glyph { background:#211E1E; color:#FDC831; }
@@ -9981,12 +7049,12 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
                 55% { transform: rotate(9deg) scale(1.08); } 80% { transform: rotate(-4deg); } 100% { transform: rotate(0); }
               }
               .tkt-action-stack { display:flex; align-items:center; flex:none; }
-              .tkt-action-chip { width:26px; height:26px; border-radius:50%; overflow:hidden; flex:none;
-                display:grid; place-items:center; background:#FFFFFF; border:1.5px solid #211E1E;
-                margin-left:-9px; box-shadow:0 1px 3px rgba(33,30,30,.25);
+              .tkt-action-chip { width:24px; height:24px; border-radius:50%; overflow:hidden; flex:none;
+                display:grid; place-items:center; background:#FFFFFF; border:none;
+                margin-left:-8px; box-shadow:0 0 0 2px #211E1E;
                 transition: transform .32s cubic-bezier(.34,1.56,.64,1); }
               .tkt-action-chip:first-child { margin-left:0; }
-              .tkt-action-chip img { width:100%; height:100%; object-fit:cover; display:block; }
+              .tkt-action-chip img { width:100%; height:100%; object-fit:cover; display:block; transform:scale(1.14); }
               .tkt-action-chip-letter { font-family:'Archivo',sans-serif; font-weight:900; font-size:11px; color:#211E1E; }
               /* Hover lifts the stack one chip after another (a wave), like the
                  Help page bar — transform only, so the button never changes size. */
@@ -10012,8 +7080,8 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
       </div>
       )}
 
-      <div style={{ flex: 1, padding: detailOpen ? '20px 32px 64px' : '28px 32px 64px' }}>
-        <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+      <div className={'tkt-body' + (detailOpen ? ' is-detail' : '')} style={{ flex: 1, padding: detailOpen ? '20px 40px 64px' : '28px 32px 64px' }}>
+        <div style={{ maxWidth: detailOpen ? 1440 : 1120, margin: '0 auto' }}>
           {/* Keyed by tab so the incoming view fades up instead of swapping in a frame. */}
           <div key={tab} className="tab-panel-in">
             {tab === 'mine'
@@ -10131,13 +7199,11 @@ function TicketsTab({ label, active, onClick, badge }) {
       {label}
       {n > 0 && (
         <span aria-label={`${n} unseen update${n === 1 ? '' : 's'}`} style={{
-          position: 'absolute', top: -7, right: -7,
-          minWidth: 18, height: 18, padding: '0 5px', boxSizing: 'border-box',
-          display: 'grid', placeItems: 'center',
-          background: '#DA3327', color: '#FFFFFF',
-          borderRadius: 999, fontSize: 10.5, fontWeight: 900, lineHeight: 1,
-          fontFamily: "'Archivo', sans-serif",
-          boxShadow: '0 0 0 2px #ECE3D3',
+          minWidth: 20, height: 20, padding: '0 6px', boxSizing: 'border-box',
+          display: 'inline-grid', placeItems: 'center',
+          background: active ? '#211E1E' : '#FDC831', color: active ? '#FDC831' : '#211E1E',
+          borderRadius: 999, fontSize: 11, fontWeight: 500, lineHeight: 1,
+          fontFamily: 'var(--font-mono)',
         }}>{n > 9 ? '9+' : n}</span>
       )}
     </button>
@@ -10204,7 +7270,7 @@ function OnBehalfBanner({ ticket }) {
       display: 'inline-flex', alignItems: 'center', gap: 8,
       padding: '5px 12px 5px 5px', marginBottom: 10,
       background: '#FFF9EC', border: '1px solid #211E1E', borderRadius: 999,
-      boxShadow: '1px 1px 0 #211E1E', maxWidth: '100%',
+      boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', maxWidth: '100%',
     }}>
       <span aria-hidden="true" style={{
         width: 21, height: 21, borderRadius: 999, flexShrink: 0, boxSizing: 'border-box',
@@ -10240,15 +7306,15 @@ function OnBehalfTag({ ticket, size = 11 }) {
   const label = `${prefix} ${name}`;
   return (
     <span title={label} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 10px 2px 3px',
-      background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 999,
-      boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden',
+      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px 2px 3px',
+      background: '#FFFFFF', border: '1px solid rgba(33,30,30,.18)', borderRadius: 999,
+      whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden',
     }}>
       {/* Initials avatar — the person this ticket is for, at a glance. */}
       <span aria-hidden="true" style={{
         width: 17, height: 17, borderRadius: 999, flexShrink: 0, boxSizing: 'border-box',
-        background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center',
-        fontFamily: "'Archivo', sans-serif", fontSize: 7.5, fontWeight: 900, color: '#211E1E', lineHeight: 1,
+        background: '#FDC831', border: 'none', display: 'grid', placeItems: 'center',
+        fontFamily: "'Archivo', sans-serif", fontSize: 7.5, fontWeight: 700, color: '#211E1E', lineHeight: 1,
       }}>{initials}</span>
       <span style={{ fontSize: size, fontWeight: 600, color: '#7A6E58', flexShrink: 0 }}>{prefix}</span>
       <span style={{ fontSize: size, fontWeight: 800, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
@@ -10400,7 +7466,7 @@ function ForOthersBanner({ tickets, onBack }) {
         <b>Tickets you requested for other people</b>
         {names && <span className="tkt-forothers-sub">For {names} · they get the updates too</span>}
       </span>
-      <button type="button" className="tkt-forothers-back" onClick={onBack}>← Back to my tickets</button>
+      <button type="button" className="tkt-forothers-back" onClick={onBack}>Back to my tickets</button>
     </div>
   );
 }
@@ -10630,79 +7696,49 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
       <style>{`
         /* Same track-and-pill language as the page's My tickets/Approvals switch,
            one size down — the two controls read as siblings. */
-        .tkt-seg { display:inline-flex; gap:3px; padding:3px; background:#FFFFFF;
-          border:1px solid #211E1E; border-radius:11px; box-shadow:2px 2px 0 #211E1E; }
-        .tkt-seg-btn { position:relative; display:inline-flex; align-items:center; gap:7px;
-          padding:7px 16px; border-radius:8px; cursor:pointer; border:none; background:transparent;
-          color:#7A6E58; font-family:'Archivo',sans-serif; font-weight:800; font-size:12px;
-          letter-spacing:0.04em; text-transform:uppercase;
-          transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
-        .tkt-seg-btn:hover { background:rgba(33,30,30,.07); color:#211E1E; }
-        .tkt-seg-btn.is-active { background:#211E1E; color:#FDC831; box-shadow:0 1px 2px rgba(0,0,0,.22); }
+        .tkt-seg { position:relative; display:inline-flex; gap:2px; padding:3px; background:#ECE6D9; border-radius:11px; }
+        .tkt-seg .tab-slider { background:#FFFFFF !important; box-shadow:0 1px 2px rgba(33,30,30,.12), 0 0 0 1px rgba(33,30,30,.08) !important; }
+        .tkt-seg-btn { position:relative; z-index:1; display:inline-flex; align-items:center; gap:7px;
+          height:34px; padding:0 14px; border-radius:8px; cursor:pointer; border:none; background:transparent;
+          color:#78684C; font-family:'Archivo',sans-serif; font-weight:600; font-size:13.5px;
+          transition: color .16s ease; }
+        .tkt-seg-btn:hover { color:#211E1E; }
+        .tkt-seg-btn.is-active { color:#211E1E; }
         .tkt-seg-n { display:inline-flex; align-items:center; justify-content:center;
           min-width:20px; height:18px; padding:0 6px; box-sizing:border-box; border-radius:999px;
-          font-size:10.5px; font-weight:800; line-height:1;
-          background:rgba(33,30,30,.08); color:inherit; transition: background .16s ease; }
-        .tkt-seg-btn.is-active .tkt-seg-n { background:rgba(253,200,49,.18); }
-        /* Unseen-updates dot on a segment: "there's unread activity in this view". */
-        .tkt-seg-dot { position:absolute; top:3px; right:4px; width:7px; height:7px;
-          border-radius:999px; background:#DA3327; box-shadow:0 0 0 2px #FFFFFF; }
-        .tkt-seg-btn.is-active .tkt-seg-dot { box-shadow:0 0 0 2px #211E1E; }
-        .tkt-forothers { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; padding:12px 14px;
-          background:#211E1E; color:#FFFDF4; border:1px solid #211E1E; border-radius:12px; box-shadow:3px 3px 0 rgba(33,30,30,.35);
+          font:500 11px/1 var(--font-mono); background:rgba(33,30,30,.07); color:#78684C; }
+        .tkt-seg-btn.is-active .tkt-seg-n { background:#211E1E; color:#FDC831; }
+        /* Unread activity in a view: a small cheese dot, not a red alarm. */
+        .tkt-seg-dot { position:absolute; top:6px; right:5px; width:6px; height:6px;
+          border-radius:999px; background:#E0A800; }
+        .tkt-forothers { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; padding:12px 14px 12px 16px;
+          background:#FFF6D6; color:#211E1E; border:1px solid rgba(33,30,30,.14); border-radius:12px;
           animation: tktForOthersIn .28s cubic-bezier(.22,.61,.36,1) both; }
-        .tkt-forothers b { display:block; font-family:'Archivo',sans-serif; font-size:14px; font-weight:800; letter-spacing:-.01em; }
-        .tkt-forothers-sub { display:block; font-size:12.5px; color:#E9DFC6; margin-top:2px; }
+        .tkt-forothers b { display:block; font-family:'Archivo',sans-serif; font-size:14px; font-weight:650; letter-spacing:-.01em; }
+        .tkt-forothers-sub { display:block; font-size:12.5px; color:#78684C; margin-top:2px; }
         .tkt-forothers-stack { display:flex; flex:none; }
         .tkt-forothers-av { width:30px; height:30px; margin-left:-8px; border-radius:50%; display:grid; place-items:center; background:#FDC831; color:#211E1E;
-          border:2px solid #211E1E; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:900; }
+          border:2px solid #FFF6D6; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:700; }
         .tkt-forothers-av:first-child { margin-left:0; }
-        .tkt-forothers-back { margin-left:auto; padding:7px 12px; border-radius:999px; border:1px solid #FDC831; background:transparent; color:#FDC831; cursor:pointer;
-          font-family:'Archivo',sans-serif; font-weight:800; font-size:11.5px; letter-spacing:.04em; text-transform:uppercase; }
-        .tkt-forothers-back:hover { background:#FDC831; color:#211E1E; }
+        .tkt-forothers-back { margin-left:auto; height:34px; padding:0 12px; border-radius:10px; border:1px solid rgba(33,30,30,.22); background:#FFFFFF; color:#211E1E; cursor:pointer;
+          font-family:'Archivo',sans-serif; font-weight:650; font-size:13px; }
+        .tkt-forothers-back:hover { border-color:#211E1E; box-shadow:0 0 0 3px rgba(253,200,49,.55); }
         @keyframes tktForOthersIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
         @media (prefers-reduced-motion: reduce) { .tkt-forothers { animation:none; } }
 
         /* "Requested for others" toggle pill — white when off, cheese when on,
            with a small ✕ hinting the second click clears it. */
-        .tkt-facet { display:inline-flex; align-items:center; gap:8px; padding:9px 14px; cursor:pointer;
-          background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:999px;
-          box-shadow:2px 2px 0 #211E1E; font-family:'Archivo',sans-serif; font-weight:800;
-          font-size:12px; letter-spacing:0.03em; text-transform:uppercase;
-          transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease, background .16s ease; }
-        .tkt-facet:hover { transform:translate(-1px,-1px); box-shadow:3px 3px 0 #211E1E; }
-        .tkt-facet:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #211E1E; }
-        .tkt-facet.is-on { background:#FDC831; box-shadow:3px 3px 0 #211E1E; }
-        .tkt-facet-n { flex-shrink:0; min-width:22px; padding:2px 7px; box-sizing:border-box;
-          border-radius:999px; background:rgba(33,30,30,.08); color:#55503F;
-          font-family:'Archivo',sans-serif; font-size:11px; font-weight:800; text-align:center; }
-        .tkt-facet.is-on .tkt-facet-n { background:rgba(33,30,30,.14); color:#211E1E; }
+        .tkt-facet { position:relative; display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 10px; cursor:pointer;
+          background:transparent; color:#5C5240; border:none; border-radius:8px;
+          font-family:'Archivo',sans-serif; font-weight:600; font-size:13px;
+          transition: background .16s ease, color .16s ease; }
+        .tkt-facet:hover { background:rgba(33,30,30,.06); color:#211E1E; }
+        .tkt-facet-n { flex-shrink:0; min-width:20px; padding:2px 6px; box-sizing:border-box; border-radius:999px;
+          background:#FDC831; color:#211E1E; font:600 11px/1.2 var(--font-mono); text-align:center; }
         .tkt-facet-x { display:grid; place-items:center; width:17px; height:17px; margin-left:2px;
-          background:#211E1E; color:#FDC831; border-radius:999px;
-          font-size:9.5px; font-weight:900; line-height:1; }
-        .tkt-facet { position:relative; }
-        /* "Mark all as read": same pill family as the facet toggle, plainer --
-           it is a one-off action, not a state. */
-        .tkt-markall { text-transform:none; letter-spacing:0; font-weight:700; }
-        .tkt-markall .tkt-facet-n { background:#DA3327; color:#FFFFFF; }
-        .tkt-facet-dot { position:absolute; top:-4px; right:-3px; width:10px; height:10px;
-          border-radius:999px; background:#DA3327; box-shadow:0 0 0 2px #FFFFFF; }
+          background:#211E1E; color:#FDC831; border-radius:999px; font-size:9.5px; font-weight:900; line-height:1; }
+        .tkt-facet-dot { position:absolute; top:6px; right:4px; width:6px; height:6px; border-radius:999px; background:#E0A800; }
 
-        /* Lead icon — top-aligned so its top edge lines up with the row's first
-           text line (the type/number badges), instead of floating mid-card. */
-        .tkt-row .tkt-app-icon { align-self: start; margin-top: 1px; }
-
-        /* Per-row unseen badge — red "+N" pinned over the card's top-right corner. */
-        .tkt-unseen-badge { position:absolute; top:-8px; right:-8px; z-index:2;
-          display:grid; place-items:center; min-width:22px; height:22px; padding:0 6px; box-sizing:border-box;
-          background:#DA3327; color:#FFFFFF; border-radius:999px;
-          font-family:'Archivo',sans-serif; font-size:11px; font-weight:900; line-height:1;
-          box-shadow:0 0 0 2px #FFFFFF, 0 3px 8px rgba(33,30,30,.25);
-          animation: tktBadgePulse 2.4s ease-in-out infinite; }
-        @keyframes tktBadgePulse {
-          0%, 100% { transform:scale(1); }
-          50% { transform:scale(1.12); }
-        }
         @media (prefers-reduced-motion: reduce) {
           .tkt-unseen-badge { animation:none; }
           .tkt-facet-menu { animation:none; }
@@ -10791,34 +7827,39 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
         )
       ) : (
       <>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="tkt-list" role="table" aria-label="Tickets">
+        <div className="tkt-list-head" role="row">
+          <span role="columnheader">Ticket</span>
+          <span role="columnheader">Status</span>
+          <span role="columnheader" style={{ textAlign: 'right' }}>Updated</span>
+        </div>
         {pageItems.map((t, i) => {
           const unseen = ticketUnseenInfo(t, seenMap);
           const isReturned = returnedFrom != null && String(returnedFrom) === String(t.id);
+          const kind = ticketTypeMeta(t.type);
           return (
-          <button key={t.id} onClick={() => openTicket(t)} {...ROW_HOVER}
-            className={'tkt-row tkt-row-in' + (isReturned ? ' tkt-row-returned' : '')} style={{
-            ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '15px 18px',
-            display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', width: '100%',
-            position: 'relative', animationDelay: `${Math.min(i, 8) * 28}ms`,
-          }}>
-            {unseen.unseen && <TicketUnseenBadge count={unseen.count} />}
-            {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <TicketLeadIcon className="tkt-app-icon" ticket={t} app={c} size={44} />; })()}
+          <button key={t.id} onClick={() => openTicket(t)}
+            className={'tkt-row tkt-row-in' + (isReturned ? ' tkt-row-returned' : '') + (unseen.unseen ? ' is-unseen' : '')}
+            style={{ animationDelay: `${Math.min(i, 8) * 28}ms` }}>
+            {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <TicketLeadIcon className="tkt-app-icon" ticket={t} app={c} size={40} />; })()}
             <div style={{ minWidth: 0 }}>
-              {/* Hung 3px left of the title: a filled box edge reads as indented
-                  next to bold text (whose glyphs carry side-bearing), so an
-                  exact alignment looked like the badge sat further right. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, marginLeft: -3, flexWrap: 'wrap' }}>
-                <TicketTypeBadge type={t.type} />
-                <TicketNumber value={t.ticket_number} size={12.5} />
-                <OnBehalfTag ticket={t} />
+              <div className="tkt-row-title">
+                <span><Hl text={t.subject} tokens={tokens} /></span>
+                {unseen.unseen && (
+                  <span className="tkt-row-new" title={`${unseen.count} new update${unseen.count === 1 ? '' : 's'} since you last opened this ticket`}>
+                    {unseen.count > 9 ? '9+' : unseen.count} new
+                  </span>
+                )}
               </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><Hl text={t.subject} tokens={tokens} /></div>
-              {/* One-line description so rows carry a little more context. Always
-                  rendered (with a fallback) so every row stays the same height. */}
-              <div style={{ fontSize: 12.5, color: '#78684C', marginTop: 3, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><Hl text={ticketBlurb(t)} tokens={tokens} /></div>
+              <div className="tkt-row-meta">
+                <span className="tkt-row-num">{t.ticket_number}</span>
+                <span className="tkt-row-sep" aria-hidden="true" />
+                <span>{kind.label}</span>
+                <OnBehalfTag ticket={t} />
+                {t.created_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>Opened {relativeTime(t.created_at)}</span></>}
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, whiteSpace: 'nowrap' }}>
+            <div className="tkt-row-status">
               {(() => {
                 const a = String(t.approval_status || '').toLowerCase();
                 const showA = a === 'pending' || a === 'approved' || a === 'rejected';
@@ -10827,9 +7868,8 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
                   {showA && <ApprovalPill state={a} />}
                 </>);
               })()}
-              {/* Fixed-width, right-aligned so the time lines up column-straight across rows. */}
-              <span style={{ color: '#9A8E78', fontSize: 12, width: 64, textAlign: 'right', flexShrink: 0 }}>{relativeTime(t.updated_at || t.created_at)}</span>
             </div>
+            <span className="tkt-row-time">{relativeTime(t.updated_at || t.created_at)}</span>
           </button>
           );
         })}
@@ -10963,7 +8003,7 @@ function ApprovalSummary({ approval, ticket }) {
               <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name || `Step ${i + 1}`}</span>
               {line ? <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#4A4233', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null}
             </span>
-            <span style={{ fontSize: 10.5, fontWeight: 800, color: meta.txt, fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{meta.label}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: meta.txt, fontFamily: "var(--font-mono)", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{meta.label}</span>
           </div>
         );
       })}
@@ -11038,10 +8078,10 @@ function ApprovalsButton({ approval, ticket }) {
     <div ref={ref} style={{ position: 'relative' }}>
       <style>{`
         .appr-btn { display:inline-flex; align-items:center; gap:10px; padding:6px 12px 6px 8px; min-height:38px; box-sizing:border-box;
-          background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:10px; box-shadow:2px 2px 0 #211E1E; cursor:pointer;
+          background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:10px; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); cursor:pointer;
           font-family:inherit; text-align:left; transition:transform .16s cubic-bezier(.22,.61,.36,1), box-shadow .16s cubic-bezier(.22,.61,.36,1); }
-        .appr-btn:hover { transform:translate(-1px,-1px); box-shadow:3px 3px 0 #211E1E; }
-        .appr-btn:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #211E1E; }
+        .appr-btn:hover { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
+        .appr-btn:active { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .appr-btn:focus-visible { outline:3px solid rgba(33,30,30,.35); outline-offset:2px; }
         .appr-btn.is-pending { background:#FFFBEB; }
         .appr-btn.is-approved { background:#EEF8F1; }
@@ -11052,7 +8092,7 @@ function ApprovalsButton({ approval, ticket }) {
         .appr-step.is-pending { animation: apprPulse 2s ease-in-out infinite; }
         @keyframes apprPulse { 0%,100% { box-shadow:0 0 0 0 rgba(253,200,49,.0); } 50% { box-shadow:0 0 0 4px rgba(253,200,49,.45); } }
         .appr-text { display:flex; flex-direction:column; line-height:1.15; min-width:0; }
-        .appr-head { font-family:'Archivo',sans-serif; font-size:12px; font-weight:900; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
+        .appr-head { font-family:var(--font-mono); font-size:12px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
         .appr-btn.is-approved .appr-head { color:#0A6E31; }
         .appr-btn.is-declined .appr-head { color:#8E1A1A; }
         .appr-sub { font-size:11.5px; font-weight:600; color:#5C5240; margin-top:2px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -11078,11 +8118,149 @@ function ApprovalsButton({ approval, ticket }) {
         <svg className="appr-caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none' }} aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, maxWidth: '86vw', background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '3px 3px 0 #211E1E', zIndex: 40, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, maxWidth: '86vw', background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', zIndex: 40, overflow: 'hidden' }}>
           <ApprovalSummary approval={approval} ticket={ticket} />
         </div>
       )}
     </div>
+  );
+}
+
+// ── Ticket page: status hero + details panel ─────────────────────────────
+// Where a ticket stands is the first thing a requester wants to know, so it
+// gets a full-width band: the state in words, what it means for you, and a
+// step tracker showing how far along it is. Tone (tint + dot) follows the
+// state so "resolved" and "waiting on you" read differently at a glance.
+const TICKET_HERO = {
+  open:      { label: 'Open',              line: 'Received — the IT Team will pick it up shortly.',                       bg: '#ECE7DD', dot: '#211E1E' },
+  approval:  { label: 'Waiting for approval', line: 'Your request is with the approver. IT starts as soon as it’s signed off.', bg: '#FDEFD9', dot: '#E08A1E' },
+  progress:  { label: 'In progress',       line: 'The IT Team is working on this.',                                        bg: '#FFF1C2', dot: '#FDC831' },
+  waiting:   { label: 'Waiting on you',    line: 'IT needs something from you — check the conversation below and reply.',  bg: '#FDEFD9', dot: '#E08A1E' },
+  hold:      { label: 'On hold',           line: 'Paused for now. The IT Team will update you when it moves again.',       bg: '#F3EFE7', dot: '#E08A1E' },
+  resolved:  { label: 'Resolved',          line: 'IT marked this as fixed. Close it if you’re sorted, or reply to reopen.', bg: '#DFF1E5', dot: '#0A8A3E' },
+  closed:    { label: 'Closed',            line: 'All done. Reply any time if the problem comes back — it reopens.',       bg: '#F1ECE2', dot: '#9A8E78' },
+  cancelled: { label: 'Cancelled',         line: 'This was withdrawn. Submit a new request if you still need it.',         bg: '#F3EFE7', dot: '#9A8E78' },
+  declined:  { label: 'Declined',          line: 'The approver declined this request. The conversation has the details.',  bg: '#FBE3E0', dot: '#DA3327' },
+};
+function ticketHeroKey(t, approvalState, isDeclined) {
+  const s = String((t && t.status) || '').toLowerCase();
+  if (isDeclined) return 'declined';
+  if (s === 'cancelled') return 'cancelled';
+  if (approvalState === 'pending') return 'approval';
+  if (s === 'in_progress') return 'progress';
+  if (s === 'waiting' || s === 'pending') return 'waiting';
+  if (s === 'on_hold') return 'hold';
+  if (s === 'resolved') return 'resolved';
+  if (s === 'closed') return 'closed';
+  return 'open';
+}
+function TicketStatusHero({ t, approvalState, isDeclined, error, approval, children }) {
+  const key = ticketHeroKey(t, approvalState, isDeclined);
+  const h = TICKET_HERO[key];
+  const hasApproval = !!approvalState || !!t.approval_request_id || !!approval;
+  // The approval chain lives IN the timeline — each stage with who approved
+  // or who it's waiting on — instead of a separate "1 of 2 approved" widget.
+  const wfStages = (approval && approval.workflow && Array.isArray(approval.workflow.stages)) ? approval.workflow.stages : [];
+  const actions = (approval && Array.isArray(approval.actions)) ? approval.actions : [];
+  const curApprovers = (approval && Array.isArray(approval.current_approvers)) ? approval.current_approvers : [];
+  const stageStates = wfStages.length ? approvalStageStates(approval, t).stages : [];
+  const MAP = { approved: 'done', skipped: 'done', not_needed: 'done', pending: 'current', rejected: 'failed', waiting: 'todo', withdrawn: 'todo' };
+  let apSteps = [];
+  if (hasApproval) {
+    if (wfStages.length) {
+      apSteps = wfStages.map((sg, i) => {
+        const raw = stageStates[i] || 'waiting';
+        const state = MAP[raw] || 'todo';
+        const line = approverLine(sg, actions, curApprovers, raw === 'pending');
+        return { label: sg.name || `Approval ${i + 1}`, state, sub: line || (raw === 'waiting' ? 'Up next' : '') };
+      });
+      if (key === 'approval' && !apSteps.some((x) => x.state === 'current')) {
+        const k = apSteps.findIndex((x) => x.state === 'todo');
+        if (k >= 0) apSteps[k].state = 'current';
+      }
+    } else {
+      apSteps = [{ label: 'Approval', state: key === 'approval' ? 'current' : key === 'declined' ? 'failed' : 'done', sub: key === 'approval' ? 'With the approver' : '' }];
+    }
+  }
+  const post = {
+    progress: ['current', 'todo', 'todo'], waiting: ['current', 'todo', 'todo'], hold: ['current', 'todo', 'todo'],
+    resolved: ['done', 'current', 'todo'], closed: ['done', 'done', 'done'],
+  }[key] || ['todo', 'todo', 'todo'];
+  let steps = [
+    { label: 'Submitted', state: key === 'open' && !hasApproval ? 'current' : 'done', sub: t.created_at ? relativeTime(t.created_at) : '' },
+    ...apSteps,
+    { label: 'In progress', state: post[0], sub: key === 'waiting' ? 'Waiting on your reply' : key === 'hold' ? 'On hold' : '' },
+    { label: 'Resolved', state: post[1], sub: '' },
+    { label: 'Closed', state: post[2], sub: '' },
+  ];
+  if (key === 'declined' || key === 'cancelled') {
+    // A dead end: keep what happened, end on the outcome.
+    steps = steps.filter((x) => x.state === 'done' || x.state === 'failed' || x.state === 'current')
+      .map((x) => (x.state === 'current' ? { ...x, state: 'done' } : x));
+    if (!steps.some((x) => x.state === 'failed')) steps.push({ label: h.label, state: 'failed', sub: '' });
+  }
+  // Only what's happened, where it is, and the very next step — not a list
+  // of empty future steps. The explanation line only shows when it asks
+  // something of you.
+  const firstTodo = steps.findIndex((x) => x.state === 'todo');
+  if (firstTodo >= 0) steps = steps.filter((x, i) => x.state !== 'todo' || i === firstTodo);
+  const showLine = ['waiting', 'resolved', 'declined', 'cancelled', 'hold'].includes(key);
+  return (
+    <section className={'tkd-hero is-' + key} style={{ '--tone': h.bg, '--dot': h.dot }} aria-label="Ticket status">
+      <div className="tkd-hero-top">
+        <div className="tkd-hero-text">
+          <span className="tkd-hero-state"><span className="tkd-hero-dot" aria-hidden="true" />{h.label}</span>
+          {showLine && <span className="tkd-hero-line">{h.line}</span>}
+        </div>
+      </div>
+      {error && <p className="tkd-hero-err">{error}</p>}
+      {children && <div className="tkd-hero-actions">{children}</div>}
+      <ol className="tkd-steps" aria-label="Progress">
+        {steps.map((st, i) => (
+          <li key={st.label + i} className={'tkd-step is-' + st.state} aria-current={st.state === 'current' ? 'step' : undefined}>
+            <span className="tkd-step-mark" aria-hidden="true">
+              {st.state === 'done' && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>}
+              {st.state === 'failed' && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>}
+            </span>
+            <span className="tkd-step-text">
+              <span className="tkd-step-label">{st.label}</span>
+              {st.sub && <span className="tkd-step-sub">{st.sub}</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+function TicketDetailsPanel({ t, approvalState, approval, status }) {
+  const pr = String(t.priority || '').toLowerCase();
+  const PR = { low: 1, medium: 2, high: 3, urgent: 4, critical: 4 };
+  const bars = PR[pr] || 0;
+  const assignee = Array.isArray(t.assignments) && t.assignments.length
+    ? (t.assignments.map((a) => a && (a.agent_name || a.name || a.assignee_name || a.group_name)).filter(Boolean)[0] || 'IT Team')
+    : null;
+  const fmt = (iso) => { try { return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch { return ''; } };
+  const Row = ({ k, children }) => <div className="tkd-dl-row"><dt>{k}</dt><dd>{children}</dd></div>;
+  return (
+    <aside className="tkd-side" aria-label="Ticket status and details">
+      {status}
+      <div className="tkd-card tkd-side-card">
+        <div className="tkd-side-head">Details</div>
+        <dl className="tkd-dl">
+          {t.ticket_number && <Row k="Ticket ID"><TicketNumber value={t.ticket_number} size={13} /></Row>}
+          {t.priority && (
+            <Row k="Priority">
+              <span className="tkd-prio">
+                <span className="tkd-prio-bars" aria-hidden="true">{[1, 2, 3, 4].map((n) => <i key={n} className={n <= bars ? 'is-on p' + bars : ''} style={{ height: 4 + n * 3 }} />)}</span>
+                <span style={{ textTransform: 'capitalize' }}>{pr}</span>
+              </span>
+            </Row>
+          )}
+          {assignee && <Row k="Assigned to">{assignee}</Row>}
+          {t.updated_at && <Row k="Last update"><span title={fmt(t.updated_at)}>{relativeTime(t.updated_at)}</span></Row>}
+        </dl>
+      </div>
+    </aside>
   );
 }
 
@@ -11103,6 +8281,18 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
   const [extraAtts, setExtraAtts] = React.useState([]);
   const me = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
   const icons = useCatalogIcons();
+  // Once the title scrolls up under the nav + this bar, the bar carries it
+  // (icon + subject) so you always know which ticket you're reading.
+  const headRef = React.useRef(null);
+  const [headGone, setHeadGone] = React.useState(false);
+  const hasTicket = !!st.ticket;
+  React.useEffect(() => {
+    const el = headRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(([e]) => setHeadGone(!e.isIntersecting), { rootMargin: '-124px 0px 0px 0px', threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasTicket]);
 
   // Opening a ticket — or paging to the next/prev one (the list remounts us via
   // key={id}) — should start at the top, even if the list behind was scrolled down.
@@ -11126,6 +8316,12 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
   const load = React.useCallback(() => {
     return ticketsApiJson('GET', '/api/tickets/' + encodeURIComponent(id))
       .then((j) => {
+        // The single-ticket read can omit approval_status that the list row
+        // carries (e.g. a declined request) — keep the list's value so the
+        // page and the list never disagree about where a ticket stands.
+        if (j && j.approval_status == null && initial && initial.approval_status != null) {
+          j = { ...j, approval_status: initial.approval_status };
+        }
         setSt({ loading: false, ticket: j, error: null, full: true });
         // You're looking at it, so its updates are read — on the server, so the
         // bell and badges agree everywhere. Only while the tab is actually
@@ -11205,7 +8401,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
       const attachmentIds = uploaded.map((u) => u.id);
       const sentNames = uploaded.map((u) => u.name);
       const commentBody = hasText
-        ? sanitizeHtml(reply)
+        ? trimTrailingBlankHtml(sanitizeHtml(reply))
         : ('Added ' + (sentNames.length > 1 ? 'attachments' : 'an attachment') + ': ' + sentNames.join(', '));
       await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/comments', {
         body: commentBody,
@@ -11407,7 +8603,15 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
   const renderAtt = (a, i) => (
     <AttachmentItem key={'f' + (a.id != null ? a.id : i)} name={attName(a)} source={attSource(a)} size={attSize(a)} isImage={isImageAttachment(a, attName(a))} onOpenImage={openImage} />
   );
+  // The original request opens the thread as its first message (how Zendesk /
+  // Freshdesk show it), so the conversation reads top-to-bottom as one story.
+  const requesterIsMe = !!(t && me && [t.requester_name, t.submitter_name].some((n) => n && n.trim() === me.trim()));
+  const descItem = t && t.description ? [{
+    kind: 'msg', tkey: 'desc', at: timeMs(t.created_at) != null ? timeMs(t.created_at) - 1 : null,
+    mine: requesterIsMe, name: t.submitter_name || t.requester_name, time: t.created_at, body: t.description, files: [],
+  }] : [];
   const timeline = [
+    ...descItem,
     ...comments.map((c, i) => ({
       kind: 'msg', tkey: 'c' + (c.id != null ? c.id : i), at: timeMs(c.created_at),
       mine: !!(me && c.author_name && c.author_name.trim() === me.trim()),
@@ -11452,10 +8656,10 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
       </button>
     );
     const closeBtn = (
-      <button key="c" className={'tkt-life-btn' + (isPendingApproval ? ' is-cancel' : '')} style={{ minWidth: isPendingApproval ? 168 : 146 }} disabled={!!statusBusy} onClick={() => setConfirmAction('close')}
+      <button key="c" className={'tkt-life-btn tkt-close-btn' + (isPendingApproval ? ' is-cancel' : '') + (isResolved ? ' is-primary' : '')} style={{ minWidth: isPendingApproval ? 168 : 146 }} disabled={!!statusBusy} onClick={() => setConfirmAction('close')}
         title={isPendingApproval ? 'Withdraw this request' : 'Mark this ticket as done — you can reopen it later'}>
         {statusBusy === 'close' ? busySpin : (isPendingApproval ? IconX : IconCheck)}
-        {statusBusy === 'close' ? (isPendingApproval ? 'Cancelling…' : 'Closing…') : (isPendingApproval ? 'Cancel request' : 'Close ticket')}
+        {statusBusy === 'close' ? (isPendingApproval ? 'Cancelling…' : 'Closing…') : (isPendingApproval ? 'Cancel request' : isResolved ? 'Yes, close ticket' : 'Close ticket')}
       </button>
     );
     // A cancelled request is done, in both directions, and offers nothing.
@@ -11466,7 +8670,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
     // request if you change your mind, which is the clean path.
     if (isCancelled || isDeclined) return null;
     if (isClosed) return reopenBtn;
-    if (isResolved) return [reopenBtn, closeBtn];
+    if (isResolved) return [closeBtn, React.cloneElement(reopenBtn, { className: 'tkt-life-btn', key: 'r' })];
     return closeBtn;
   };
 
@@ -11516,35 +8720,27 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
           same outline style and have fixed widths so nothing reflows. */}
       {/* Sticky wrapper is opaque page-yellow so content scrolling under the
           bar disappears behind it (no card frames peeking through the gap). */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 20, background: '#FDC831', padding: '10px 0 0', marginBottom: 14 }}>
-      <div style={{
-        ...TK.card,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
-        padding: '10px 14px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
-          <button onClick={onBack} className="kb-back-btn is-sm"><svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back</button>
-          {/* Ticket identity lives in the sticky bar (cleaner than a badge row in
-              the card): type, approval/work state, number. */}
+      <div className="tkd-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <button onClick={onBack} className="kb-back-btn">
+            <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>My tickets
+          </button>
           {t && (
-            <>
-              <TicketTypeBadge type={t.type} />
-              {!(approvalState === 'pending' || approvalState === 'rejected') && <TicketStatusBadge status={t.status} type={t.type} />}
-              {approvalState && <ApprovalPill state={approvalState} />}
-              <TicketNumber value={t.ticket_number} size={13} />
-            </>
+            <span className={'tkd-bar-title' + (headGone ? ' is-on' : '')} aria-hidden={!headGone}>
+              <span className="tkd-crumb" aria-hidden="true">/</span>
+              <TicketLeadIcon ticket={t} app={catInfo} size={24} />
+              <span className="tkd-bar-subject">{t.subject}</span>
+            </span>
           )}
         </div>
-        {/* Right side keeps only ticket prev/next; Approvals + Close/Reopen moved
-            to the top-right of the ticket card below. */}
         {navList.length > 1 && (
           <div className="tkt-nav-pair">
-            {navIdx >= 0 && <span className="tkt-nav-pos">{navIdx + 1} / {navList.length}</span>}
-            <button onClick={() => go(prevTicket)} disabled={!prevTicket} className="tkt-nav-btn is-prev" title={prevTicket ? 'Previous: ' + (prevTicket.ticket_number || '') + ' — ' + (prevTicket.subject || '') : 'No previous ticket'} aria-label="Previous ticket"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg></button>
-            <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="tkt-nav-btn is-next" title={nextTicket ? 'Next: ' + (nextTicket.ticket_number || '') + ' — ' + (nextTicket.subject || '') : 'No next ticket'} aria-label="Next ticket"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></button>
+
+            {navList.length > 1 && navIdx >= 0 && <span className="tkt-nav-pos">{navIdx + 1} of {navList.length}</span>}
+            {navList.length > 1 && <button onClick={() => go(prevTicket)} disabled={!prevTicket} className="tkt-nav-btn is-prev" title={prevTicket ? 'Previous: ' + (prevTicket.ticket_number || '') + ' — ' + (prevTicket.subject || '') : 'No previous ticket'} aria-label="Previous ticket"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg></button>}
+            {navList.length > 1 && <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="tkt-nav-btn is-next" title={nextTicket ? 'Next: ' + (nextTicket.ticket_number || '') + ' — ' + (nextTicket.subject || '') : 'No next ticket'} aria-label="Next ticket"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></button>}
           </div>
         )}
-      </div>
       </div>
       {st.loading && <TicketsNotice title="Loading ticket…" />}
       {st.error && !t && <TicketsNotice title="Couldn’t load this ticket" body={st.error} />}
@@ -11566,48 +8762,37 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
           {st.error && (
             <div style={{ fontSize: 12.5, color: '#78684C', margin: '0 0 12px', fontWeight: 600 }}>Couldn’t load the latest — showing what we have.</div>
           )}
-          <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
-            {statusErr && <p style={{ color: '#B92323', fontSize: 12.5, margin: '0 0 10px' }}>{statusErr}</p>}
-            {/* Icon is its own left column (top-aligned); the title, meta, and
-                description all align in the right column, so the space under the
-                icon stays empty. */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <TicketLeadIcon ticket={t} app={catInfo} size={40} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-                  <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: 0 }}>{t.subject}</h2>
-                  {/* Approvals + lifecycle actions (Cancel / Close / Reopen). */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
-                    {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
-                      <ApprovalsButton approval={approval} ticket={t} />
-                    )}
-                    {closeReopenButtons()}
-                  </div>
-                </div>
-                {/* Who raised this for whom — said once, plainly, above the meta
-                    row. The "Opened by" field that used to live in that row is
-                    gone: it duplicated this and was the easiest thing on the
-                    page to miss. */}
-                <OnBehalfBanner ticket={t} />
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
-                  {t.requester_name && <span>Requested by <b style={{ color: '#55503F' }}>{t.requester_name}</b></span>}
-                  {t.priority && <span>Priority: <b style={{ color: '#55503F', textTransform: 'capitalize' }}>{t.priority}</b></span>}
-                  {t.created_at && <span>Opened {relativeTime(t.created_at)}</span>}
-                  {t.assignments && t.assignments.length > 0 && <span>Assigned to IT</span>}
-                </div>
-                {t.description && (looksLikeHtml(t.description)
-                  // Agent- and email-raised tickets carry HTML (often with
-                  // inline screenshots); it used to print as raw markup.
-                  ? <RichBody html={t.description} onOpenImage={openImage} style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6 }} />
-                  : <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(t.description)}</p>
-                )}
+          <div className="tkd-head tkd-head-m">
+            <TicketLeadIcon ticket={t} app={catInfo} size={48} />
+            <div style={{ minWidth: 0 }}>
+              <h1 className="tkd-title">{t.subject}</h1>
+              <div className="tkd-meta">
+                {t.ticket_number && <><span className="tkd-meta-id"><TicketNumber value={t.ticket_number} size={13} /></span><span className="tkt-row-sep" aria-hidden="true" /></>}
+                <span>{ticketTypeMeta(t.type).label}</span>
+                {t.created_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>Opened {relativeTime(t.created_at)}</span></>}
+                {t.requester_name && <><span className="tkt-row-sep" aria-hidden="true" /><span>by {t.requester_name}</span></>}
               </div>
             </div>
           </div>
 
-          <div style={{ ...TK.card, padding: '20px 24px' }}>
-            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Conversation</div>
-            {timeline.length === 0 && !st.full && !st.error && (
+          <div className="tkd-grid">
+          <div className="tkd-main">
+          <div className="tkd-head" ref={headRef}>
+            <TicketLeadIcon ticket={t} app={catInfo} size={48} />
+            <div style={{ minWidth: 0 }}>
+              <h1 className="tkd-title">{t.subject}</h1>
+              <div className="tkd-meta">
+                {t.ticket_number && <><span className="tkd-meta-id"><TicketNumber value={t.ticket_number} size={13} /></span><span className="tkt-row-sep" aria-hidden="true" /></>}
+                <span>{ticketTypeMeta(t.type).label}</span>
+                {t.created_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>Opened {relativeTime(t.created_at)}</span></>}
+                {t.requester_name && <><span className="tkt-row-sep" aria-hidden="true" /><span>by {t.requester_name}</span></>}
+              </div>
+            </div>
+          </div>
+
+          <div className="tkd-card tkd-convo">
+            <OnBehalfBanner ticket={t} />
+            {timeline.length - descItem.length === 0 && !st.full && !st.error && (
               <div aria-busy="true" aria-label="Loading the conversation">
                 {[0, 1].map((i) => (
                   <div key={i} className="tkt-skel-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginTop: i ? 16 : 4, flexDirection: i ? 'row-reverse' : 'row', animationDelay: `${i * 90}ms` }}>
@@ -11643,9 +8828,13 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
               );
             })}
 
+            {descItem.length > 0 && timeline.length === descItem.length && (st.full || st.error) && (
+              <div className="tkd-noreply">No replies yet — the IT Team will answer here, and you'll get a notification.</div>
+            )}
+
             {/* Reply composer — posts a public comment (and any attachments) to the
                 ticket in SliceDesk. */}
-            <div style={{ marginTop: comments.length ? 18 : 14, borderTop: '1px solid #EFEAE0', paddingTop: 16 }}>
+            <div className="tkd-reply">
               {(() => {
                 // A declined request never reopens on a reply (the module
                 // enforces the same) — replying just asks the IT Team a question.
@@ -11662,16 +8851,21 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                         This ticket is {String(t.status).toLowerCase()} — replying will reopen it.
                       </div>
                     )}
+                    {/* One field, like every modern support tool: your avatar, the
+                        text, and Attach / Send inside the same box. The formatting
+                        toolbar only appears while you're writing. */}
+                    <div className="tkd-reply-row">
+                    <span className="tkd-reply-av" aria-hidden="true">{ticketInitials(me || 'You')}</span>
+                    <div className="tkd-reply-box">
                     <RichReply
                       value={reply}
                       onChange={setReply}
                       onSubmit={requestSend}
                       disabled={sending}
-                      placeholder="Write a message to the IT Team…" />
-                    {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '10px 0 0' }}>{replyErr}</p>}
+                      placeholder="Reply to the IT Team…" />
 
                     {reopenOnReply && confirmReopen ? (
-                      <div style={{ marginTop: 12, border: '1px solid #211E1E', background: '#FFF7DD', borderRadius: 8, padding: '11px 14px' }}>
+                      <div style={{ borderTop: '1px solid #F0EADC', background: '#FFF7DD', padding: '11px 14px' }}>
                         <div style={{ fontSize: 13.5, color: '#211E1E', fontWeight: 600, marginBottom: 10, lineHeight: 1.45 }}>
                           This ticket is <b>{String(t.status).toLowerCase()}</b>. Sending this reply will <b>reopen</b> it — continue?
                         </div>
@@ -11681,21 +8875,28 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                         </div>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+                      <div className="tkd-reply-foot">
                         <AttachmentPicker files={replyFiles} onChange={setReplyFiles} disabled={sending} />
                         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: 11, color: '#9A8E78' }}>⌘/Ctrl + Enter</span>
+                          <span className="tkd-reply-hint">⌘/Ctrl + Enter</span>
                           {/* No "send & resolve / raise priority" on a declined request — there's nothing to resolve. */}
-                          <ReplySend ticket={t} sending={sending} reopenOnReply={reopenOnReply || isDeclined}
+                          <ReplySend ticket={t} sending={sending} reopenOnReply={reopenOnReply} declined={isDeclined}
                             disabled={sending || (htmlIsEmpty(reply) && replyFiles.length === 0)}
                             onSend={requestSend} />
                         </div>
                       </div>
                     )}
+                    </div>
+                    </div>
+                    {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '10px 0 0 44px' }}>{replyErr}</p>}
                   </>
                 );
               })()}
             </div>
+          </div>
+          </div>
+          <TicketDetailsPanel t={t} approvalState={approvalState} approval={approval}
+            status={<TicketStatusHero t={t} approvalState={approvalState} isDeclined={isDeclined} error={statusErr} approval={approval}>{closeReopenButtons()}</TicketStatusHero>} />
           </div>
 
           {/* Close / reopen confirmation — "are you sure?" before changing the
@@ -11771,34 +8972,38 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 13, color: '#55503F', fontWeight: 600, marginBottom: 2 }}>
-        {q ? `${shown.length} of ${st.pending.length}` : st.pending.length} request{st.pending.length === 1 ? '' : 's'} awaiting your approval
+    <div>
+      <div className="apr-count">
+        <b>{q ? `${shown.length} of ${st.pending.length}` : st.pending.length}</b> request{st.pending.length === 1 ? '' : 's'} waiting on your sign-off
       </div>
       {shown.length === 0 ? (
         <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>No approvals match “{query}”.</div>
-      ) : shown.map((p) => (
-        <button key={p.request_id} onClick={() => setSelId(p.request_id)} {...ROW_HOVER} style={{
-          ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
-          display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', width: '100%',
-        }}>
-          <TicketLeadIcon className="tkt-app-icon" ticket={{ type: 'service_request' }} size={34} />
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
-              <TicketTypeBadge type="service_request" />
-              <TicketNumber value={p.ticket_number} size={12.5} />
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.subject}</div>
-            <div style={{ fontSize: 12.5, color: '#78684C', marginTop: 3 }}>
-              {p.requester_name || 'Someone'} · {p.current_stage_name || p.workflow_name || 'Approval'}
-            </div>
+      ) : (
+        <div className="tkt-list" role="table" aria-label="Approvals">
+          <div className="tkt-list-head" role="row">
+            <span role="columnheader">Request</span>
+            <span role="columnheader">Waiting on</span>
+            <span role="columnheader" style={{ textAlign: 'right' }}>Requested</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, whiteSpace: 'nowrap' }}>
-            <span style={{ color: '#9A8E78', fontSize: 12 }}>{relativeTime(p.requested_at)}</span>
-            <span aria-hidden="true" style={{ color: '#211E1E', fontWeight: 800 }}>→</span>
-          </div>
-        </button>
-      ))}
+          {shown.map((p, i) => (
+            <button key={p.request_id} onClick={() => setSelId(p.request_id)} className="tkt-row tkt-row-in" style={{ animationDelay: `${Math.min(i, 8) * 28}ms` }}>
+              <TicketLeadIcon className="tkt-app-icon" ticket={{ type: 'service_request' }} size={40} />
+              <div style={{ minWidth: 0 }}>
+                <div className="tkt-row-title"><span><Hl text={p.subject} tokens={tokens} /></span></div>
+                <div className="tkt-row-meta">
+                  <span className="tkt-row-num">{p.ticket_number}</span>
+                  <span className="tkt-row-sep" aria-hidden="true" />
+                  <span>From {p.requester_name || 'someone'}</span>
+                </div>
+              </div>
+              <div className="tkt-row-status">
+                <span className="apr-stage"><span className="apr-stage-dot" aria-hidden="true" />{p.current_stage_name || p.workflow_name || 'Your approval'}</span>
+              </div>
+              <span className="tkt-row-time">{relativeTime(p.requested_at)}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -11833,86 +9038,124 @@ function ApprovalDetailView({ id, onBack, onActed }) {
   const stages = (d && d.workflow && Array.isArray(d.workflow.stages)) ? d.workflow.stages : [];
   const actions = (d && Array.isArray(d.actions)) ? d.actions : [];
 
+  // Current stage: the server's pointer when it sends one, else the first
+  // stage not already marked done — so "waiting on you" is always shown.
+  const curOrder = d && d.current_stage ? d.current_stage.order
+    : ((stages.find((sg) => !['approved', 'skipped', 'not_needed'].includes(String(sg.state || '').toLowerCase())) || {}).order ?? null);
+  const decided = d && d.request && ['approved', 'rejected'].includes(String(d.request.status || '').toLowerCase());
+  const title = d ? ((d.ticket && d.ticket.subject) || (d.catalog_item && ('Request: ' + d.catalog_item.name)) || 'Request') : '';
+
   return (
-    <div>
-      <TicketsBackBar onBack={onBack} label="Back to approvals" />
+    <div className="detail-in">
+      <div className="tkd-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <button onClick={onBack} className="kb-back-btn">
+            <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Approvals
+          </button>
+        </div>
+        {d && d.ticket && <div className="tkt-nav-pair"><TicketNumber value={d.ticket.ticket_number} size={13} /></div>}
+      </div>
       {st.loading && <TicketsNotice title="Loading request…" />}
       {st.error && <TicketsNotice title="Couldn’t load this request" body={st.error} />}
       {d && (
         <>
-          <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            <TicketLeadIcon ticket={{ type: 'service_request' }} size={40} />
-            <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-              <TicketTypeBadge type="service_request" />
-              {d.ticket && <TicketNumber value={d.ticket.ticket_number} size={14} />}
-            </div>
-            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: '0 0 10px' }}>
-              {(d.ticket && d.ticket.subject) || (d.catalog_item && ('Request: ' + d.catalog_item.name)) || 'Request'}
-            </h2>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
-              {d.ticket && <span>Requested by <b style={{ color: '#55503F' }}>{d.ticket.requester_name || 'Unknown'}</b></span>}
-              {d.current_stage && <span>Stage: <b style={{ color: '#55503F' }}>{d.current_stage.name}</b></span>}
-              {d.request && d.request.requested_at && <span>{relativeTime(d.request.requested_at)}</span>}
-            </div>
-            {d.catalog_item && d.catalog_item.description && (
-              <p style={{ marginTop: 14, fontSize: 14, color: '#211E1E', lineHeight: 1.55 }}>{d.catalog_item.description}</p>
-            )}
+          <div className="tkd-head">
+            <TicketLeadIcon ticket={{ type: 'service_request' }} size={48} />
+            <div style={{ minWidth: 0 }}>
+              <h1 className="tkd-title">{title}</h1>
+              <div className="tkd-meta">
+                <span>Request</span>
+                {d.ticket && <><span className="tkt-row-sep" aria-hidden="true" /><span>from {d.ticket.requester_name || 'Unknown'}</span></>}
+                {d.request && d.request.requested_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>{relativeTime(d.request.requested_at)}</span></>}
+              </div>
             </div>
           </div>
 
-          {stages.length > 0 && (
-            <div style={{ ...TK.card, padding: '16px 20px', marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#78684C', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Approval steps</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {stages.map((s, i) => {
-                  const cur = d.current_stage && (s.order === d.current_stage.order);
-                  return (
-                    <span key={i} style={{
-                      padding: '4px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700,
-                      border: '1px solid #211E1E',
-                      background: cur ? '#FDC831' : '#FFFFFF', color: '#211E1E',
-                    }}>{i + 1}. {s.name}{s.type ? ' (' + s.type + ')' : ''}</span>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {actions.length > 0 && (
-            <div style={{ ...TK.card, padding: '16px 20px', marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#78684C', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>History</div>
-              {actions.map((a, i) => (
-                <div key={i} style={{ fontSize: 13, color: '#3A352C', marginTop: i ? 8 : 0 }}>
-                  <b style={{ textTransform: 'capitalize' }}>{a.action || 'note'}</b>
-                  {(a.actor_name || a.hub_user_name || a.by) ? ' by ' + (a.actor_name || a.hub_user_name || a.by) : ''}
-                  {(a.created_at || a.at) ? ' · ' + relativeTime(a.created_at || a.at) : ''}
-                  {a.comment ? ' — ' + a.comment : ''}
+          <div className="tkd-grid">
+            <div className="tkd-main">
+              <div className="tkd-card">
+                <div className="tkd-card-label">What’s being requested</div>
+                <div className="apr-item">
+                  {d.catalog_item && <AppIcon name={d.catalog_item.name} iconUrl={d.catalog_item.icon_url} size={36} />}
+                  <div style={{ minWidth: 0 }}>
+                    <div className="apr-item-name">{(d.catalog_item && d.catalog_item.name) || title}</div>
+                    {d.catalog_item && d.catalog_item.description && <p className="apr-item-desc">{d.catalog_item.description}</p>}
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ ...TK.card, padding: '20px 24px' }}>
-            {d.can_act ? (
-              <>
-                <label style={{ ...TK.label, marginTop: 0 }}>Comment (optional)</label>
-                <textarea style={{ ...TK.field, minHeight: 80, resize: 'vertical' }} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a note for the requester or the audit trail…" />
-                {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '12px 0 0' }}>{err}</p>}
-                <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'flex-end' }}>
-                  <button onClick={() => respond('reject')} disabled={busy} className="btn btn-outline" style={{ borderColor: '#B92323', color: '#B92323', boxShadow: '2px 2px 0 #B92323' }}>
-                    {busy ? '…' : 'Reject'}
-                  </button>
-                  <button onClick={() => respond('approve')} disabled={busy} className="btn btn-primary">
-                    {busy ? 'Saving…' : 'Approve'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: 13.5, color: '#78684C', lineHeight: 1.5 }}>
-                You can’t act on this request right now — it may be on a different approval stage, already decided, or assigned to someone else.
+                {d.ticket && d.ticket.description && (
+                  <div className="apr-why">
+                    <div className="apr-why-label">Their note</div>
+                    {looksLikeHtml(d.ticket.description)
+                      ? <RichBody html={d.ticket.description} style={{ fontSize: 14, lineHeight: 1.55, color: '#211E1E' }} />
+                      : <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: '#211E1E', whiteSpace: 'pre-wrap' }}>{d.ticket.description}</p>}
+                  </div>
+                )}
               </div>
-            )}
+
+              {actions.length > 0 && (
+                <div className="tkd-card">
+                  <div className="tkd-card-label">History</div>
+                  <ol className="apr-history">
+                    {actions.map((a, i) => (
+                      <li key={i}>
+                        <span className="apr-history-dot" aria-hidden="true" />
+                        <div>
+                          <b style={{ textTransform: 'capitalize' }}>{String(a.action || 'note').replace(/_/g, ' ')}</b>
+                          {(a.actor_name || a.hub_user_name || a.by || a.approver_name) ? ' by ' + (a.actor_name || a.hub_user_name || a.by || a.approver_name) : ''}
+                          {(a.created_at || a.at || a.acted_at) && <span className="apr-history-time"> · {relativeTime(a.created_at || a.at || a.acted_at)}</span>}
+                          {a.comment && <div className="apr-history-note">“{a.comment}”</div>}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </div>
+
+            <aside className="tkd-side" aria-label="Decision and approval steps">
+              <div className="tkd-card apr-decide">
+                <div className="tkd-side-head">Your decision</div>
+                {d.can_act ? (
+                  <>
+                    <label className="apr-label" htmlFor="apr-comment">Comment <span>(optional)</span></label>
+                    <textarea id="apr-comment" className="apr-comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a note for the requester or the audit trail…" />
+                    {err && <p style={{ color: '#B92323', fontSize: 13, margin: '10px 0 0' }}>{err}</p>}
+                    <div className="apr-actions">
+                      <button onClick={() => respond('approve')} disabled={busy} className="btn btn-primary">
+                        {busy ? 'Saving…' : 'Approve'}
+                      </button>
+                      <button onClick={() => respond('reject')} disabled={busy} className="btn btn-outline apr-reject">
+                        {busy ? '…' : 'Reject'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="apr-cant">You can’t act on this request right now — it may be on a different approval stage, already decided, or assigned to someone else.</p>
+                )}
+              </div>
+
+              {stages.length > 0 && (
+                <div className="tkd-card tkd-side-card">
+                  <div className="tkd-side-head">Approval steps</div>
+                  <ol className="tkd-steps apr-steps" style={{ '--dot': '#E08A1E' }}>
+                    {stages.map((sg, i) => {
+                      const state = decided || (curOrder != null && sg.order < curOrder) ? 'done' : (curOrder != null && sg.order === curOrder) ? 'current' : 'todo';
+                      return (
+                        <li key={i} className={'tkd-step is-' + state}>
+                          <span className="tkd-step-mark" aria-hidden="true">
+                            {state === 'done' && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>}
+                          </span>
+                          <span className="apr-step-text">
+                            <span className="tkd-step-label">{sg.name}</span>
+                            {state === 'current' && <span className="apr-step-you">Waiting on you</span>}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              )}
+            </aside>
           </div>
         </>
       )}
@@ -11922,11 +9165,13 @@ function ApprovalDetailView({ id, onBack, onActed }) {
 
 // ── Request flow — browse the service catalog, fill the item's form, submit ──
 // Falls back to a freeform service_request when the catalog is empty/unreachable.
-function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initialQuery = '', asPage = false }) {
+// initialCustom: open straight on the custom-request form (a string prefills
+// the subject) — the Help box's "Not in the list?" lands here.
+function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initialQuery = '', initialCustom = null, asPage = false }) {
   // Render as a full page (PageShell) or a modal (ModalShell) — same prop API,
   // so the views below don't care which chrome wraps them.
   const Shell = asPage ? PageShell : ModalShell;
-  const [view, setView] = React.useState('list'); // list | form | done | freeform
+  const [view, setView] = React.useState(initialCustom != null ? 'freeform' : 'list'); // list | form | done | freeform
   const [catalog, setCatalog] = React.useState(null); // null = loading
   const [catErr, setCatErr] = React.useState(''); // catalog failed to load
   const [item, setItem] = React.useState(null);
@@ -11966,7 +9211,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const self = React.useMemo(() => (typeof window !== 'undefined' ? {
     id: window.PORTAL_CURRENT_ID, name: window.PORTAL_CURRENT_USER, email: window.PORTAL_CURRENT_EMAIL,
   } : {}), []);
-  const [ffSubject, setFfSubject] = React.useState('');
+  const [ffSubject, setFfSubject] = React.useState(typeof initialCustom === 'string' ? initialCustom.trim() : '');
   // Bumped on every Submit press so a repeated error still shakes.
   const [errTick, setErrTick] = React.useState(0);
   // The form's error, shown in the pinned action bar right beside Submit (on
@@ -12517,7 +9762,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           return (
             <button key={key} onClick={() => setCatFilter(key)} style={{
               padding: '5px 11px', borderRadius: 999, cursor: 'pointer', border: '1px solid #211E1E',
-              fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase',
+              fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase',
               background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FDC831' : '#211E1E',
             }}>{label}</button>
           );
@@ -12669,7 +9914,7 @@ function CatalogField({ field, value, onChange, beneficiary }) {
                 border: '1px solid #211E1E', borderRadius: 7, cursor: 'pointer',
                 fontSize: 13.5, fontFamily: 'inherit', fontWeight: 600, lineHeight: 1.1,
                 background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FDC831' : '#211E1E',
-                boxShadow: on ? '2px 2px 0 #211E1E' : 'none', transition: 'background .15s, box-shadow .15s',
+                boxShadow: on ? '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' : 'none', transition: 'background .15s, box-shadow .15s',
               }}>
               <span style={{
                 width: 15, height: 15, borderRadius: 4, flexShrink: 0,
@@ -12981,7 +10226,7 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
   return (
     <div style={{ ...TK.card, padding: 14, marginTop: 18, borderColor: blocked ? '#B92323' : '#211E1E', background: blocked ? '#FFF6F5' : '#FFFFFF' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-        <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
+        <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
           Approval
         </span>
         {showWorkflowName && <span style={{ fontSize: 11.5, color: '#78684C' }}>{workflowName}</span>}
@@ -13088,17 +10333,17 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                             </p>
                           )}
                           {a.chosen && (
-                            <span className="ap-picked" style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "'Archivo', sans-serif", fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
+                            <span className="ap-picked" style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "var(--font-mono)", fontSize: 9.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
                               You picked this
                             </span>
                           )}
                           {a.account_disabled && (
-                            <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FBE3E3', border: '1px solid #D98B8B', fontFamily: "'Archivo', sans-serif", fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#8E1B1B' }}>
+                            <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FBE3E3', border: '1px solid #D98B8B', fontFamily: "var(--font-mono)", fontSize: 9.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#8E1B1B' }}>
                               {a.account_reason || 'Account not active'}
                             </span>
                           )}
                           {!a.account_disabled && a.unavailable && (
-                            <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FFF1C9', border: '1px solid #C9A227', fontFamily: "'Archivo', sans-serif", fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#7A5A00' }}>
+                            <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FFF1C9', border: '1px solid #C9A227', fontFamily: "var(--font-mono)", fontSize: 9.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#7A5A00' }}>
                               {AVAILABILITY_LABEL[a.status] || a.status}
                               {a.status_until ? ' until ' + new Date(a.status_until).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''}
                             </span>
@@ -13417,7 +10662,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
     </span>
   );
   const youTag = (
-    <span style={{ display: 'inline-block', marginLeft: 6, padding: '1px 6px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "'Archivo', sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
+    <span style={{ display: 'inline-block', marginLeft: 6, padding: '1px 6px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
   );
   const ell = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 
@@ -13455,7 +10700,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
         <label style={{ ...TK.label, marginTop: 0, marginBottom: 0 }}>Who is this for?</label>
         {n > 1 && (
-          <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 10.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#FDC831', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#FDC831', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>
             {n} requests
           </span>
         )}
@@ -13526,10924 +10771,6 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
 // Small shared button styles for the ticket surfaces.
 const backLink = { background: 'none', border: 'none', padding: 0, marginBottom: 16, color: '#B92323', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-block' };
 const textActionBtn = { background: 'none', border: 'none', padding: 0, color: '#B92323', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' };
-
-// ============================================================================
-// EXPORT
-// ============================================================================
-Object.assign(window, {
-  ApprovalStatusCards,
-  HRApprovalDetail,
-  ManagerInbox,
-  ManagerApprove,
-  submitForApproval,
-  useApprovals,
-  approvalStore: () => window.__APPROVAL_STORE,
-});
-
-// ─── onboarding-history (c07005fe) ──────────────────────────────────
-// ============================================================================
-// ONBOARDING HISTORY — archive of every Slicer onboarded at Slice
-// Mirrors OffboardingHistory pattern: search, filter by department, chronological.
-// ============================================================================
-
-// Reasons catalog isn't needed here — we filter by department instead of reason.
-// Departments are derived dynamically from the combined roster.
-
-// ---------- HISTORICAL ARCHIVE ----------
-// Older hires (beyond MOCK_COMPLETED_SLICERS which covers the recent quarter).
-// These are "archive-only" records — name, title, dept, loc, start date, filer.
-const MOCK_ONB_ARCHIVE = [
-  { id: "h_arch_01", name: "Sana Khoury",         title: "Senior Backend Engineer",    department: "Platform",      location: "us_ny",  startDate: "2025-12-02", filedBy: "Alex Park",   daysToSetup: 3 },
-  { id: "h_arch_02", name: "Jonas Reuter",        title: "Principal Engineer",         department: "Platform",      location: "xk_prs", startDate: "2025-11-18", filedBy: "Alex Park",   daysToSetup: 4 },
-  { id: "h_arch_03", name: "Imani Okafor",        title: "Product Manager",            department: "Product",       location: "us_ny",  startDate: "2025-11-04", filedBy: "Jamie Wu",    daysToSetup: 2 },
-  { id: "h_arch_04", name: "Petra Nowak",         title: "Staff Product Designer",     department: "Product Design",location: "ie_bfs", startDate: "2025-10-21", filedBy: "Alex Park",   daysToSetup: 3 },
-  { id: "h_arch_05", name: "Rafael Mendes",       title: "Account Executive",          department: "Enterprise",    location: "us_ny",  startDate: "2025-10-14", filedBy: "Jamie Wu",    daysToSetup: 1 },
-  { id: "h_arch_06", name: "Elira Berisha",       title: "Customer Support Lead",      department: "Support",       location: "mk_oh",  startDate: "2025-10-07", filedBy: "Alex Park",   daysToSetup: 2 },
-  { id: "h_arch_07", name: "Tadhg Brennan",       title: "Sales Development Rep",      department: "Growth",        location: "ie_bfs", startDate: "2025-09-23", filedBy: "Jamie Wu",    daysToSetup: 1 },
-  { id: "h_arch_08", name: "Stefan Petrovski",    title: "QA Engineer II",             department: "Platform",      location: "mk_sk",  startDate: "2025-09-16", filedBy: "Alex Park",   daysToSetup: 3 },
-  { id: "h_arch_09", name: "Lorena Calderón",     title: "People Operations Partner",  department: "People Ops",    location: "us_ny",  startDate: "2025-09-09", filedBy: "Jamie Wu",    daysToSetup: 2 },
-  { id: "h_arch_10", name: "Bledar Hoxha",        title: "DevOps Engineer",            department: "Platform",      location: "xk_prs", startDate: "2025-08-26", filedBy: "Alex Park",   daysToSetup: 4 },
-  { id: "h_arch_11", name: "Hana Yamada",         title: "Mobile Engineer",            department: "Product Eng",   location: "us_ny",  startDate: "2025-08-19", filedBy: "Alex Park",   daysToSetup: 3 },
-  { id: "h_arch_12", name: "Cormac Gallagher",    title: "Recruiter",                  department: "People Ops",    location: "ie_bfs", startDate: "2025-08-05", filedBy: "Jamie Wu",    daysToSetup: 1 },
-  { id: "h_arch_13", name: "Blerta Krasniqi",     title: "Junior Designer",            department: "Product Design",location: "xk_prs", startDate: "2025-07-22", filedBy: "Alex Park",   daysToSetup: 2 },
-  { id: "h_arch_14", name: "Dmitri Volkov",       title: "Data Engineer",              department: "Analytics",     location: "mk_db",  startDate: "2025-07-15", filedBy: "Alex Park",   daysToSetup: 3 },
-  { id: "h_arch_15", name: "Saoirse Donnelly",    title: "Content Strategist",         department: "Marketing",     location: "ie_bfs", startDate: "2025-07-01", filedBy: "Jamie Wu",    daysToSetup: 2 },
-  { id: "h_arch_16", name: "Teuta Shala",         title: "Customer Success Manager",   department: "Customer",      location: "mk_sk",  startDate: "2025-06-24", filedBy: "Jamie Wu",    daysToSetup: 2 },
-];
-
-// Top-level department catalog — one chip per topDept group.
-// Ordered roughly by headcount so the most-used chips sit on the left.
-const ONB_HIST_DEPTS = [
-  { id: "Engineering",    label: "Engineering",    tone: "#4A7F9E" },
-  { id: "Product",        label: "Product",        tone: "#8B5B2B" },
-  { id: "Design",         label: "Design",         tone: "#7E4A8E" },
-  { id: "Sales",          label: "Sales",          tone: "#2E7D5B" },
-  { id: "Customer",       label: "Customer",       tone: "#8E7123" },
-  { id: "Data",           label: "Data",           tone: "#3F5F8A" },
-  { id: "People",         label: "People",         tone: "#B34F4F" },
-  { id: "Marketing",      label: "Marketing",      tone: "#A35A2B" },
-  { id: "Support",        label: "Support",        tone: "#5A6B3E" },
-  { id: "Other",          label: "Other",          tone: "#5C5143" },
-];
-
-// Map an archive/slicer's department string onto a top-level bucket.
-function deptBucket(dept, topDept) {
-  if (topDept && ONB_HIST_DEPTS.find(d => d.id === topDept)) return topDept;
-  const s = (dept || "").toLowerCase();
-  if (/platform|engineer|devops|qa|mobile|product eng|security/.test(s)) return "Engineering";
-  if (/product design|^design/.test(s)) return "Design";
-  if (/product$|product mgmt|product management/.test(s)) return "Product";
-  if (/sales|enterprise|growth|smb|mid-market/.test(s)) return "Sales";
-  if (/customer success|customer$/.test(s)) return "Customer";
-  if (/support/.test(s)) return "Support";
-  if (/analytics|data/.test(s)) return "Data";
-  if (/people|recruit|hr/.test(s)) return "People";
-  if (/marketing|content|brand/.test(s)) return "Marketing";
-  return "Other";
-}
-
-// ============================================================================
-// ONBOARDING HISTORY — main view
-// ============================================================================
-function OnboardingHistory({ onBack }) {
-  const [q, setQ] = React.useState("");
-  const [dept, setDept] = React.useState("all");
-  const [detail, setDetail] = React.useState(null);
-
-  // Merge in-progress + recent + archive into one chronological list (newest first).
-  const rows = React.useMemo(() => {
-    const inProg = MOCK_IN_PROGRESS.map(p => ({
-      id: p.id,
-      name: `${p.firstName} ${p.lastName}`,
-      title: p.title,
-      department: p.topDept || "—",
-      topDept: p.topDept,
-      location: p.location,
-      startDate: p.startDate,
-      status: "in_progress",
-      stage: p.stage,
-      filedBy: "Alex Park",
-      _hire: p,
-    }));
-    const recent = MOCK_COMPLETED_SLICERS.map(s => ({
-      id: s.id,
-      name: `${s.firstName} ${s.lastName}`,
-      title: s.title,
-      department: s.department,
-      topDept: s.topDept,
-      location: s.location,
-      startDate: s.startDate,
-      status: "live",
-      filedBy: "Alex Park",
-      daysToSetup: 2,
-      _slicer: s,
-    }));
-    const archive = MOCK_ONB_ARCHIVE.map(a => ({
-      id: a.id,
-      name: a.name,
-      title: a.title,
-      department: a.department,
-      topDept: null,
-      location: a.location,
-      startDate: a.startDate,
-      status: "live",
-      filedBy: a.filedBy,
-      daysToSetup: a.daysToSetup,
-    }));
-    return [...inProg, ...recent, ...archive].sort((a, b) => b.startDate.localeCompare(a.startDate));
-  }, []);
-
-  // Filter by search + department bucket
-  const filtered = rows.filter(r => {
-    if (dept !== "all" && deptBucket(r.department, r.topDept) !== dept) return false;
-    if (q.trim()) {
-      const needle = q.trim().toLowerCase();
-      const hay = `${r.name} ${r.title} ${r.department}`.toLowerCase();
-      if (!hay.includes(needle)) return false;
-    }
-    return true;
-  });
-
-  // Counts per dept bucket
-  const counts = {
-    all: rows.length,
-    ...ONB_HIST_DEPTS.reduce((acc, d) => ({ ...acc, [d.id]: rows.filter(x => deptBucket(x.department, x.topDept) === d.id).length }), {}),
-  };
-
-  // Group by quarter
-  const groups = [];
-  filtered.forEach(r => {
-    const d = new Date(r.startDate);
-    const year = d.getUTCFullYear();
-    const q = Math.floor(d.getUTCMonth() / 3) + 1;
-    const label = `Q${q} ${year}`;
-    const g = groups.find(x => x.label === label);
-    if (g) g.rows.push(r);
-    else groups.push({ label, rows: [r] });
-  });
-
-  return (
-    <div data-screen-label="Onboarding History" className="page" style={{ minHeight: "100vh", background: "#FDC831" }}>
-      {/* Hero strip — full-bleed cream banner. */}
-      <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "28px 32px 32px",
-      }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-      {/* Top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <button onClick={onBack}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translate(-1px,-1px)";
-            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "none";
-            e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
-          }}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "7px 12px 7px 10px",
-            background: "#FFFFFF", border: "1px solid #211E1E",
-            borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 11.5,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            color: "#211E1E", cursor: "pointer",
-            transition: "transform .12s ease, box-shadow .12s ease",
-          }}>
-          <IconArrowLeft size={13} stroke={2.5} />
-          Back to Onboarding
-        </button>
-      </div>
-
-      {/* Hero */}
-      <div>
-        <h1 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 40, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.02,
-          margin: 0, color: "#211E1E",
-        }}>Onboarding History</h1>
-      </div>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 80px" }}>
-
-      {/* Search + dept chips */}
-      <div style={{ marginBottom: 24, display: "grid", gap: 12 }}>
-        <div style={{ position: "relative", maxWidth: 440 }}>
-          <input
-            value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by name, title, or team…"
-            style={{
-              width: "100%", padding: "11px 14px 11px 36px",
-              border: "1px solid #211E1E", borderRadius: 6,
-              fontFamily: "'Archivo', sans-serif", fontSize: 13.5, fontWeight: 600,
-              color: "#211E1E", background: "#FFFFFF",
-              boxShadow: "1px 1px 0 #211E1E",
-              outline: "none",
-            }}/>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="#78684C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}>
-            <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
-          </svg>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <OnbHistoryChip label="All" count={counts.all} active={dept === "all"} onClick={() => setDept("all")} />
-          {ONB_HIST_DEPTS.filter(d => counts[d.id] > 0).map(d => (
-            <OnbHistoryChip key={d.id} label={d.label} count={counts[d.id] || 0} tone={d.tone}
-              active={dept === d.id} onClick={() => setDept(d.id)} />
-          ))}
-        </div>
-      </div>
-
-      {/* Result count */}
-      <div style={{
-        fontFamily: "'Archivo', monospace", fontSize: 11, color: "#78684C", fontWeight: 700,
-        marginBottom: 14, letterSpacing: "0.04em", textTransform: "uppercase",
-      }}>
-        {filtered.length} {filtered.length === 1 ? "record" : "records"} shown
-      </div>
-
-      {/* Empty state */}
-      {filtered.length === 0 && (
-        <div style={{
-          padding: "40px 24px", textAlign: "center",
-          background: "#FFF9E6", border: "1px dashed #211E1E", borderRadius: 10,
-          color: "#4A3F2E", fontFamily: "'Archivo', sans-serif",
-        }}>
-          <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>No records match.</div>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>Try clearing filters or searching a different term.</div>
-        </div>
-      )}
-
-      {/* Grouped rows, newest quarter first */}
-      {groups.map(g => (
-        <div key={g.label} style={{ marginBottom: 28 }}>
-          <div className="eyebrow" style={{
-            color: "#78684C", fontSize: 10.5, marginBottom: 10,
-            fontFamily: "'Archivo', monospace", fontWeight: 800, letterSpacing: "0.08em",
-          }}>{g.label} · <span style={{ fontFamily: "'Archivo', monospace" }}>{g.rows.length}</span></div>
-          <div style={{ display: "grid", gap: 8 }}>
-            {g.rows.map(r => <OnbHistoryRow key={r.id} row={r} onOpen={() => {
-              // Open detail modal only for rows where we still have the full record
-              if (r._slicer) setDetail(r._slicer);
-              else if (r._hire) setDetail(r._hire);
-              // Archive-only rows intentionally don't open — they're just a log entry.
-            }} />)}
-          </div>
-        </div>
-      ))}
-
-      {detail && <HireDetailModal hire={detail} onClose={() => setDetail(null)} />}
-      </div>
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------------
-// CHIP — reused filter-chip style matching offboarding history
-// ----------------------------------------------------------------------------
-function OnbHistoryChip({ label, count, active, onClick, tone }) {
-  return (
-    <button onClick={onClick} style={{
-      display: "inline-flex", alignItems: "center", gap: 6,
-      padding: "7px 11px",
-      background: active ? "#211E1E" : "#FFFFFF",
-      color: active ? "#FDC831" : "#211E1E",
-      border: "1px solid #211E1E", borderRadius: 4,
-      boxShadow: active ? "none" : "1px 1px 0 #211E1E",
-      fontFamily: "'Archivo', sans-serif",
-      fontWeight: 800, fontSize: 11.5,
-      letterSpacing: "0.03em", textTransform: "uppercase",
-      cursor: "pointer",
-      transition: "transform .12s ease, box-shadow .12s ease",
-    }}>
-      {tone && !active && <span style={{
-        display: "inline-block", width: 8, height: 8, borderRadius: 2,
-        background: tone,
-      }}/>}
-      {label}
-      <span style={{
-        fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
-        padding: "1px 5px",
-        background: active ? "#FDC831" : "#F0E9D6",
-        color: "#211E1E",
-        borderRadius: 2,
-      }}>{count}</span>
-    </button>
-  );
-}
-
-// ----------------------------------------------------------------------------
-// ROW — compact hire record, same geometry as OfbHistoryRow for consistency
-// ----------------------------------------------------------------------------
-function OnbHistoryRow({ row, onOpen }) {
-  const loc = ONB_LOCATIONS.find(l => l.id === row.location);
-  const bucket = deptBucket(row.department, row.topDept);
-  const deptDef = ONB_HIST_DEPTS.find(d => d.id === bucket);
-  const initials = row.name.split(" ").map(p => p[0]).slice(0, 2).join("");
-  const d = new Date(row.startDate);
-  const dateLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  const isInProgress = row.status === "in_progress";
-  const isArchiveOnly = !row._slicer && !row._hire;
-  return (
-    <button onClick={onOpen} disabled={isArchiveOnly} className="onb-row-hover" style={{
-      textAlign: "left",
-      display: "grid",
-      gridTemplateColumns: "auto 1fr auto auto auto",
-      alignItems: "center", gap: 18,
-      padding: "12px 16px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 8,
-      cursor: isArchiveOnly ? "default" : "pointer",
-      opacity: isArchiveOnly ? 0.85 : 1,
-      transition: "transform .12s ease, box-shadow .12s ease",
-    }}
-    onMouseEnter={(e) => {
-      if (isArchiveOnly) return;
-      e.currentTarget.style.transform = "translate(-1px,-1px)";
-      e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = "none";
-      e.currentTarget.style.boxShadow = "none";
-    }}>
-      <div className="onb-row-avatar" style={{
-        width: 36, height: 36, borderRadius: "50%",
-        background: isInProgress ? "#FDC831" : "#FFF9E6",
-        color: "#211E1E",
-        border: "1px solid #211E1E",
-        display: "grid", placeItems: "center",
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 12, fontWeight: 900,
-      }}>{initials}</div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 14, color: "#211E1E",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>{row.name}</div>
-          {loc && <CountryFlag country={loc.country} size={13} />}
-        </div>
-        <div style={{ fontSize: 11.5, color: "#78684C", fontFamily: "'Archivo', sans-serif", fontWeight: 600, marginTop: 1 }}>
-          {row.title} · {row.department}
-        </div>
-      </div>
-      {deptDef && (
-        <span style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          padding: "3px 7px",
-          background: "#FFF9E6",
-          border: `1.5px solid ${deptDef.tone}`,
-          borderRadius: 3,
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10, fontWeight: 800, color: deptDef.tone,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-        }}>{deptDef.label}</span>
-      )}
-      <div style={{ textAlign: "right", minWidth: 120 }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 12, fontWeight: 800, color: "#211E1E" }}>
-          {dateLabel}
-        </div>
-        <div style={{ fontFamily: "'Archivo', monospace", fontSize: 10, color: "#78684C", fontWeight: 600, marginTop: 1 }}>
-          {isInProgress ? row.stage : `Set up in ${row.daysToSetup}d`}
-        </div>
-      </div>
-      <div style={{
-        fontFamily: "'Archivo', monospace", fontSize: 9.5, fontWeight: 800,
-        padding: "2px 5px",
-        background: isInProgress ? "#FDC831" : "#F0E9D6",
-        color: "#211E1E",
-        borderRadius: 2,
-        letterSpacing: "0.05em", textTransform: "uppercase",
-      }}>{isInProgress ? "Incoming" : "Live"}</div>
-    </button>
-  );
-}
-
-// Expose to window for cross-file access
-Object.assign(window, {
-  OnboardingHistory,
-  MOCK_ONB_ARCHIVE, ONB_HIST_DEPTS,
-});
-
-// ─── onboarding (46ced8ee) ──────────────────────────────────
-// ---------- ONBOARDING WIZARD ----------
-// Interactive multi-step flow for provisioning a new hire.
-// Steps: identity → role & org → app access → hardware cart → review/submit
-
-const ONB_TITLES = [
-  "Software Engineer", "Senior Software Engineer", "Staff Engineer",
-  "Engineering Manager", "Product Manager", "Senior Product Manager",
-  "Designer", "Senior Designer", "Design Manager",
-  "Data Analyst", "Data Scientist",
-  "Account Executive", "Sales Manager",
-  "Customer Success Manager",
-  "Marketing Manager",
-  "People Partner", "Recruiter",
-  "Finance Analyst", "Operations Manager",
-];
-
-const ONB_DEPARTMENTS = {
-  "Engineering": ["Platform", "Infrastructure", "Product Eng", "Security", "Data Eng"],
-  "Product":     ["Core", "Growth", "Marketplace"],
-  "Design":      ["Product Design", "Brand", "Research"],
-  "Data":        ["Analytics", "Data Science", "BI"],
-  "Sales":       ["Enterprise", "Mid‑Market", "SMB"],
-  "Marketing":   ["Growth", "Brand", "Lifecycle"],
-  "Customer":    ["Support", "Success", "Onboarding"],
-  "People":      ["HR", "Recruiting", "L&D"],
-  "Finance":     ["Accounting", "FP&A", "Treasury"],
-  "Operations":  ["Facilities", "Vendor Ops", "Legal"],
-};
-
-// Teams per sub-department. Used by the Team dropdown on Step 1.
-const ONB_TEAMS = {
-  "Platform":       ["Checkout", "Payments Core", "Identity", "Internal Tools"],
-  "Infrastructure": ["Cloud Ops", "Reliability", "Networking", "DevEx"],
-  "Product Eng":    ["Web", "iOS", "Android", "API"],
-  "Security":       ["AppSec", "InfraSec", "GRC"],
-  "Data Eng":       ["Pipelines", "Warehouse", "Streaming"],
-  "Core":           ["Onboarding", "Settings", "Notifications"],
-  "Growth":         ["Acquisition", "Activation", "Retention"],
-  "Marketplace":    ["Supply", "Demand", "Trust & Safety"],
-  "Product Design": ["Web Design", "Mobile Design", "Systems"],
-  "Brand":          ["Brand Studio", "Creative Ops"],
-  "Research":       ["UXR", "Insights"],
-  "Analytics":      ["Product Analytics", "Marketing Analytics"],
-  "Data Science":   ["ML Platform", "Risk Models", "Forecasting"],
-  "BI":             ["Dashboards", "Self‑Serve"],
-  "Enterprise":     ["Strategic Accounts", "Mid‑Enterprise"],
-  "Mid‑Market":     ["West", "East", "EMEA"],
-  "SMB":            ["Inbound", "Outbound"],
-  "Lifecycle":      ["Email", "Push", "In‑App"],
-  "Support":        ["Tier 1", "Tier 2", "Escalations"],
-  "Success":        ["SMB CS", "Mid‑Market CS", "Enterprise CS"],
-  "HR":             ["HRBP", "People Ops", "Comp & Ben"],
-  "Recruiting":     ["Tech Recruiting", "GTM Recruiting", "Sourcing"],
-  "L&D":            ["Onboarding", "Leadership", "Skills"],
-  "Accounting":     ["AP", "AR", "GL"],
-  "FP&A":           ["Corporate", "Sales Finance", "R&D Finance"],
-  "Treasury":       ["Cash Mgmt", "Risk"],
-  "Facilities":     ["Workplace", "Real Estate"],
-  "Vendor Ops":     ["Procurement", "SaaS Ops"],
-  "Legal":          ["Commercial", "Privacy", "Litigation"],
-};
-
-// Slice offices — "site code" in parens maps to the office's internal identifier
-// (e.g. PRS = Prishtina, DB = Debar, SK = Skopje, OH = Ohrid, BFS = Belfast).
-// Flags are rendered from ISO country codes via an inline CountryFlag component
-// that draws the real national flag as SVG (no emoji — emoji render inconsistently
-// on macOS vs Windows vs Chrome OS, and some flags have regional restrictions).
-const ONB_LOCATIONS = [
-  { id: "us_ny",   label: "United States",    site: "NYC", country: "US", tz: "ET"  },
-  { id: "xk_prs",  label: "Kosovo",           site: "PRS", country: "XK", tz: "CET" },
-  { id: "mk_db",   label: "North Macedonia",  site: "DB",  country: "MK", tz: "CET" },
-  { id: "mk_sk",   label: "North Macedonia",  site: "SK",  country: "MK", tz: "CET" },
-  { id: "mk_oh",   label: "North Macedonia",  site: "OH",  country: "MK", tz: "CET" },
-  { id: "ie_bfs",  label: "Northern Ireland", site: "BFS", country: "GB", tz: "GMT" },
-];
-
-// Manager directory — names HR can pick from when assigning a reporting chain.
-// In a real system this would come from Workday / the HRIS. Here it's a static
-// seed list that includes the managers referenced by mock hires + plausible
-// Slice people leaders across each department.
-const ONB_MANAGERS = [
-  { name: "Liridon Selmani",   title: "VP Engineering",            dept: "Engineering" },
-  { name: "Priya Shah",        title: "Staff Engineer · TL",       dept: "Engineering" },
-  { name: "Aiden Hart",        title: "Senior Software Engineer",  dept: "Engineering" },
-  { name: "Maeve O'Brien",     title: "Regional Sales Director",   dept: "Sales" },
-  { name: "Saoirse Donnelly",  title: "Head of Marketing",         dept: "Marketing" },
-  { name: "Teuta Shala",       title: "Customer Success Manager",  dept: "Customer" },
-  { name: "Jonas Reuter",      title: "Principal Engineer",        dept: "Engineering" },
-  { name: "Imani Okafor",      title: "Head of Product",           dept: "Product" },
-  { name: "Petra Nowak",       title: "Design Director",           dept: "Design" },
-  { name: "Rafael Mendes",     title: "Enterprise AE Lead",        dept: "Sales" },
-  { name: "Dmitri Volkov",     title: "Data Engineering Manager",  dept: "Data" },
-  { name: "Alex Park",         title: "Head of People",            dept: "People" },
-  { name: "Jamie Wu",          title: "People Partner Lead",       dept: "People" },
-  { name: "Nadia Berisha",     title: "CFO",                       dept: "Finance" },
-  { name: "Arben Krasniqi",    title: "COO",                       dept: "Operations" },
-];
-
-// ---------- COUNTRY FLAGS ----------
-// Real national flag images served from flagcdn.com (lipis/flag-icons), which
-// provides clean 4:3 SVGs for every ISO 3166-1 code including XK (Kosovo).
-// Rendered inside a rounded clip with a hairline border so they still read as
-// a flag "chip" regardless of size. 4:3 aspect — matches flagcdn's native art.
-function CountryFlag({ country, size = 20 }) {
-  const w = Math.round(size * 4 / 3), h = size;
-  const code = (country || "").toLowerCase();
-  return (
-    <span style={{
-      display: "inline-block",
-      width: w, height: h,
-      borderRadius: 2,
-      overflow: "hidden",
-      boxShadow: "inset 0 0 0 1px rgba(33,30,30,0.15)",
-      flexShrink: 0,
-      background: "#E6DFC9",
-      verticalAlign: "middle",
-      lineHeight: 0,
-    }}>
-      <img
-        src={`https://flagcdn.com/${code}.svg`}
-        alt={country}
-        width={w}
-        height={h}
-        style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}
-        onError={(e) => { e.currentTarget.style.visibility = "hidden"; }}
-      />
-    </span>
-  );
-}
-
-// Legacy hand-drawn SVG fallback — kept below but no longer used. Delete if
-// you're confident flagcdn.com will always be reachable in your environment.
-function _CountryFlagSVG_unused({ country, size = 20 }) {
-  const w = size * 1.5, h = size;
-  const clipId = `flag-clip-${country}-${size}`;
-  const starPoints = (cx, cy, r) => {
-    const pts = [];
-    for (let i = 0; i < 10; i++) {
-      const ang = (Math.PI / 5) * i - Math.PI / 2;
-      const rad = i % 2 === 0 ? r : r * 0.4;
-      pts.push(`${(cx + Math.cos(ang) * rad).toFixed(2)},${(cy + Math.sin(ang) * rad).toFixed(2)}`);
-    }
-    return pts.join(" ");
-  };
-  const flags = {
-    // United States — 13 red/white stripes + blue canton with a single simplified star.
-    // At 14-20px a detailed star grid turns to mush; one centered star reads cleaner.
-    US: (
-      <g>
-        <rect width="30" height="20" fill="#BF0A30"/>
-        {[1,3,5,7,9,11].map(i => (
-          <rect key={i} y={i*(20/13)} width="30" height={20/13} fill="#FFFFFF"/>
-        ))}
-        <rect width="12" height={20*7/13} fill="#3C3B6E"/>
-        {/* 4×3 grid of small stars */}
-        {Array.from({length: 3}).map((_,r) =>
-          Array.from({length: 4}).map((__,c) => (
-            <polygon key={`${r}-${c}`}
-              points={starPoints(1.8 + c*2.7, 1.8 + r*2.2, 0.85)}
-              fill="#FFFFFF"/>
-          ))
-        )}
-      </g>
-    ),
-    // Kosovo — blue field, gold map silhouette, 6 white stars in arc above.
-    // Simplified silhouette (rough outline of country's east-west span).
-    XK: (
-      <g>
-        <rect width="30" height="20" fill="#244AA5"/>
-        {/* gold map shape — blocky approximation that reads like Kosovo's outline */}
-        <path
-          d="M11,10 L12,9 L13.5,8.8 L14.5,9.2 L15.5,8.8 L16.5,9 L17.5,9.2 L18.5,9.5 L19,10.3 L18.5,11.2 L17.5,11.8 L16.8,12.2 L15.5,12.5 L14.5,12.3 L13.5,12.5 L12.5,12.2 L11.5,11.5 L11,10.8 Z"
-          fill="#D0A650"/>
-        {/* 6 white stars in an arc above */}
-        {[
-          {x: 8.5, y: 5.5}, {x: 11, y: 4.3}, {x: 13.8, y: 3.7},
-          {x: 16.2, y: 3.7}, {x: 19, y: 4.3}, {x: 21.5, y: 5.5},
-        ].map((p, i) => (
-          <polygon key={i} points={starPoints(p.x, p.y, 1.1)} fill="#FFFFFF"/>
-        ))}
-      </g>
-    ),
-    // North Macedonia — red field, gold sun with 8 rays that go TO the edges.
-    // Rays are triangles from the central disk to each edge point.
-    MK: (
-      <g>
-        <rect width="30" height="20" fill="#D82126"/>
-        <g fill="#F8C71D">
-          {/* 8 rays as quads, each pointing from the central disk to an edge */}
-          {/* horizontal left */}
-          <polygon points="15,8.5 15,11.5 0,12.5 0,7.5"/>
-          {/* horizontal right */}
-          <polygon points="15,8.5 15,11.5 30,12.5 30,7.5"/>
-          {/* upper-left corner */}
-          <polygon points="13.5,9.2 16,9.2 2,0 0,0 0,1"/>
-          {/* upper-right corner */}
-          <polygon points="14,9.2 16.5,9.2 28,0 30,0 30,1"/>
-          {/* lower-left corner */}
-          <polygon points="13.5,10.8 16,10.8 2,20 0,20 0,19"/>
-          {/* lower-right corner */}
-          <polygon points="14,10.8 16.5,10.8 28,20 30,20 30,19"/>
-          {/* upper-middle */}
-          <polygon points="13.8,9.5 16.2,9.5 17,0 13,0"/>
-          {/* lower-middle */}
-          <polygon points="13.8,10.5 16.2,10.5 17,20 13,20"/>
-          {/* central disk */}
-          <circle cx="15" cy="10" r="3.2"/>
-        </g>
-        <circle cx="15" cy="10" r="2.4" fill="#D82126"/>
-        <circle cx="15" cy="10" r="1.9" fill="#F8C71D"/>
-      </g>
-    ),
-    // Ireland — green / white / orange vertical tricolor
-    IE: (
-      <g>
-        <rect width="10" height="20" fill="#169B62"/>
-        <rect x="10" width="10" height="20" fill="#FFFFFF"/>
-        <rect x="20" width="10" height="20" fill="#FF883E"/>
-      </g>
-    ),
-    // United Kingdom — Union Jack (used for Belfast / GMT office display)
-    GB: (
-      <g>
-        <rect width="30" height="20" fill="#012169"/>
-        {/* white diagonals */}
-        <path d="M0,0 L30,20 M30,0 L0,20" stroke="#FFFFFF" strokeWidth="3"/>
-        {/* red diagonals (St Patrick's) — offset halves so they don't cross the saltire center */}
-        <path d="M0,0 L30,20" stroke="#C8102E" strokeWidth="1.5" clipPath="inset(0 0 0 50%)"/>
-        <path d="M30,0 L0,20" stroke="#C8102E" strokeWidth="1.5" clipPath="inset(0 50% 0 0)"/>
-        {/* white cross */}
-        <rect x="12.5" width="5" height="20" fill="#FFFFFF"/>
-        <rect y="7.5" width="30" height="5" fill="#FFFFFF"/>
-        {/* red cross (St George's) */}
-        <rect x="13.75" width="2.5" height="20" fill="#C8102E"/>
-        <rect y="8.75" width="30" height="2.5" fill="#C8102E"/>
-      </g>
-    ),
-  };
-  return (
-    <svg width={w} height={h} viewBox="0 0 30 20" style={{
-      display: "block",
-      borderRadius: 2,
-      boxShadow: "inset 0 0 0 1px rgba(33,30,30,0.15)",
-      flexShrink: 0,
-    }}>
-      <defs>
-        <clipPath id={clipId}>
-          <rect width="30" height="20" rx="1.5"/>
-        </clipPath>
-      </defs>
-      <g clipPath={`url(#${clipId})`}>
-        {flags[country] || <rect width="30" height="20" fill="#E6DFC9"/>}
-      </g>
-    </svg>
-  );
-}
-
-// ---------- APP CATALOG ----------
-// "essential" = always-on for everyone. roles = which role preset auto-selects it.
-// favicon: real domain for logo fetch via Google s2 favicon service
-// cost: approximate market price in USD per seat per MONTH (Apr 2026 public pricing;
-//       enterprise/volume discounts vary. Shown to HR so they understand seat cost.)
-const ONB_APPS = [
-  // foundational
-  { id: "google",    name: "Google Workspace", favicon: "workspace.google.com", cat: "Core",       essential: true,  roles: ["all"],      desc: "Gmail, Drive, Calendar",   cost: 18 },   // Business Plus
-  { id: "slack",     name: "Slack",            favicon: "slack.com",            cat: "Core",       essential: true,  roles: ["all"],      desc: "Team comms",               cost: 15 },   // Business+
-  { id: "onelogin",  name: "OneLogin",         favicon: "onelogin.com",         cat: "Core",       essential: true,  roles: ["all"],      desc: "Single sign‑on",           cost: 8 },    // Advanced bundle
-  { id: "zoom",      name: "Zoom",             favicon: "zoom.us",              cat: "Core",       roles: ["all"],                        desc: "Video calls",              cost: 19 },   // Business
-  { id: "notion",    name: "Notion",           favicon: "notion.so",            cat: "Core",       roles: ["all"],                        desc: "Docs & wiki",              cost: 15 },   // Business
-  { id: "linear",    name: "Linear",           favicon: "linear.app",           cat: "Productivity", roles: ["eng", "pm", "design"],      desc: "Issue tracking",           cost: 14 },   // Business
-  // eng
-  { id: "github",    name: "GitHub",           favicon: "github.com",           cat: "Engineering", roles: ["eng"],                      desc: "Source code & CI",         cost: 21 },   // Enterprise
-  { id: "aws",       name: "AWS",              favicon: "aws.amazon.com",       cat: "Engineering", roles: ["eng"],                      desc: "Cloud infra access",       cost: 0 },    // usage‑based
-  { id: "datadog",   name: "Datadog",          favicon: "datadoghq.com",        cat: "Engineering", roles: ["eng"],                      desc: "Observability",            cost: 31 },   // per host Pro, approx per engineer
-  { id: "pagerduty", name: "PagerDuty",        favicon: "pagerduty.com",        cat: "Engineering", roles: ["eng"],                      desc: "On‑call",                  cost: 29 },   // Business
-  // design
-  { id: "figma",     name: "Figma",            favicon: "figma.com",            cat: "Design",     roles: ["design", "pm", "eng"],       desc: "Design & prototyping",     cost: 45 },   // Full seat Organization
-  { id: "adobe",     name: "Adobe CC",         favicon: "adobe.com",            cat: "Design",     roles: ["design"],                    desc: "Photoshop, Illustrator",   cost: 85 },   // CC All Apps Teams
-  // data
-  { id: "looker",    name: "Looker",           favicon: "looker.com",           cat: "Data",       roles: ["data", "pm"],                desc: "BI & dashboards",          cost: 60 },   // Viewer/Explorer blend
-  { id: "snowflake", name: "Snowflake",        favicon: "snowflake.com",        cat: "Data",       roles: ["data", "eng"],               desc: "Data warehouse",           cost: 0 },    // usage‑based
-  { id: "dbt",       name: "dbt",              favicon: "getdbt.com",           cat: "Data",       roles: ["data"],                      desc: "Data transforms",          cost: 100 },  // Teams developer seat
-  // sales & ops
-  { id: "salesforce",name: "Salesforce",       favicon: "salesforce.com",       cat: "Go‑to‑market", roles: ["sales", "cs"],             desc: "CRM",                      cost: 165 },  // Sales Cloud Enterprise
-  { id: "gong",      name: "Gong",             favicon: "gong.io",              cat: "Go‑to‑market", roles: ["sales"],                   desc: "Call recordings",          cost: 135 },  // estimated
-  { id: "outreach",  name: "Outreach",         favicon: "outreach.io",          cat: "Go‑to‑market", roles: ["sales"],                   desc: "Sales engagement",         cost: 100 },  // estimated
-  { id: "hubspot",   name: "HubSpot",          favicon: "hubspot.com",          cat: "Go‑to‑market", roles: ["marketing", "sales"],      desc: "Marketing automation",     cost: 90 },   // Pro seat
-  { id: "zendesk",   name: "Zendesk",          favicon: "zendesk.com",          cat: "Go‑to‑market", roles: ["cs"],                      desc: "Support tickets",          cost: 115 },  // Suite Professional
-  // people & finance
-  { id: "workday",   name: "Workday",          favicon: "workday.com",          cat: "People",     roles: ["all"],                        desc: "HRIS & payroll",           cost: 12 },   // avg per employee
-  { id: "greenhouse",name: "Greenhouse",       favicon: "greenhouse.io",        cat: "People",     roles: ["people"],                    desc: "ATS",                      cost: 50 },   // per recruiter seat
-  { id: "netsuite",  name: "NetSuite",         favicon: "netsuite.com",         cat: "Finance",    roles: ["finance"],                   desc: "ERP",                      cost: 130 },  // per user
-  { id: "ramp",      name: "Ramp",             favicon: "ramp.com",             cat: "Finance",    roles: ["all"],                       desc: "Corporate card & expenses", cost: 0 },   // free core
-];
-
-// Format app cost for display — "$X/mo" or "Usage" for metered services
-function appCostLabel(cost) {
-  if (cost === 0 || cost == null) return "Usage";
-  return `$${cost}/mo`;
-}
-// Sum the monthly cost of a Set of app ids
-function appsMonthlyTotal(appSet) {
-  let sum = 0;
-  ONB_APPS.forEach(a => { if (appSet.has(a.id)) sum += (a.cost || 0); });
-  return sum;
-}
-
-// Helper: returns a favicon url for a domain (Google s2 — high-res, free, no auth)
-const faviconUrl = (domain, size = 64) => `https://www.google.com/s2/favicons?domain=${domain}&sz=${size}`;
-
-// AppLogo — renders a favicon with a fallback letter if it fails to load
-function AppLogo({ app, size = 36 }) {
-  const [failed, setFailed] = React.useState(false);
-  const small = size <= 20;
-  if (failed || !app.favicon) {
-    return (
-      <div style={{
-        width: size, height: size, borderRadius: small ? 3 : 8,
-        background: "#211E1E", color: "#FDC831",
-        display: "grid", placeItems: "center",
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: size * 0.45, fontWeight: 900,
-        flexShrink: 0,
-        border: small ? "1px solid #211E1E" : "2px solid #211E1E",
-      }}>{app.name[0]}</div>
-    );
-  }
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: small ? 3 : 8,
-      background: "#FFFFFF",
-      border: small ? "1px solid #211E1E" : "2px solid #211E1E",
-      display: "grid", placeItems: "center",
-      flexShrink: 0,
-      overflow: "hidden",
-    }}>
-      <img
-        src={faviconUrl(app.favicon, 64)}
-        alt={app.name}
-        width={size * (small ? 0.75 : 0.62)}
-        height={size * (small ? 0.75 : 0.62)}
-        style={{ display: "block", objectFit: "contain" }}
-        onError={() => setFailed(true)}
-      />
-    </div>
-  );
-}
-
-// Role presets — chosen by title keyword
-function rolePresetFor(title) {
-  const t = (title || "").toLowerCase();
-  if (/engineer|developer/.test(t))            return "eng";
-  if (/product manager|pm\b/.test(t))          return "pm";
-  if (/design/.test(t))                         return "design";
-  if (/data|analyst|scientist/.test(t))        return "data";
-  if (/sales|account exec/.test(t))            return "sales";
-  if (/customer|success/.test(t))              return "cs";
-  if (/market/.test(t))                         return "marketing";
-  if (/people|recruit|hr/.test(t))             return "people";
-  if (/finance|account/.test(t))                return "finance";
-  return "generic";
-}
-
-function appsForRole(role) {
-  const set = new Set();
-  ONB_APPS.forEach(a => {
-    if (a.essential) set.add(a.id);
-    if (a.roles?.includes("all") || a.roles?.includes(role)) set.add(a.id);
-  });
-  return set;
-}
-
-// Set of app ids that EVERY new hire automatically gets (essentials +
-// "all"-role apps). Computed once so it's cheap to seed onto a blank hire.
-const ESSENTIAL_APP_IDS = (() => {
-  const s = new Set();
-  ONB_APPS.forEach(a => {
-    if (a.essential || a.roles?.includes("all")) s.add(a.id);
-  });
-  return s;
-})();
-
-// ---------- HARDWARE CATALOG ----------
-const ONB_HARDWARE = {
-  laptops: [
-    { id: "none",   name: "No device",              spec: "Call center — shared PC",       price: "$0",     pop: "Shared workstation" },
-    { id: "tp14",   name: "Dell Pro 16 Plus",       spec: "Intel Core Ultra 7 · 16GB · 512GB", price: "$1,799", pop: "Windows users", os: "windows" },
-    { id: "mba15",  name: "MacBook Air 15\"",       spec: "M5 · 16GB · 512GB",            price: "$1,499", pop: "Most common",     os: "apple" },
-    { id: "mbp14",  name: "MacBook Pro 14\"",       spec: "M5 Pro · 48GB · 512GB",        price: "$2,899", pop: "Most engineers",  os: "apple" },
-    { id: "mbp16",  name: "MacBook Pro 16\"",       spec: "M5 Max · 48GB · 1TB",          price: "$3,799", pop: "Heavy compute",   os: "apple" },
-  ],
-  monitors: [
-    { id: "",         name: "No monitor",             price: "$0" },
-    { id: "dell27",   name: "Dell U2725QE",           spec: "27\" 4K",           price: "$649" },
-  ],
-  keyboards: [
-    { id: "",         name: "No keyboard",             price: "$0" },
-    { id: "mag",      name: "Apple Magic Keyboard",    price: "$129" },
-    { id: "generic",  name: "Generic Keyboard",        price: "$29" },
-  ],
-  mice: [
-    { id: "",         name: "No mouse",                price: "$0" },
-    { id: "magic",    name: "Apple Magic Mouse",       price: "$99" },
-    { id: "generic",  name: "Generic Mouse",           price: "$19" },
-  ],
-  audio: [
-    { id: "",         name: "No headphones",           price: "$0" },
-    { id: "generic",  name: "Headphones",              price: "$89" },
-  ],
-  extras: [
-    { id: "dock",     name: "CalDigit TS4 Dock",     price: "$399" },
-    { id: "stand",    name: "Roost Laptop Stand",     price: "$90" },
-    { id: "webcam",   name: "Logitech Brio 4K",      price: "$199" },
-    { id: "yubi",     name: "YubiKey 5C",             price: "$55" },
-  ],
-};
-
-// ---------- HIRE FACTORY ----------
-// Blank hire — the shape every draft must have.
-function makeBlankHire(seed = {}) {
-  return {
-    id: "h_" + Math.random().toString(36).slice(2, 9),
-    // identity
-    firstName: "", lastName: "", preferredName: "", workEmail: "",
-    personalEmail: "", phone: "",
-    // address — structured fields. `address` is a legacy convenience join
-    // that older code still reads; new code should use the parts directly.
-    address: "",
-    address1: "", address2: "", city: "", state: "", zip: "",
-    autoEmail: true, emailHandle: "",
-    startDate: "", workMode: "hybrid",
-    // org
-    title: "", topDept: "", department: "", team: "", manager: "", location: "",
-    // app access — every new hire starts with the always-on essentials
-    // (Google, Slack, OneLogin, etc.). HR can add role/optional apps later.
-    apps: new Set(ESSENTIAL_APP_IDS),
-    // hardware
-    hardware: { laptop: "none", monitor: "", keyboard: "", mouse: "", audio: "", extras: new Set() },
-    customFields: new Set(),
-    notes: "",
-    ...seed,
-  };
-}
-
-// Copy a hire's non-identity settings to a new hire (used by "+ Add another" +
-// the Clone-user button). Identity is intentionally left blank — you must type
-// the new person's name/email yourself.
-function cloneHireSkeleton(src) {
-  return makeBlankHire({
-    // org — clone job title, manager, location, dept, sub-dept, team
-    title:       src.title,
-    topDept:     src.topDept,
-    department:  src.department,
-    team:        src.team || "",
-    manager:     src.manager,
-    location:    src.location,
-    // app access + hardware are NOT cloned — they're personal/role-specific
-    // and HR sets them per-hire on later steps. We only clone org metadata.
-    customFields: new Set(),
-  });
-}
-
-// ---------- ROOT ONBOARDING ----------
-// Onboarding is a two-mode component. It lands on a roster page showing
-// in-progress and completed hires. From there HR starts a new hire session,
-// which enters wizard mode. The wizard operates on an array of hires so HR
-// can queue up multiple people at once (the "+ Add user" flow).
-function Onboarding({ onBack, onFiled }) {
-  const [mode, setMode] = React.useState("roster");   // 'roster' | 'wizard' | 'history' | 'awaiting' | 'mgr-inbox' | 'mgr-approve' | 'submitted'
-  const [hires, setHires] = React.useState([makeBlankHire()]);
-  const [currentIdx, setCurrentIdx] = React.useState(0);
-  // Currently-open approval request (for HR detail view + Manager approve view).
-  const [activeApprovalId, setActiveApprovalId] = React.useState(null);
-  // Which manager is "active" in the demo manager-inbox view. Defaults to the
-  // manager of whichever request HR last clicked into.
-  const [activeManagerName, setActiveManagerName] = React.useState(null);
-  // Toast banner shown on the roster after HR submits identity → manager.
-  const [sentToast, setSentToast] = React.useState(null);
-  // Summary of the most-recent submission — drives the dedicated success
-  // screen that we land HR on after they hit "Send to manager". Lives until
-  // they navigate away from that screen.
-  const [submittedSummary, setSubmittedSummary] = React.useState(null);
-
-  // Reset scroll on every sub-mode swap (roster ↔ wizard ↔ history ↔ approval).
-  // The top-level App also resets on stage change, but sub-mode changes inside
-  // Onboarding don't bubble up — without this, switching to history while
-  // scrolled deep on the roster leaves the new view scrolled offscreen.
-  useScrollToTop([mode]);
-
-  const startNewHire = () => {
-    setHires([makeBlankHire()]);
-    setCurrentIdx(0);
-    setMode("wizard");
-  };
-
-  // Bulk onboard — spawn N cards from the dashboard, optionally seeded from
-  // an existing Slicer (cloning role/dept/location/manager only — apps and
-  // hardware stay per-Slicer). HR fills in each name/email individually after.
-  const startBulk = ({ count, cloneFrom }) => {
-    const n = Math.max(2, Math.min(50, count || 2));
-    const make = cloneFrom
-      ? () => cloneHireSkeleton(cloneFrom)
-      : () => makeBlankHire();
-    setHires(Array.from({ length: n }, make));
-    setCurrentIdx(0);
-    setMode("wizard");
-  };
-
-  // Called by the wizard's Continue button on Step 0 (Identity). Fans out the
-  // hires to one approval request per distinct manager and returns HR to the
-  // roster with a confirmation toast.
-  const submitToManagers = (submittedHires) => {
-    const ids = window.submitForApproval
-      ? window.submitForApproval(submittedHires, "Jamie Wu")
-      : [];
-    const groups = new Map();
-    submittedHires.forEach(h => {
-      const key = h.manager || "Unassigned";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(h);
-    });
-    const summary = {
-      groupCount: groups.size,
-      hireCount: submittedHires.length,
-      managers: [...groups.keys()],
-      // Snapshot a lightweight record of each hire — name + manager + which
-      // approval id they ended up in — so the success screen can list them
-      // and let HR jump straight into a specific request.
-      hires: submittedHires.map((h, i) => ({
-        name: `${h.preferredName || h.firstName || "—"} ${h.lastName || ""}`.trim() || "Unnamed hire",
-        title: h.title || "",
-        manager: h.manager || "Unassigned",
-        approvalId: ids[i] || null,
-      })),
-      groups: [...groups.entries()].map(([manager, list]) => ({
-        manager,
-        count: list.length,
-        // Find the approval id for this manager group (all hires under one
-        // manager land in the same request).
-        approvalId: (() => {
-          const idx = submittedHires.findIndex(h => (h.manager || "Unassigned") === manager);
-          return idx >= 0 ? (ids[idx] || null) : null;
-        })(),
-      })),
-      ids,
-      ts: Date.now(),
-    };
-    setSentToast(summary);
-    setSubmittedSummary(summary);
-    setHires([makeBlankHire()]);
-    setCurrentIdx(0);
-    setMode("submitted");
-  };
-
-  if (mode === "submitted") {
-    return <SubmissionSuccess
-      summary={submittedSummary}
-      onBackToRoster={() => { setSubmittedSummary(null); setMode("roster"); }}
-      onOpenApproval={(id) => {
-        setActiveApprovalId(id);
-        setSubmittedSummary(null);
-        setMode("awaiting");
-      }}
-      onStartAnother={() => {
-        setSubmittedSummary(null);
-        setSentToast(null);
-        startNewHire();
-      }}
-    />;
-  }
-
-  if (mode === "roster") {
-    return <OnboardingRoster
-      onBack={onBack}
-      onStart={startNewHire}
-      onStartBulk={startBulk}
-      onHistory={() => setMode("history")}
-      sentToast={sentToast}
-      onDismissToast={() => setSentToast(null)}
-      onOpenApproval={(id) => { setActiveApprovalId(id); setMode("awaiting"); }}
-    />;
-  }
-
-  if (mode === "history") {
-    return <OnboardingHistory onBack={() => setMode("roster")} />;
-  }
-
-  if (mode === "awaiting" && window.HRApprovalDetail) {
-    const HRApprovalDetail = window.HRApprovalDetail;
-    return <HRApprovalDetail
-      requestId={activeApprovalId}
-      onBack={() => setMode("roster")}
-      onOpenManagerView={(id) => {
-        const req = (window.__APPROVAL_STORE || []).find(r => r.id === id);
-        setActiveManagerName(req?.manager || "Manager");
-        setActiveApprovalId(id);
-        setMode("mgr-approve");
-      }}
-    />;
-  }
-
-  if (mode === "mgr-inbox" && window.ManagerInbox) {
-    const ManagerInbox = window.ManagerInbox;
-    return <ManagerInbox
-      managerName={activeManagerName || "Liridon Selmani"}
-      onOpen={(id) => { setActiveApprovalId(id); setMode("mgr-approve"); }}
-      onBackToHR={() => setMode("roster")}
-    />;
-  }
-
-  if (mode === "mgr-approve" && window.ManagerApprove) {
-    const ManagerApprove = window.ManagerApprove;
-    return <ManagerApprove
-      requestId={activeApprovalId}
-      managerName={activeManagerName || "Manager"}
-      onBack={() => setMode("mgr-inbox")}
-      onSubmitted={() => setMode("roster")}
-    />;
-  }
-
-  return (
-    <OnboardingWizard
-      hires={hires}
-      setHires={setHires}
-      currentIdx={currentIdx}
-      setCurrentIdx={setCurrentIdx}
-      onBack={() => setMode("roster")}
-      onFiled={onFiled}
-      onSubmitToManagers={submitToManagers}
-    />
-  );
-}
-
-// ---------- WIZARD ----------
-// The multi-step wizard. Owns step state + error state. Delegates per-hire
-// form state to the parent via hires/setHires, so data survives switching
-// between hires inside the same session.
-function OnboardingWizard({ hires, setHires, currentIdx, setCurrentIdx, onBack, onFiled, onSubmitToManagers }) {
-  const [step, setStep] = React.useState(0);
-  // Furthest step the user has reached. We allow free click-navigation
-  // to any step in [0, maxStep] so visited steps stay clickable even after
-  // you've gone back — onboarding data is sticky, no need to re-validate
-  // every forward hop.
-  const [maxStep, setMaxStep] = React.useState(0);
-  const [errors, setErrors] = React.useState({});
-  const [bannerOpen, setBannerOpen] = React.useState(false);
-  const steps = ["Identity"];
-
-  // Tracks which hires HR has actively visited on the App+HW step (Step 1).
-  // Without this, in a 5-hire batch HR can configure hire #1, hit Continue, and
-  // ship 4 hires with default empty kits — bad. We auto-mark the current hire
-  // visited whenever they land on / switch to it on Step 1, then show a
-  // confirm modal at Continue if any hire is unvisited (or visited but with
-  // a no-kit / empty-app picks). Set is keyed by hire idx.
-  const [visitedAppsHW, setVisitedAppsHW] = React.useState(new Set([0]));
-  const [unvisitedConfirmOpen, setUnvisitedConfirmOpen] = React.useState(false);
-
-  const form = hires[currentIdx];
-  const firstHire = hires[0];
-  const setForm = (updater) => {
-    setHires(prev => prev.map((h, i) => i === currentIdx ? (typeof updater === "function" ? updater(h) : updater) : h));
-  };
-
-  // Tracks role-changes that should prompt HR to re-seed apps. When the title's
-  // role-preset shifts (e.g. Engineer → Designer) AND the hire already has apps,
-  // we set this to the new preset key so Step 3 can show a "Reset apps?" banner.
-  const [appsResetPrompt, setAppsResetPrompt] = React.useState(null);
-  const prevRoleRef = React.useRef(null);
-
-  // When title changes:
-  //   - first time (apps empty)              → seed apps to role preset (no prompt)
-  //   - subsequent change to a different role → surface a prompt on Step 3
-  React.useEffect(() => {
-    if (!form.title) return;
-    const role = rolePresetFor(form.title);
-    if (form.apps.size === 0) {
-      setForm(f => ({ ...f, apps: appsForRole(role) }));
-      prevRoleRef.current = role;
-      return;
-    }
-    if (prevRoleRef.current && prevRoleRef.current !== role) {
-      setAppsResetPrompt(role);
-    }
-    prevRoleRef.current = role;
-  }, [form.title]);
-
-  const acceptAppsReset = () => {
-    if (!appsResetPrompt) return;
-    setForm(f => ({ ...f, apps: appsForRole(appsResetPrompt) }));
-    setAppsResetPrompt(null);
-  };
-  const dismissAppsReset = () => setAppsResetPrompt(null);
-
-  const patch = (partial, opts = {}) => {
-    setForm(f => {
-      // Mark any Step-2 fields the user touched as "Custom" so the badge flips.
-      // (Only matters for non-first hires — the first hire has no baseline to inherit from.)
-      // Pass { silent: true } when we're programmatically inheriting from the first hire —
-      // those fields should stay "Inherited", not flip to "Custom".
-      const nextCustom = new Set(f.customFields);
-      if (!opts.silent) {
-        ["title", "topDept", "department", "manager", "location"].forEach(k => {
-          if (k in partial) nextCustom.add(k);
-        });
-      }
-      return { ...f, ...partial, customFields: nextCustom };
-    });
-    // clear errors on any field that just got filled — but ONLY when the user did it.
-    // Programmatic silent inherits shouldn't mask validation errors HR hasn't seen yet.
-    if (!opts.silent) {
-      setErrors(prev => {
-        const next = { ...prev };
-        Object.keys(partial).forEach(k => { if (partial[k]) delete next[k]; });
-        return next;
-      });
-    }
-  };
-
-  // Patch a specific hire by index — used by Step 1's stacked identity cards,
-  // where each card edits its own hire regardless of which one is "active".
-  const patchHire = (idx, partial) => {
-    setHires(prev => prev.map((h, i) => i === idx ? { ...h, ...partial } : h));
-    setErrors(prev => {
-      // Only clear errors for the active hire's fields (errors are per-active-hire).
-      if (idx !== currentIdx) return prev;
-      const next = { ...prev };
-      Object.keys(partial).forEach(k => { if (partial[k]) delete next[k]; });
-      return next;
-    });
-  };
-  // ---------- HIRE MANAGEMENT ----------
-  // Add N new hires inheriting EVERYTHING (org, apps, hardware) from source
-  // (default: first hire). Identity is always blank — HR types the new name.
-  // We always inherit, even when org fields are empty, because apps/hardware
-  // can be set on later steps and should still propagate to siblings.
-  const addHires = (count, sourceIdx = null) => {
-    const src = sourceIdx != null ? hires[sourceIdx] : hires[0];
-    const next = [];
-    for (let i = 0; i < count; i++) {
-      next.push(src ? cloneHireSkeleton(src) : makeBlankHire());
-    }
-    setHires(prev => [...prev, ...next]);
-    // jump to the first newly-added hire
-    setCurrentIdx(hires.length);
-    setErrors({});
-  };
-
-  const removeHire = (idx) => {
-    if (hires.length <= 1) return;
-    setHires(prev => prev.filter((_, i) => i !== idx));
-    if (currentIdx >= hires.length - 1) setCurrentIdx(Math.max(0, hires.length - 2));
-    else if (currentIdx === idx && currentIdx > 0) setCurrentIdx(currentIdx - 1);
-  };
-
-  const switchHire = (idx) => {
-    setCurrentIdx(idx);
-    setErrors({});
-    setAppsResetPrompt(null);
-    prevRoleRef.current = hires[idx]?.title ? rolePresetFor(hires[idx].title) : null;
-    // If HR is on the App+HW step, switching to a hire counts as a visit —
-    // even if they make no changes. We treat "looked at" as "considered."
-    // The Continue gate flags hires that have NEVER been switched to.
-    if (step === 1) {
-      setVisitedAppsHW(prev => {
-        if (prev.has(idx)) return prev;
-        const next = new Set(prev); next.add(idx); return next;
-      });
-    }
-  };
-
-  // Mark the active hire visited whenever we land on / change while on Step 1.
-  // Covers the case where step transitions from 0 → 1 with currentIdx already
-  // set, and where currentIdx changes via paths other than switchHire.
-  React.useEffect(() => {
-    if (step !== 1) return;
-    setVisitedAppsHW(prev => {
-      if (prev.has(currentIdx)) return prev;
-      const next = new Set(prev); next.add(currentIdx); return next;
-    });
-  }, [step, currentIdx]);
-
-  // Modals shown over the wizard
-  const [showCloneModal, setShowCloneModal] = React.useState(false);
-  const [showExitModal, setShowExitModal] = React.useState(false);
-  // Index of the hire pending removal confirmation (null = no modal).
-  // When the X button is clicked on a hire card, we stash the index here
-  // so the user gets a branded confirmation prompt instead of an instant delete.
-  const [confirmRemoveIdx, setConfirmRemoveIdx] = React.useState(null);
-
-  const requestRemoveHire = (idx) => {
-    if (hires.length <= 1) return;
-    const h = hires[idx];
-    // If the card is essentially empty (no name, no title), skip the prompt —
-    // there's nothing to lose. Otherwise confirm before discarding their work.
-    const isEmpty = !h.firstName && !h.lastName && !h.title && !h.location;
-    if (isEmpty) {
-      removeHire(idx);
-    } else {
-      setConfirmRemoveIdx(idx);
-    }
-  };
-
-  // ---------- PER-HIRE MUTATORS ----------
-  const toggleApp = (id) => setForm(f => {
-    const next = new Set(f.apps); next.has(id) ? next.delete(id) : next.add(id);
-    return { ...f, apps: next };
-  });
-  const setHW = (key, val) => setForm(f => ({ ...f, hardware: { ...f.hardware, [key]: val } }));
-  const toggleExtra = (id) => setForm(f => {
-    const next = new Set(f.hardware.extras); next.has(id) ? next.delete(id) : next.add(id);
-    return { ...f, hardware: { ...f.hardware, extras: next } };
-  });
-
-  // Returns a dict of missing fields for a given hire on a given step.
-  // Pulled out as a pure function so we can validate any hire on any step
-  // (multi-hire batch + forward-jump from the stepper both need this).
-  const missingFor = (h, s) => {
-    const m = {};
-    if (s === 0) {
-      if (!h.firstName.trim()) m.firstName = true;
-      if (!h.lastName.trim())  m.lastName  = true;
-      if (!h.workEmail.trim() || h.workEmail.startsWith("@")) m.workEmail = true;
-      if (!h.personalEmail.trim()) m.personalEmail = true;
-      // Home address is only required for US/CA hires — IT ships hardware
-      // direct to home there. International offices typically hand gear out
-      // on-site, so we keep the field optional to avoid forcing HR to
-      // collect home addresses for European/EMEA hires.
-      const hireLoc = ONB_LOCATIONS.find(l => l.id === h.location);
-      const requiresShipping = !!hireLoc && (hireLoc.country === "US" || hireLoc.country === "CA");
-      if (requiresShipping) {
-        if (!h.address1 || !h.address1.trim()) m.address1 = true;
-        if (!h.city || !h.city.trim()) m.city = true;
-        if (!h.state || !h.state.trim()) m.state = true;
-        if (!h.zip || !h.zip.trim()) m.zip = true;
-      }
-      if (!h.startDate)        m.startDate = true;
-      if (!h.title)            m.title     = true;
-      if (!h.manager)          m.manager   = true;
-      if (!h.location)         m.location  = true;
-      if (!h.topDept)          m.topDept   = true;
-    }
-    if (s === 1) {
-      // Combined apps + hardware step. We keep this loose — there's no
-      // hard requirement on apps or laptops here. Apps default to the
-      // role's required set so size>=3 always; hardware is gated by a
-      // soft confirmation modal at Continue (UnvisitedHiresModal) instead
-      // of a blocking validation, so HR can intentionally ship "kitless"
-      // hires (call-center reps on shared workstations, contractors, etc.)
-    }
-    return m;
-  };
-
-  // Find the first hire (and its missing fields) that fails validation for a step.
-  // Returns { idx, missing } or null if everyone is clean.
-  const firstFailingHire = (s) => {
-    for (let i = 0; i < hires.length; i++) {
-      const m = missingFor(hires[i], s);
-      if (Object.keys(m).length > 0) return { idx: i, missing: m };
-    }
-    // Cross-hire email dedup (Step 1 only). Two hires with the same handle collide.
-    if (s === 0 && hires.length > 1) {
-      const seen = new Map();
-      for (let i = 0; i < hires.length; i++) {
-        const e = (hires[i].workEmail || "").toLowerCase().trim();
-        if (!e) continue;
-        if (seen.has(e)) {
-          // Flag the duplicate — surface the second one (the one that needs to change).
-          return { idx: i, missing: { workEmail: true, _dup: true } };
-        }
-        seen.set(e, i);
-      }
-    }
-    return null;
-  };
-
-  // Validate and advance — Step 0 (Identity) is the only HR step. On Continue
-  // we hand the hires off to their managers via onSubmitToManagers; the old
-  // Steps 1+2 remain in the codebase for the Manager-side approval page.
-  const advance = () => {
-    setErrors({});
-    setBannerOpen(false);
-    if (onSubmitToManagers) { onSubmitToManagers(hires); return; }
-    if (step < steps.length - 1) {
-      const nextStep = step + 1;
-      setStep(nextStep);
-      setMaxStep((m) => Math.max(m, nextStep));
-    }
-    else onFiled(hires);
-  };
-
-  // Compute hires that look "untouched" on Step 1 — never visited, OR visited
-  // but with no laptop pick AND no apps beyond defaults. Used to gate Continue
-  // with a confirmation modal in multi-hire mode.
-  const unvisitedAppsHWHires = React.useMemo(() => {
-    if (step !== 1 || hires.length <= 1) return [];
-    return hires
-      .map((h, i) => ({ h, i }))
-      .filter(({ h, i }) => {
-        if (!visitedAppsHW.has(i)) return true;
-        // Visited but apparently empty — no laptop chosen and zero apps.
-        // (Empty laptop string covers the "never picked" case; "none" is a
-        // legitimate explicit pick for shared workstations and should NOT flag.)
-        const noLap = !h.hardware?.laptop;
-        const noApps = (h.apps?.size || 0) === 0;
-        return noLap && noApps;
-      });
-  }, [step, hires, visitedAppsHW]);
-
-  const next = () => {
-    const fail = firstFailingHire(step);
-    if (fail) {
-      if (fail.idx !== currentIdx) setCurrentIdx(fail.idx);
-      setTimeout(() => {
-        setErrors(fail.missing);
-        setBannerOpen(true);
-        const firstEl = document.querySelector("[data-err='1']");
-        if (firstEl) firstEl.scrollIntoView({ block: "center", behavior: "smooth" });
-      }, 0);
-      return;
-    }
-    // Step 1 + multi-hire: warn before continuing if any hire was never opened
-    // or was left with an empty kit. This is a soft gate — HR can confirm and
-    // proceed (defaults will ship), or cancel and visit the flagged hires.
-    if (step === 1 && unvisitedAppsHWHires.length > 0) {
-      setUnvisitedConfirmOpen(true);
-      return;
-    }
-    advance();
-  };
-  const prev = () => {
-    setErrors({});
-    setBannerOpen(false);
-    if (step === 0) {
-      // Open the styled exit modal if any hire has data — protects HR from losing work.
-      const hasData = hires.some(h =>
-        h.firstName || h.lastName || h.workEmail || h.title || h.topDept || h.location || h.startDate
-      );
-      if (hasData) { setShowExitModal(true); return; }
-      onBack();
-    } else setStep(step - 1);
-  };
-
-  // Stepper click — re-validate every step from current up to the target.
-  // If anything fails, jump to that step (not the target) and surface errors.
-  const goToStep = (i) => {
-    if (i > maxStep) return;
-    if (i <= step) { setStep(i); return; }
-    // Forward jump: walk the steps in between and stop at the first failure.
-    for (let s = step; s < i; s++) {
-      const fail = firstFailingHire(s);
-      if (fail) {
-        setStep(s);
-        if (fail.idx !== currentIdx) setCurrentIdx(fail.idx);
-        setTimeout(() => {
-          setErrors(fail.missing);
-          setBannerOpen(true);
-        }, 0);
-        return;
-      }
-    }
-    setStep(i);
-  };
-
-  // Clear errors and scroll to the top whenever the user moves to a new step.
-  React.useEffect(() => {
-    setErrors({});
-    scrollAppToTop();
-  }, [step]);
-
-  // Banner auto-dismisses after 1.2s — the red field outlines stick around
-  // until the user fixes them, so the banner doesn't need to linger.
-  React.useEffect(() => {
-    if (!bannerOpen) return;
-    const t = setTimeout(() => setBannerOpen(false), 1200);
-    return () => clearTimeout(t);
-  }, [bannerOpen]);
-
-  return (
-    <div data-screen-label="Onboarding" className="page" style={{ minHeight: "100vh", background: "#FDC831" }}>
-      {/* Hero strip — full-bleed cream banner. Mirrors Knowledge / Status. */}
-      <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "28px 32px 32px",
-      }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-      {/* Top: back + stepper */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 16, gap: 16, flexWrap: "wrap",
-      }}>
-        <button onClick={prev} style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "7px 12px 7px 10px",
-          background: "#FFFFFF", border: "1px solid #211E1E",
-          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          color: "#211E1E", cursor: "pointer",
-        }}>
-          <IconArrowLeft size={13} stroke={2.5} />
-          {step === 0 ? "Exit" : "Back"}
-        </button>
-      </div>
-
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 260 }}>
-          <h1 style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.05,
-            margin: 0, color: "#211E1E",
-          }}>{["Who's joining Slice?", "Apps & gear they'll need", "Ready to kick off?"][step]}</h1>
-          {(() => {
-            const subtitle = [
-              hires.length > 1
-                ? "Fill in each person's identity, role, and start logistics below. Use the list on the left to switch between them."
-                : null,
-              hires.length > 1
-                ? "We pre‑selected apps and gear by role for each hire. Tap a person on the left to review and adjust."
-                : "We pre‑selected apps and gear based on their role. Add or remove to fit the job.",
-              "Review everything. We'll create tickets across IT, Facilities, and People.",
-            ][step];
-            if (!subtitle) return null;
-            return (
-              <p style={{ fontSize: 15, color: "#4A3F2E", margin: "10px 0 0", maxWidth: 640, lineHeight: 1.5 }}>
-                {subtitle}
-              </p>
-            );
-          })()}
-        </div>
-
-        {/* Clone user — top-right of Step 1 only */}
-        {step === 0 && (
-          <button onClick={() => setShowCloneModal(true)}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "10px 16px",
-              background: "#211E1E", color: "#FDC831",
-              border: "1px solid #211E1E", borderRadius: 4,
-              boxShadow: "2px 2px 0 #FDC831",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 12,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
-            }}
-            title="Clone from an existing Slicer — copies role, dept, location, and manager">
-            <IconCopy size={13} stroke={2.5}/> Clone user
-          </button>
-        )}
-      </div>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "40px 32px 80px" }}>
-
-      {/* Step content */}
-      <div key={step} style={{ animation: "fadeUp .4s var(--ease) both" }}>
-        {step === 0 && (
-          <StepIdentity
-            form={form} patch={patch} patchHire={patchHire} errors={errors}
-            hires={hires} currentIdx={currentIdx}
-            firstHire={firstHire}
-            onSwitchHire={switchHire}
-            onRemoveHire={requestRemoveHire}
-          />
-        )}
-        {step === 1 && (
-          <StepAppsHardware
-            form={form} toggleApp={toggleApp} patch={patch} errors={errors}
-            setHW={setHW} toggleExtra={toggleExtra}
-            hires={hires} currentIdx={currentIdx} onSwitchHire={switchHire}
-            appsResetPrompt={appsResetPrompt}
-            onAcceptAppsReset={acceptAppsReset}
-            onDismissAppsReset={dismissAppsReset}
-            onApplyPresetToAll={(preset) => {
-              const newApps = appsForRole(preset);
-              setHires(prev => prev.map(h => ({ ...h, apps: new Set(newApps) })));
-            }}
-            onContinue={next}
-          />
-        )}
-        {step === 2 && <StepReview form={form} hires={hires} currentIdx={currentIdx} onSwitchHire={switchHire} onKickoff={next} onPatch={patch} />}
-      </div>
-
-      {/* Error banner */}
-      {bannerOpen && Object.keys(errors).length > 0 && (
-        <div style={{
-          marginTop: 24, padding: "12px 16px",
-          background: "#FFE8E8",
-          border: "1px solid #B92323", borderRadius: 8,
-          boxShadow: "2px 2px 0 #B92323",
-          display: "flex", alignItems: "center", gap: 10,
-          animation: "fadeUp .25s var(--ease) both",
-          fontFamily: "'Archivo', sans-serif",
-        }}>
-          <span style={{
-            width: 22, height: 22, borderRadius: "50%",
-            background: "#B92323", color: "#FFFFFF",
-            display: "grid", placeItems: "center",
-            fontSize: 13, fontWeight: 900,
-            flexShrink: 0,
-          }}>!</span>
-          <div style={{
-            fontSize: 13, fontWeight: 700, color: "#211E1E",
-          }}>
-            Please fill in the required fields highlighted above before continuing.
-          </div>
-        </div>
-      )}
-
-      {/* Footer nav — hidden on Step 1 (App+HW) and Step 2 (Review),
-          where the primary CTA lives inside the right column. */}
-      {step !== 1 && step !== 2 && (
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14,
-        marginTop: 24,
-      }}>
-        <button
-          onClick={next}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "13px 24px",
-            background: "#FDC831",
-            border: "1px solid #211E1E",
-            borderRadius: 4,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 13,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            color: "#211E1E",
-            cursor: "pointer",
-            transition: "transform .12s ease, box-shadow .12s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translate(-1px,-1px)";
-            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "none";
-            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-          }}>
-          {hires.length > 1 ? `Send ${hires.length} hires to managers` : "Send to manager"}
-          <IconArrow size={14} stroke={2.5} />
-        </button>
-      </div>
-      )}
-
-      {/* Modals */}
-      {showCloneModal && (
-        <CloneUserModal
-          sources={MOCK_COMPLETED_SLICERS}
-          currentDrafts={hires.map((h, i) => ({
-            id: h.id,
-            name: (h.firstName || "Untitled") + " " + (h.lastName || ""),
-            title: h.title || "No title yet",
-            dept: h.topDept || "—",
-            isDraft: true,
-            _idx: i,
-          }))}
-          onCancel={() => setShowCloneModal(false)}
-          onPick={(src) => {
-            // Inherit role/org fields into the CURRENT hire — no new hire is created.
-            // Identity (name, emails, phone, address) and step-2/3 settings stay as-is.
-            patchHire(currentIdx, {
-              title:      src.title      || "",
-              topDept:    src.topDept    || "",
-              department: src.department || "",
-              team:       src.team       || "",
-              manager:    src.manager    || "",
-              location:   src.location   || "",
-            });
-            setShowCloneModal(false);
-            setErrors({});
-          }}
-        />
-      )}
-      {showExitModal && (
-        <ExitDraftModal
-          hires={hires}
-          onCancel={() => setShowExitModal(false)}
-          onConfirm={() => { setShowExitModal(false); onBack(); }}
-        />
-      )}
-      {confirmRemoveIdx != null && (
-        <RemoveHireModal
-          hire={hires[confirmRemoveIdx]}
-          idx={confirmRemoveIdx}
-          onCancel={() => setConfirmRemoveIdx(null)}
-          onConfirm={() => {
-            const i = confirmRemoveIdx;
-            setConfirmRemoveIdx(null);
-            removeHire(i);
-          }}
-        />
-      )}
-      {unvisitedConfirmOpen && (
-        <UnvisitedHiresModal
-          unvisited={unvisitedAppsHWHires}
-          totalHires={hires.length}
-          onCancel={() => setUnvisitedConfirmOpen(false)}
-          onJumpTo={(idx) => {
-            setUnvisitedConfirmOpen(false);
-            setCurrentIdx(idx);
-          }}
-          onConfirm={() => {
-            setUnvisitedConfirmOpen(false);
-            advance();
-          }}
-        />
-      )}
-      </div>
-    </div>
-  );
-}
-
-// ---------- STEPPER ----------
-// Connected-track design: yellow fill for the active step, solid dark for
-// completed steps (with yellow ✓), dashed outline for pending. Thin connector
-// lines between items make the progress direction read at a glance.
-function OnbStepper({ steps, current, maxStep, onStep }) {
-  const reach = typeof maxStep === "number" ? maxStep : current;
-  return (
-    <div style={{
-      display: "flex", alignItems: "stretch", gap: 0,
-      padding: 5,
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 8,
-      boxShadow: "2px 2px 0 #211E1E",
-      maxWidth: "100%", overflowX: "auto",
-    }}>
-      {steps.map((s, i) => {
-        const done = i < current;
-        const active = i === current;
-        const visited = i <= reach;
-        const pending = !visited;
-        // clickable if visited AND not the current step (no point clicking yourself)
-        const clickable = visited && !active;
-        return (
-          <React.Fragment key={s}>
-            <button
-              onClick={() => clickable && onStep(i)}
-              disabled={!clickable}
-              style={{
-                position: "relative",
-                padding: "8px 14px 8px 10px",
-                background: active ? "#FDC831" : done ? "#211E1E" : "transparent",
-                color: active ? "#211E1E" : done ? "#FDC831" : pending ? "#78684C" : "#211E1E",
-                border: pending
-                  ? "1.5px dashed rgba(120,104,76,0.4)"
-                  : done
-                  ? "1.5px solid #211E1E"
-                  : "1.5px solid transparent",
-                borderRadius: 5,
-                fontFamily: "'Archivo', sans-serif",
-                fontWeight: 800, fontSize: 11,
-                letterSpacing: "0.06em", textTransform: "uppercase",
-                cursor: clickable ? "pointer" : "default",
-                display: "inline-flex", alignItems: "center", gap: 8,
-                transition: "background .2s ease, color .2s ease, transform .15s ease, box-shadow .2s ease",
-                whiteSpace: "nowrap",
-                transform: active ? "scale(1.04)" : "scale(1)",
-                transformOrigin: "center",
-                boxShadow: active
-                  ? "1px 1px 0 #211E1E"
-                  : done
-                  ? "1px 1px 0 #FDC831"
-                  : "none",
-              }}>
-              <span style={{
-                width: 20, height: 20, borderRadius: "50%",
-                display: "grid", placeItems: "center",
-                background: active ? "#211E1E" : done ? "#FDC831" : "transparent",
-                color: active ? "#FDC831" : done ? "#211E1E" : "#78684C",
-                border: pending ? "1.5px dashed rgba(120,104,76,0.5)" : "none",
-                fontSize: 10, fontWeight: 900,
-                fontFamily: "'Archivo', monospace",
-                flexShrink: 0,
-              }}>
-                {done ? "✓" : i + 1}
-              </span>
-              {s}
-            </button>
-            {i < steps.length - 1 && (
-              <div style={{
-                alignSelf: "center",
-                width: 18, height: 2,
-                background: i < reach ? "#211E1E" : "rgba(120,104,76,0.25)",
-                margin: "0 2px",
-                transition: "background .25s ease",
-              }}/>
-            )}
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-}
-
-// ---------- STEP 1: IDENTITY ----------
-// Smart-parse a comma-separated address string into structured parts.
-// Returns null when there's nothing to split (no commas, or only one chunk),
-// so the caller can fall back to plain assignment. Supports common shapes:
-//   "123 Main St, Brooklyn, NY 11201"
-//   "742 Evergreen Terrace, Apt 4B, Springfield, IL 62701"
-//   "10 Downing St, London SW1A 2AA, UK"        (line1, [line2,] city, state-zip)
-// We keep this conservative — if the input looks ambiguous we still pull
-// out what we can confidently identify (zip, state) and leave the rest in
-// line 1 for the user to clean up.
-function parseAddressString(raw) {
-  if (!raw || typeof raw !== "string") return null;
-  const parts = raw.split(",").map(s => s.trim()).filter(Boolean);
-  if (parts.length < 2) return null; // nothing to split
-
-  // ZIP detection — last token often holds "STATE 12345" or "STATE 12345-6789"
-  // (US) or a UK postcode. We pull the zip out of whichever token has it.
-  const zipPattern = /\b(\d{5}(?:-\d{4})?|[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i;
-  // US state: 2-letter postal code (CA, NY, etc) or full name. Match
-  // case-insensitively but uppercase 2-letter codes when extracting.
-  const stateAbbr = /\b([A-Z]{2})\b/;
-
-  let line1 = "", line2 = "", city = "", state = "", zip = "";
-
-  // Last chunk: try to pull state + zip out of it.
-  const last = parts[parts.length - 1];
-  const zipMatch = last.match(zipPattern);
-  if (zipMatch) zip = zipMatch[1];
-  // Strip zip from the last chunk; whatever remains is likely the state.
-  const lastNoZip = last.replace(zipPattern, "").trim();
-  if (lastNoZip) {
-    const stateMatch = lastNoZip.match(stateAbbr);
-    state = stateMatch ? stateMatch[1].toUpperCase() : lastNoZip;
-  }
-
-  // Walk remaining chunks back-to-front: city is the next-to-last, line2 is
-  // anything in between (typically Apt/Suite), line1 is the first.
-  const remaining = parts.slice(0, -1);
-  if (remaining.length >= 1) line1 = remaining[0];
-  if (remaining.length === 2) city = remaining[1];
-  if (remaining.length >= 3) {
-    city = remaining[remaining.length - 1];
-    line2 = remaining.slice(1, -1).join(", ");
-  }
-
-  // Sanity check — if we couldn't extract at least line1 + (city OR state OR
-  // zip), bail and let the user enter manually.
-  if (!line1 || (!city && !state && !zip)) return null;
-  return { line1, line2, city, state, zip };
-}
-
-// Strip non-email-safe chars: lowercase, ASCII letters/digits/dot/hyphen only
-function emailSafe(s) {
-  return (s || "")
-    .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // strip accents
-    .replace(/[^a-z0-9.-]/g, "");
-}
-function suggestedHandle(first, last) {
-  const f = emailSafe(first);
-  const l = emailSafe(last);
-  if (!f && !l) return "";
-  if (!l) return f;
-  if (!f) return l;
-  return `${f}.${l}`;
-}
-
-// ---------- EMAIL PROVISION BLOCK ----------
-// Always-editable work-email field. A small toggle next to the label switches
-// the auto-generated handle between "first.last" and "first" — clicking it
-// regenerates the handle from the current name. Users can also type freely.
-function EmailProvisionBlock({
-  firstName, lastName, handle,
-  taken, valid, onHandleChange, error,
-}) {
-  const showError = !!error;
-
-  // Build the two suggestion handles from the current name. Sanitize the
-  // same way the auto-derive helper does — lowercase, ASCII letters/digits
-  // only — so chips and the input agree.
-  const f = (firstName || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-  const l = (lastName  || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-  const sugFirst       = f;                       // "liridon"
-  const sugFirstInit   = f && l ? `${f}.${l[0]}` : "";  // "liridon.s"
-
-  // Show a chip only when (a) we have something to suggest and (b) it
-  // differs from what the user has now — no point offering a chip that
-  // doesn't change anything.
-  const chips = [
-    sugFirst       && sugFirst     !== handle && { label: sugFirst,     hint: "First only" },
-    sugFirstInit   && sugFirstInit !== handle && { label: sugFirstInit, hint: "First + initial" },
-  ].filter(Boolean);
-
-  return (
-    <div data-err={showError ? "1" : undefined}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        marginBottom: 6,
-      }}>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-          color: "#78684C",
-        }}>Work email<span style={{ color: "#B92323", marginLeft: 4 }}>*</span></div>
-
-        {showError && (
-          <span style={{
-            fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-            padding: "1px 6px",
-            background: "#B92323", color: "#FFFFFF",
-            borderRadius: 2,
-            animation: "shake .4s ease-in-out",
-          }}>Needed</span>
-        )}
-      </div>
-
-      {/* Email input row: handle | @slice.com */}
-      <div style={{
-        display: "flex", alignItems: "stretch",
-        background: "#FFFFFF",
-        border: `2px solid ${showError ? "#B92323" : "#211E1E"}`,
-        borderRadius: 6,
-        boxShadow: showError ? "2px 2px 0 #B92323" : "none",
-        overflow: "hidden",
-        transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
-      }}>
-        <input
-          value={handle}
-          onChange={(e) => onHandleChange(e.target.value)}
-          placeholder="first.last"
-          style={{
-            flex: 1, minWidth: 0,
-            padding: "11px 12px",
-            border: "none", outline: "none", background: "transparent",
-            fontSize: 15,
-            fontFamily: "'Archivo', monospace",
-            fontWeight: 600,
-            color: "#211E1E",
-          }}
-        />
-        <div style={{
-          display: "grid", placeItems: "center",
-          padding: "0 14px",
-          background: "#FFF9E6",
-          borderLeft: "1px solid #211E1E",
-          fontFamily: "'Archivo', monospace",
-          fontSize: 13, fontWeight: 700, color: "#211E1E",
-        }}>@slice.com</div>
-      </div>
-
-      {/* Suggestion chips — only render when there's something to suggest.
-          Default style for the input is "first.last" (auto-derived), so we
-          only need chips for the shorter alternates. */}
-      {chips.length > 0 && (
-        <div style={{
-          display: "flex", alignItems: "center", flexWrap: "wrap",
-          gap: 6,
-          marginTop: 6,
-        }}>
-          <span style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-            color: "#78684C",
-          }}>Try</span>
-          {chips.map((c) => (
-            <button key={c.label}
-              onClick={() => onHandleChange(c.label)}
-              title={c.hint}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 5,
-                padding: "3px 9px",
-                background: "#FFFFFF",
-                border: "1px solid #211E1E",
-                borderRadius: 999,
-                cursor: "pointer",
-                fontFamily: "'Archivo', monospace",
-                fontSize: 11.5, fontWeight: 700,
-                color: "#211E1E",
-                transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#FDC831";
-                e.currentTarget.style.boxShadow  = "1px 1px 0 #211E1E";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#FFFFFF";
-                e.currentTarget.style.boxShadow  = "none";
-              }}>
-              <span>{c.label}</span>
-              <span style={{
-                fontSize: 10, color: "#78684C", fontWeight: 600,
-              }}>@slice.com</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Inline availability hint — only when there's something to say */}
-      {((!valid && handle.length > 0) || (valid && taken) || (valid && !taken && handle.length > 0)) && (
-        <div style={{
-          marginTop: 5,
-          fontFamily: "'Archivo', sans-serif", fontSize: 11.5,
-        }}>
-          {!valid && handle.length > 0 && (
-            <span style={{ color: "#B92323", fontWeight: 700 }}>
-              Use letters, digits, dot or hyphen only.
-            </span>
-          )}
-          {valid && taken && (
-            <span style={{ color: "#B92323", fontWeight: 700 }}>
-              That handle is already taken.
-            </span>
-          )}
-          {valid && !taken && handle.length > 0 && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              padding: "1px 7px 1px 5px",
-              background: "#FDC831", color: "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 3,
-              fontWeight: 800, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase",
-            }}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-              Available
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StepIdentity({ form, patch, patchHire, errors = {}, hires = [form], currentIdx = 0, firstHire, onSwitchHire, onAddHire, onRemoveHire }) {
-  // Each stacked identity card is a thin wrapper around IdentityHireCard so
-  // that state updates target the right hire rather than the "active" one.
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-      {hires.map((h, idx) => (
-        <IdentityHireCard
-          key={idx}
-          hire={h}
-          idx={idx}
-          total={hires.length}
-          isCurrent={idx === currentIdx}
-          isFirst={idx === 0}
-          firstHire={firstHire}
-          errors={idx === currentIdx ? errors : {}}
-          onPatch={(partial) => patchHire(idx, partial)}
-          onFocus={() => onSwitchHire?.(idx)}
-          onRemove={hires.length > 1 ? () => onRemoveHire(idx) : null}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ---------- IDENTITY HIRE CARD ----------
-// One stacked "Personal Details" + "Start & work mode" pair for a single hire.
-// Rendered once per hire on Step 1. Clicking anywhere inside focuses this hire
-// (so validation errors and Step-2+ switching stay in sync).
-function IdentityHireCard({ hire, idx, total, isCurrent, isFirst = true, firstHire, errors, onPatch, onFocus, onRemove }) {
-  // Auto-derive the default handle as "first.last". Users can override by
-  // typing freely or clicking one of the suggestion chips ("first" or
-  // "first.l") under the input — see EmailProvisionBlock for chip logic.
-  const derivedHandle = React.useMemo(() => {
-    const f = (hire.firstName || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-    const l = (hire.lastName  || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-    return f && l ? `${f}.${l}` : (f || l);
-  }, [hire.firstName, hire.lastName]);
-
-  // First-time seed: when emailHandle is empty, mirror the derived value into
-  // the input so the user always sees a live preview as they type the name.
-  const handle = hire.emailHandle && hire.emailHandle.length > 0 ? hire.emailHandle : derivedHandle;
-
-  // If the user hasn't touched the handle yet, keep mirroring the derived value
-  // back into hire.emailHandle so it persists into review/data.
-  React.useEffect(() => {
-    if (!hire.emailHandle && derivedHandle) {
-      onPatch({ emailHandle: derivedHandle });
-    }
-  }, [derivedHandle, hire.emailHandle]);
-
-  const workEmail = handle ? `${handle}@slice.com` : "";
-
-  // Keep derived workEmail in state, per this hire.
-  React.useEffect(() => {
-    if (hire.workEmail !== workEmail) onPatch({ workEmail });
-  }, [workEmail]);
-
-  const TAKEN = new Set(["liridon.selmani", "john.doe", "jane.smith", "admin", "test", "priya.shah"]);
-  const taken = handle && TAKEN.has(handle);
-  const valid = handle.length >= 2 && /^[a-z0-9][a-z0-9.-]*[a-z0-9]$/.test(handle);
-
-  const headerBg = isCurrent ? "#211E1E" : "#FFF9E6";
-  const headerFg = isCurrent ? "#FDC831" : "#211E1E";
-  const headerSubFg = isCurrent ? "#E8D898" : "#78684C";
-  const badgeBg = isCurrent ? "#FDC831" : "#211E1E";
-  const badgeFg = isCurrent ? "#211E1E" : "#FDC831";
-  const showKicker = total > 1;
-  const displayName =
-    (hire.firstName || hire.lastName)
-      ? `${hire.firstName || ""} ${hire.lastName || ""}`.trim()
-      : (showKicker ? `Hire ${idx + 1}` : "");
-
-  // Resolve location label (e.g. "Kosovo · PRS") for the banner meta line
-  const hireLoc = ONB_LOCATIONS.find(l => l.id === hire.location);
-  const locLabel = hireLoc ? `${hireLoc.label} · ${hireLoc.site}` : null;
-
-  return (
-    <div onClick={onFocus} style={{
-      position: "relative",
-      padding: 0,
-      transition: "box-shadow .15s ease",
-    }}>
-      {/* Banner above the two cards, only when there's more than one hire */}
-      {showKicker && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "8px 14px",
-          background: headerBg,
-          border: "1px solid #211E1E",
-          borderBottom: "none",
-          borderRadius: "8px 8px 0 0",
-        }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 24, height: 24,
-            background: badgeBg, color: badgeFg,
-            fontFamily: "'Archivo', monospace",
-            fontSize: 11, fontWeight: 900, letterSpacing: "0.02em",
-            borderRadius: 3,
-          }}>{idx + 1}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0, flex: 1 }}>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 13, fontWeight: 800, color: headerFg,
-              letterSpacing: "-0.01em",
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}>
-              {displayName || `New hire ${idx + 1}`}
-            </div>
-            {(hire.title || locLabel) && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 6,
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 11, fontWeight: 600, color: headerSubFg,
-                letterSpacing: "-0.005em",
-                whiteSpace: "nowrap", overflow: "hidden",
-              }}>
-                {hire.title && <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{hire.title}</span>}
-                {hire.title && locLabel && <span style={{ opacity: 0.5 }}>·</span>}
-                {locLabel && hireLoc && (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                    <CountryFlag country={hireLoc.country} size={11} />
-                    <span>{locLabel}</span>
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-          {isCurrent && (
-            <span style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 9, fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase",
-              padding: "2px 6px",
-              background: "#FDC831", color: "#211E1E",
-              borderRadius: 2,
-            }}>Editing</span>
-          )}
-          {onRemove && (
-            <button onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              title="Remove this hire"
-              style={{
-                display: "grid", placeItems: "center",
-                width: 22, height: 22,
-                background: isCurrent ? "#FDC831" : "#FFFFFF",
-                color: "#211E1E",
-                border: isCurrent ? "1.5px solid #FDC831" : "1.5px solid #211E1E",
-                borderRadius: 3,
-                cursor: "pointer",
-                fontSize: 14, fontWeight: 900, lineHeight: 1,
-              }}>×</button>
-          )}
-        </div>
-      )}
-
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1.1fr",
-        gap: 20,
-        padding: showKicker ? "18px" : 0,
-        background: showKicker ? "#FFFFFF" : "transparent",
-        border: showKicker ? "2px solid #211E1E" : "none",
-        borderTop: showKicker ? "none" : "none",
-        borderRadius: showKicker ? "0 0 8px 8px" : 0,
-        alignItems: "flex-start",
-      }}>
-        <OnbCard title="Personal details" kicker={showKicker ? null : "Required"}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <OnbInput label="First name"     value={hire.firstName}     onChange={v => onPatch({ firstName: v })} placeholder="Liridon" required error={errors.firstName} />
-            <OnbInput label="Last name"      value={hire.lastName}      onChange={v => onPatch({ lastName: v })}  placeholder="Selmani"  required error={errors.lastName} />
-            <OnbInput label="Preferred name" value={hire.preferredName} onChange={v => onPatch({ preferredName: v })} placeholder="Optional" />
-            <OnbInput label="Personal phone" value={hire.phone}         onChange={v => onPatch({ phone: v })}     placeholder="(555) 012‑3456" />
-          </div>
-
-          {/* Office location — sits with the names so HR can choose the
-              physical office BEFORE deciding on the email handle and home
-              address (the latter is only required for US/CA hires). */}
-          <OnbSelect
-            label="Office location"
-            value={hire.location}
-            options={ONB_LOCATIONS.map(l => ({
-              value: l.id,
-              label: `${l.label} · ${l.site}`,
-              sub: l.tz,
-              icon: <CountryFlag country={l.country} size={18} />,
-            }))}
-            placeholder="Select office…"
-            onChange={v => onPatch({ location: v })}
-            required error={errors.location}
-          />
-
-          <EmailProvisionBlock
-            firstName={hire.firstName}
-            lastName={hire.lastName}
-            handle={handle}
-            taken={taken}
-            valid={valid}
-            onHandleChange={(v) => onPatch({ emailHandle: emailSafe(v) })}
-            error={errors.workEmail}
-          />
-
-          <OnbInput label="Personal email" value={hire.personalEmail} onChange={v => onPatch({ personalEmail: v })} placeholder="For pre‑start comms" required error={errors.personalEmail} />
-        </OnbCard>
-
-        <OnbCard title="Role & start logistics" kicker={showKicker ? null : "Required"}>
-          {/* Job title (left, smaller) + Manager (right) */}
-          <div style={{ display: "grid", gridTemplateColumns: "0.85fr 1.15fr", gap: 12 }}>
-            <OnbSelect
-              label="Job title"
-              value={hire.title}
-              options={ONB_TITLES.map(t => ({ value: t, label: t }))}
-              placeholder="Select…"
-              onChange={v => onPatch({ title: v })}
-              required error={errors.title}
-            />
-            <OnbSelect
-              label="Manager"
-              value={hire.manager}
-              options={ONB_MANAGERS.map(m => ({
-                value: m.name,
-                label: m.name,
-                sub: `${m.title} · ${m.dept}`,
-              }))}
-              placeholder="Reports to…"
-              onChange={v => onPatch({ manager: v })}
-              required error={errors.manager}
-            />
-          </div>
-
-          {/* Office location moved up into Personal Details (sits with names
-              there) — see the LEFT card. */}
-
-          {/* Department + Sub-department side by side */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <OnbSelect
-              label="Department"
-              value={hire.topDept}
-              options={Object.keys(ONB_DEPARTMENTS).map(d => ({ value: d, label: d }))}
-              placeholder="Select department…"
-              onChange={v => onPatch({ topDept: v, department: "", team: "" })}
-              required error={errors.topDept}
-            />
-            <OnbSelect
-              label="Sub-department"
-              value={hire.department}
-              options={(hire.topDept ? (ONB_DEPARTMENTS[hire.topDept] || []) : []).map(d => ({ value: d, label: d }))}
-              placeholder={hire.topDept ? "Select sub-department…" : "Pick department first"}
-              disabled={!hire.topDept}
-              onChange={v => onPatch({ department: v, team: "" })}
-              error={errors.department}
-            />
-          </div>
-
-          {/* Team — independent of sub-department now (HR sometimes assigns
-              a team that crosses sub-departments, and we don't want the
-              field gated on a parent pick). Flat list of every team across
-              the org; type-ahead handles the volume. */}
-          <OnbSelect
-            label="Team"
-            value={hire.team}
-            options={Object.values(ONB_TEAMS).flat().map(t => ({ value: t, label: t }))}
-            placeholder="Select team…"
-            onChange={v => onPatch({ team: v })}
-            error={errors.team}
-          />
-
-          {/* Home address — sits above Start date. Required only for US/CA
-              hires (IT ships hardware to home there); optional for other
-              countries since gear is handed out on-site. */}
-          {(() => {
-            const hireLoc = ONB_LOCATIONS.find(l => l.id === hire.location);
-            const isUSorCA = !!hireLoc && (hireLoc.country === "US" || hireLoc.country === "CA");
-            const hasErr = errors.address1 || errors.city || errors.state || errors.zip;
-            return (
-              <div style={{ marginTop: 4 }} data-err={hasErr ? "1" : undefined}>
-                <div style={{
-                  fontFamily: "'Archivo', sans-serif",
-                  fontSize: 11, fontWeight: 800, color: "#211E1E",
-                  letterSpacing: "0.06em", textTransform: "uppercase",
-                  marginBottom: 6,
-                  display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  <span>
-                    Home address
-                    {isUSorCA
-                      ? <span style={{ color: "#B92323", marginLeft: 4 }}>*</span>
-                      : <span style={{
-                          marginLeft: 6, fontSize: 9.5, fontWeight: 700,
-                          color: "#5A5755", textTransform: "uppercase", letterSpacing: "0.08em",
-                        }}>Optional</span>
-                    }
-                  </span>
-                  {isUSorCA && hasErr && (
-                    <span style={{
-                      fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-                      padding: "1px 6px",
-                      background: "#B92323", color: "#FFFFFF",
-                      borderRadius: 2,
-                      animation: "shake .4s ease-in-out",
-                    }}>Required</span>
-                  )}
-                  <span style={{
-                    marginLeft: "auto",
-                    fontSize: 10, fontWeight: 600,
-                    color: "#5A5755", textTransform: "none", letterSpacing: 0,
-                    fontStyle: "italic",
-                  }}>Tip: paste a full address — we'll split it</span>
-                </div>
-                <div style={{ display: "grid", gap: 8 }}>
-                  <OnbInput
-                    label="Address line 1" hideLabel
-                    value={hire.address1}
-                    onChange={v => {
-                      const parsed = parseAddressString(v);
-                      if (parsed) {
-                        onPatch({
-                          address1: parsed.line1,
-                          address2: parsed.line2 || hire.address2,
-                          city: parsed.city || hire.city,
-                          state: parsed.state || hire.state,
-                          zip: parsed.zip || hire.zip,
-                          address: [parsed.line1, parsed.line2 || hire.address2, parsed.city || hire.city, parsed.state || hire.state, parsed.zip || hire.zip].filter(Boolean).join(", "),
-                        });
-                      } else {
-                        onPatch({ address1: v, address: [v, hire.address2, hire.city, hire.state, hire.zip].filter(Boolean).join(", ") });
-                      }
-                    }}
-                    placeholder="Street address — or paste full address"
-                    required={isUSorCA} error={errors.address1}
-                  />
-                  <OnbInput
-                    label="Address line 2" hideLabel
-                    value={hire.address2}
-                    onChange={v => onPatch({ address2: v, address: [hire.address1, v, hire.city, hire.state, hire.zip].filter(Boolean).join(", ") })}
-                    placeholder="Apt, suite, floor (optional)"
-                  />
-                  <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 0.9fr", gap: 8 }}>
-                    <OnbInput
-                      label="City" hideLabel
-                      value={hire.city}
-                      onChange={v => onPatch({ city: v, address: [hire.address1, hire.address2, v, hire.state, hire.zip].filter(Boolean).join(", ") })}
-                      placeholder="City"
-                      required={isUSorCA} error={errors.city}
-                    />
-                    <OnbInput
-                      label="State / Region" hideLabel
-                      value={hire.state}
-                      onChange={v => onPatch({ state: v, address: [hire.address1, hire.address2, hire.city, v, hire.zip].filter(Boolean).join(", ") })}
-                      placeholder="State / Region"
-                      required={isUSorCA} error={errors.state}
-                    />
-                    <OnbInput
-                      label="ZIP / Postal" hideLabel
-                      value={hire.zip}
-                      onChange={v => onPatch({ zip: v, address: [hire.address1, hire.address2, hire.city, hire.state, v].filter(Boolean).join(", ") })}
-                      placeholder="ZIP / Postal"
-                      required={isUSorCA} error={errors.zip}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Start date — bottom of the card */}
-          <SliceDatePicker label="Start date" value={hire.startDate} onChange={v => onPatch({ startDate: v })} required error={errors.startDate} />
-        </OnbCard>
-      </div>
-    </div>
-  );
-}
-
-// ---------- HIRE SWITCHER BAR ----------
-// Appears above the step content when HR is onboarding multiple hires at once.
-// Lets them jump between hires without going back through the wizard — a small
-// row of chips showing first-name + status dot (✓ complete for this step,
-// blank = needs attention). Visible only on steps 2/3/4, not on 1 (identity)
-// or 5 (review — which shows all hires anyway).
-function HireSwitcherBar({ hires, currentIdx, onSwitchHire, step }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 10,
-      padding: "10px 14px",
-      background: "#FFF9E6",
-      border: "1px solid #211E1E", borderRadius: 8,
-      boxShadow: "2px 2px 0 #211E1E",
-      marginBottom: 20,
-      flexWrap: "wrap",
-    }}>
-      <div style={{
-        fontSize: 10.5, fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase",
-        color: "#78684C",
-      }}>
-        {step} ·
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        {hires.map((h, idx) => {
-          const active = idx === currentIdx;
-          const name = (h.firstName || h.lastName)
-            ? `${h.firstName || ""} ${h.lastName || ""}`.trim()
-            : `Hire ${idx + 1}`;
-          return (
-            <button key={idx}
-              onClick={() => !active && onSwitchHire?.(idx)}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "5px 10px",
-                background: active ? "#211E1E" : "#FFFFFF",
-                color: active ? "#FDC831" : "#211E1E",
-                border: "1px solid #211E1E", borderRadius: 4,
-                boxShadow: active ? "1px 1px 0 #FDC831" : "none",
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 12, fontWeight: 800,
-                cursor: active ? "default" : "pointer",
-                transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
-              }}>
-              <span style={{
-                fontFamily: "'Archivo', monospace",
-                fontSize: 9.5, fontWeight: 900,
-                padding: "1px 5px",
-                background: active ? "#FDC831" : "#FFF9E6",
-                color: "#211E1E",
-                border: "1px solid " + (active ? "#FDC831" : "#211E1E"),
-                borderRadius: 2,
-              }}>{idx + 1}</span>
-              {name}
-            </button>
-          );
-        })}
-      </div>
-      <div style={{ flex: 1 }}></div>
-      <div style={{
-        fontSize: 10, fontWeight: 700,
-        color: "#78684C",
-      }}>
-        Switch any time — progress saves
-      </div>
-    </div>
-  );
-}
-
-// ---------- STEP 2: ORG ----------
-// When working on hires beyond the first, fields pre-fill with the first hire's
-// values. A small badge next to each field label says "Inherited" until the HR
-// edits it — then it flips to "Custom". HR can also hit "Reset to first hire"
-// on any field to re-inherit.
-function StepOrg({ form, patch, errors = {}, firstHire, isFirst = true, hires = [form], currentIdx = 0, onSwitchHire }) {
-  const subDepts = form.topDept ? ONB_DEPARTMENTS[form.topDept] || [] : [];
-
-  // Seed inherited values from the first hire when the active hire changes —
-  // but only if the hire looks "fresh" (no customFields touched yet AND no
-  // org fields filled). Without this guard, switching away and back can revive
-  // fields the user explicitly cleared between visits.
-  const lastSeededRef = React.useRef(null);
-  React.useEffect(() => {
-    if (isFirst || !firstHire) return;
-    const hireId = form.id || currentIdx;
-    if (lastSeededRef.current === hireId) return;
-    lastSeededRef.current = hireId;
-    const hasTouched = (form.customFields?.size ?? 0) > 0;
-    if (hasTouched) return; // user already worked on this hire — don't re-seed
-    const fields = ["title", "topDept", "department", "manager", "location"];
-    const inherit = {};
-    fields.forEach(k => {
-      if (!form[k] && firstHire[k]) inherit[k] = firstHire[k];
-    });
-    if (Object.keys(inherit).length > 0) patch(inherit, { silent: true });
-  }, [currentIdx, form.id]);
-
-  const InheritBadge = ({ fieldKey }) => {
-    if (isFirst || !firstHire?.[fieldKey]) return null;
-    const isInherited = !form.customFields?.has(fieldKey);
-    return (
-      <span style={{
-        fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-        padding: "1px 6px",
-        background: isInherited ? "#FDC831" : "#FFFFFF",
-        color: "#211E1E",
-        border: "1px solid #211E1E", borderRadius: 3,
-      }}>{isInherited ? "Inherited" : "Custom"}</span>
-    );
-  };
-
-  return (
-    <div>
-      {hires.length > 1 && <HireSwitcherBar hires={hires} currentIdx={currentIdx} onSwitchHire={onSwitchHire} step="Role & Org" />}
-
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 24, alignItems: "flex-start" }}>
-      <OnbCard title="Role & reporting" kicker={isFirst || hires.length === 1 ? "Required" : `Slicer ${currentIdx + 1} of ${hires.length}`}>
-        {!isFirst && (
-          <div style={{
-            padding: "10px 12px",
-            background: "#FFF9E6",
-            border: "1px dashed #211E1E", borderRadius: 6,
-            fontSize: 12, lineHeight: 1.5, color: "#4A3F2E",
-            marginBottom: 4,
-          }}>
-            Pre-filled from <strong style={{ color: "#211E1E" }}>{firstHire.firstName || "the first hire"} {firstHire.lastName}</strong>. Edit any field to override — anything you change becomes <strong>Custom</strong>.
-          </div>
-        )}
-        <OnbSelect
-          label="Job title"
-          labelBadge={<InheritBadge fieldKey="title" />}
-          value={form.title}
-          options={ONB_TITLES.map(t => ({ value: t, label: t }))}
-          placeholder="Select a title…"
-          onChange={v => patch({ title: v })}
-          required error={errors.title}
-        />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <OnbSelect
-            label="Top department"
-            labelBadge={<InheritBadge fieldKey="topDept" />}
-            value={form.topDept}
-            options={Object.keys(ONB_DEPARTMENTS).map(d => ({ value: d, label: d }))}
-            placeholder="Select…"
-            onChange={v => patch({ topDept: v, department: "" })}
-            required error={errors.topDept}
-          />
-          <OnbSelect
-            label="Department"
-            labelBadge={<InheritBadge fieldKey="department" />}
-            value={form.department}
-            options={subDepts.map(d => ({ value: d, label: d }))}
-            placeholder={form.topDept ? "Select…" : "Pick top dept first"}
-            disabled={!form.topDept}
-            onChange={v => patch({ department: v })}
-            required error={errors.department}
-          />
-        </div>
-        <OnbSelect
-          label="Reports to (manager)"
-          labelBadge={<InheritBadge fieldKey="manager" />}
-          value={form.manager}
-          options={ONB_MANAGERS.map(m => ({
-            value: m.name,
-            label: m.name,
-            sub: `${m.title} · ${m.dept}`,
-          }))}
-          placeholder="Select manager…"
-          onChange={v => patch({ manager: v })}
-          required error={errors.manager}
-        />
-      </OnbCard>
-
-      <OnbCard
-        title="Primary location"
-        kicker="For hardware shipping"
-        topLeftAction={!isFirst && firstHire?.location ? <InheritBadge fieldKey="location" /> : null}
-      >
-        <div data-err={errors.location ? "1" : undefined} style={{
-          padding: errors.location ? 8 : 0,
-          margin: errors.location ? -8 : 0,
-          border: errors.location ? "2px solid #B92323" : "2px solid transparent",
-          borderRadius: 8,
-          boxShadow: errors.location ? "2px 2px 0 #B92323" : "none",
-          transition: "transform .2s ease, box-shadow .2s ease, background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease",
-          animation: errors.location ? "shake .4s ease-in-out" : "none",
-        }}>
-          {errors.location && (
-            <div style={{
-              marginBottom: 10,
-              fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-              color: "#B92323",
-            }}>→ Pick a location</div>
-          )}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {ONB_LOCATIONS.map(l => (
-            <button key={l.id} onClick={() => patch({ location: l.id })}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "12px 14px",
-                background: form.location === l.id ? "#FDC831" : "#FFFFFF",
-                border: "1px solid #211E1E", borderRadius: 6,
-                boxShadow: form.location === l.id ? "1px 1px 0 #211E1E" : "none",
-                fontFamily: "'Archivo', sans-serif",
-                cursor: "pointer",
-                textAlign: "left",
-                transition: "transform .2s ease, box-shadow .2s ease, background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease",
-              }}>
-              <CountryFlag country={l.country} size={20} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                  <div style={{ fontWeight: 800, fontSize: 12.5, color: "#211E1E" }}>{l.label}</div>
-                  <div style={{
-                    fontFamily: "'Archivo', monospace",
-                    fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em",
-                    padding: "1px 4px",
-                    background: form.location === l.id ? "#211E1E" : "#FFF9E6",
-                    color: form.location === l.id ? "#FDC831" : "#211E1E",
-                    border: "1px solid #211E1E",
-                    borderRadius: 2,
-                  }}>{l.site}</div>
-                </div>
-                <div style={{ fontSize: 10.5, color: "#78684C", fontWeight: 600, letterSpacing: "0.04em", marginTop: 2 }}>{l.tz}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-        </div>
-      </OnbCard>
-    </div>
-    </div>
-  );
-}
-
-// ---------- STEP 2: APPS + HARDWARE (combined) ----------
-// Bulk hires need per-person context while picking apps and hardware. We give
-// HR a left rail of compact hire previews (name + title + flag/location +
-// progress dots + tick when active) and a single combined right pane that
-// shows BOTH apps and hardware on screen at once — HR was forgetting to fill
-// in hardware when it lived behind a tab. Apps & hardware selections stay
-// independent per-hire — each starts from their own role preset on first
-// visit, no inheritance.
-function StepAppsHardware(props) {
-  const { hires = [props.form], currentIdx = 0, onSwitchHire, onContinue } = props;
-
-  // Inner step components were written for the standalone wizard pages and
-  // include their own HireSwitcherBar at the top. Pass hires={[form]} to make
-  // multiHire false inside them so we don't double up the switcher chrome.
-  const innerProps = { ...props, hires: [props.form], currentIdx: 0, onContinue };
-
-  // Same split layout for one hire and many — the left rail still gives HR
-  // a single-card recap of who they're configuring, and the right pane shows
-  // apps + hardware together so neither gets forgotten.
-  // For a single hire, the left rail is redundant — HR just typed the
-  // identity on Step 1 and doesn't need a one-card recap. Skip the rail
-  // and let apps + hardware claim the full width. Bulk mode (2+) still
-  // needs the rail since hire-switching is the whole point.
-  const isBulk = hires.length > 1;
-  return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: isBulk ? "260px 1fr" : "1fr",
-      gap: 18,
-      alignItems: "flex-start",
-    }}>
-      {isBulk && (
-        <HireRail hires={hires} currentIdx={currentIdx} onSwitchHire={onSwitchHire} />
-      )}
-
-      <div>
-        <SectionDivider label="App access" />
-        <StepApps {...innerProps} />
-        <div style={{ height: 28 }}/>
-        <SectionDivider label="Hardware kit" />
-        <StepHardware {...innerProps} />
-      </div>
-    </div>
-  );
-}
-
-// Compact section divider — yellow eyebrow chip + dashed rule. Used in the
-// stacked layout to call out the apps/hardware split without adding a heavy
-// header bar inside an already busy step.
-function SectionDivider({ label }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 12,
-      margin: "4px 0 16px",
-    }}>
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 11, fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase",
-        color: "#211E1E",
-        padding: "3px 8px",
-        background: "#FDC831",
-        border: "1px solid #211E1E", borderRadius: 4,
-      }}>{label}</div>
-      <div style={{ flex: 1, height: 0, borderTop: "1px dashed rgba(33,30,30,0.3)" }}/>
-    </div>
-  );
-}
-
-// Vertical hire rail — the left column on Step 2 split view. Each card shows
-// name, title, location flag + site code; clicking switches the active hire.
-// Active card mirrors the offboarding stepper's "active" treatment: charcoal
-// border + yellow drop shadow + slight lift.
-function HireRail({ hires, currentIdx, onSwitchHire }) {
-  return (
-    <div style={{
-      display: "flex", flexDirection: "column", gap: 10,
-      position: "sticky", top: 100,
-    }}>
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 10, fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase",
-        color: "#78684C",
-        padding: "0 4px 4px",
-      }}>
-        {hires.length} hires · click to switch
-      </div>
-      {hires.map((h, idx) => {
-        const active = idx === currentIdx;
-        const name = (h.firstName || h.lastName)
-          ? `${h.firstName || ""} ${h.lastName || ""}`.trim()
-          : `Hire ${idx + 1}`;
-        const loc = ONB_LOCATIONS.find(l => l.id === h.location);
-        // Build a tiny "kit" summary: laptop short name + count of peripherals
-        // and accessories, so HR sees at a glance what's in each hire's cart.
-        const lap = ONB_HARDWARE.laptops.find(x => x.id === h.hardware?.laptop);
-        const lapShort = lap?.id === "none" ? "Shared PC" : (lap?.name || null);
-        const peripherals = [];
-        if (h.hardware?.monitor)  peripherals.push("Monitor");
-        if (h.hardware?.keyboard) peripherals.push("Keyboard");
-        if (h.hardware?.mouse)    peripherals.push("Mouse");
-        if (h.hardware?.audio)    peripherals.push("Audio");
-        const extrasCount = h.hardware?.extras?.size || 0;
-        const appCount = h.apps?.size || 0;
-        return (
-          <button key={h.id || idx}
-            onClick={() => !active && onSwitchHire?.(idx)}
-            style={{
-              display: "flex", flexDirection: "column",
-              padding: 0,
-              background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 6,
-              boxShadow: active ? "1px 1px 0 #211E1E" : "none",
-              transform: active ? "scale(1.02)" : "none",
-              transformOrigin: "left center",
-              cursor: active ? "default" : "pointer",
-              textAlign: "left",
-              transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
-              fontFamily: "'Archivo', sans-serif",
-              overflow: "hidden",
-            }}>
-            {/* Top accent strip — charcoal-filled "header" on the active card,
-                a thin charcoal rule on inactive cards. Mirrors the
-                IdentityHireCard treatment from Step 0 so HR has a consistent
-                "you are here" cue across steps. */}
-            <div style={{
-              height: active ? 26 : 4,
-              background: "#211E1E",
-              display: active ? "flex" : "block",
-              alignItems: "center", gap: 6,
-              padding: active ? "0 10px" : 0,
-            }}>
-              {active && (
-                <>
-                  <span style={{
-                    fontFamily: "'Archivo', monospace",
-                    fontSize: 9.5, fontWeight: 900,
-                    padding: "1px 5px",
-                    background: "#FDC831", color: "#211E1E",
-                    border: "1px solid #FDC831",
-                    borderRadius: 2,
-                  }}>{String(idx + 1).padStart(2, "0")}</span>
-                  <span style={{
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 9.5, fontWeight: 800,
-                    letterSpacing: "0.08em", textTransform: "uppercase",
-                    color: "#FDC831",
-                  }}>Editing</span>
-                  <span style={{ flex: 1 }}/>
-                  <span style={{
-                    display: "grid", placeItems: "center",
-                    width: 16, height: 16, borderRadius: "50%",
-                    background: "#FDC831", color: "#211E1E",
-                  }}>
-                    <IconCheck size={9} stroke={3.5} />
-                  </span>
-                </>
-              )}
-            </div>
-
-            <div style={{
-              display: "flex", flexDirection: "column", gap: 6,
-              padding: "10px 12px",
-              background: active ? "#FDC831" : "#FFFFFF",
-            }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {/* On inactive cards we still need a number badge inline since
-                  the top accent strip is just a thin rule. On active cards
-                  the badge already lives in the charcoal header above. */}
-              {!active && (
-                <span style={{
-                  fontFamily: "'Archivo', monospace",
-                  fontSize: 9.5, fontWeight: 900,
-                  padding: "1px 5px",
-                  background: "#FFF9E6",
-                  color: "#211E1E",
-                  border: "1px solid #211E1E",
-                  borderRadius: 2,
-                  flexShrink: 0,
-                }}>{String(idx + 1).padStart(2, "0")}</span>
-              )}
-              <div style={{
-                fontSize: 13, fontWeight: 800, color: "#211E1E",
-                letterSpacing: "-0.01em",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                flex: 1, minWidth: 0,
-              }}>{name}</div>
-            </div>
-            {h.title && (
-              <div style={{
-                fontSize: 11, color: active ? "#211E1E" : "#78684C",
-                fontWeight: 600,
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>{h.title}</div>
-            )}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 6,
-              fontSize: 10.5, color: active ? "#211E1E" : "#78684C",
-              fontWeight: 700,
-            }}>
-              {loc && <CountryFlag country={loc.country} size={11} />}
-              <span style={{
-                fontFamily: "'Archivo', monospace",
-                letterSpacing: "0.04em",
-              }}>{loc?.site || "—"}</span>
-              <span style={{ opacity: 0.5 }}>·</span>
-              <span>{appCount} apps</span>
-            </div>
-
-            {/* Kit summary — shows what's actually selected (laptop name +
-                peripheral chips + extras count). Empty state ("No kit yet")
-                surfaces clearly so HR can spot unvisited hires. */}
-            <div style={{
-              marginTop: 2,
-              paddingTop: 6,
-              borderTop: `1px dashed ${active ? "rgba(33,30,30,0.3)" : "rgba(33,30,30,0.18)"}`,
-              display: "flex", flexDirection: "column", gap: 4,
-            }}>
-              {lapShort ? (
-                <div style={{
-                  fontSize: 10.5, fontWeight: 800,
-                  color: active ? "#211E1E" : "#211E1E",
-                  letterSpacing: "-0.005em",
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                }} title={lap?.name}>
-                  <span style={{ opacity: 0.6, fontWeight: 700 }}>·</span> {lapShort}
-                </div>
-              ) : (
-                <div style={{
-                  fontSize: 10, fontWeight: 800,
-                  color: active ? "rgba(33,30,30,0.6)" : "#A89977",
-                  letterSpacing: "0.04em", textTransform: "uppercase",
-                  fontStyle: "italic",
-                }}>No kit yet</div>
-              )}
-              {(peripherals.length > 0 || extrasCount > 0) && (
-                <div style={{
-                  display: "flex", flexWrap: "wrap", gap: 3,
-                }}>
-                  {peripherals.map(p => (
-                    <span key={p} style={{
-                      fontFamily: "'Archivo', sans-serif",
-                      fontSize: 8.5, fontWeight: 800,
-                      letterSpacing: "0.04em", textTransform: "uppercase",
-                      padding: "1px 5px",
-                      background: active ? "#211E1E" : "#FFF9E6",
-                      color: active ? "#FDC831" : "#4A3F2E",
-                      border: `1px solid ${active ? "#211E1E" : "rgba(33,30,30,0.25)"}`,
-                      borderRadius: 2,
-                    }}>{p}</span>
-                  ))}
-                  {extrasCount > 0 && (
-                    <span style={{
-                      fontFamily: "'Archivo', sans-serif",
-                      fontSize: 8.5, fontWeight: 800,
-                      letterSpacing: "0.04em", textTransform: "uppercase",
-                      padding: "1px 5px",
-                      background: active ? "#211E1E" : "#FFF9E6",
-                      color: active ? "#FDC831" : "#4A3F2E",
-                      border: `1px solid ${active ? "#211E1E" : "rgba(33,30,30,0.25)"}`,
-                      borderRadius: 2,
-                    }}>+{extrasCount} extra{extrasCount === 1 ? "" : "s"}</span>
-                  )}
-                </div>
-              )}
-            </div>
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ---------- STEP 3: APPS ----------
-function StepApps({ form, toggleApp, patch, hires = [form], currentIdx = 0, onSwitchHire, appsResetPrompt, onAcceptAppsReset, onDismissAppsReset, onApplyPresetToAll }) {
-  const role = rolePresetFor(form.title);
-  const ROLE_LABELS = {
-    eng: "Engineering", pm: "Product", design: "Design", data: "Data",
-    sales: "Sales", cs: "Customer Success", marketing: "Marketing",
-    people: "People", finance: "Finance", generic: "Generic",
-  };
-
-  // Running monthly cost for this hire + total across all hires
-  const thisCost = ONB_APPS
-    .filter(a => form.apps.has(a.id))
-    .reduce((sum, a) => sum + (a.cost || 0), 0);
-  const allCost = hires.reduce((sum, h) => {
-    const hc = ONB_APPS
-      .filter(a => h.apps?.has?.(a.id))
-      .reduce((s, a) => s + (a.cost || 0), 0);
-    return sum + hc;
-  }, 0);
-  const multiHire = hires.length > 1;
-
-  const [pickerOpen, setPickerOpen] = React.useState(false);
-
-  // Currently-selected apps, ordered: required (essentials) first, then by cat order
-  // they appear in ONB_APPS so the list reads naturally.
-  const selectedApps = ONB_APPS.filter(a => form.apps.has(a.id));
-  const requiredApps = selectedApps.filter(a => a.essential);
-  const optionalApps = selectedApps.filter(a => !a.essential);
-
-  return (
-    <div>
-      {multiHire && <HireSwitcherBar hires={hires} currentIdx={currentIdx} onSwitchHire={onSwitchHire} step="Apps & access" />}
-
-      {/* Role-changed prompt — only when HR changed the title to a different role
-          AND the hire already has apps that no longer match. */}
-      {appsResetPrompt && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 14,
-          padding: "12px 16px",
-          marginBottom: 16,
-          background: "#FFF8DC",
-          border: "1px solid #211E1E", borderRadius: 8,
-          boxShadow: "2px 2px 0 #FDC831",
-          flexWrap: "wrap",
-        }}>
-          <span style={{
-            display: "inline-grid", placeItems: "center",
-            width: 22, height: 22, borderRadius: "50%",
-            background: "#211E1E", color: "#FDC831",
-            fontSize: 13, fontWeight: 900, flexShrink: 0,
-          }}>!</span>
-          <div style={{ flex: 1, minWidth: 200, fontSize: 12.5, color: "#211E1E", lineHeight: 1.45 }}>
-            Title changed to a <strong>{ROLE_LABELS[appsResetPrompt] || appsResetPrompt}</strong> role.
-            Reset apps to match? Your current selections will be replaced with the new preset.
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={onDismissAppsReset} style={{
-              padding: "6px 12px",
-              background: "#FFFFFF", color: "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10.5, fontWeight: 800,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-            }}>Keep current</button>
-            <button onClick={onAcceptAppsReset} style={{
-              padding: "6px 12px",
-              background: "#211E1E", color: "#FDC831",
-              border: "1px solid #211E1E", borderRadius: 4,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10.5, fontWeight: 800,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-            }}>Reset apps</button>
-          </div>
-        </div>
-      )}
-
-      {/* Single combined apps card. Shows everything currently provisioned for
-          this hire (required + optional), with an "Add more apps" CTA that opens
-          the full app library in a modal. The role preset strip was removed —
-          HR no longer needs to pick a role here; we seed from job title and
-          surface the change-prompt above when titles cross role boundaries. */}
-      <div style={{
-        padding: "20px 22px",
-        background: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 12,
-        boxShadow: "2px 2px 0 #211E1E",
-        display: "flex", flexDirection: "column", gap: 14,
-      }}>
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          gap: 12, flexWrap: "wrap",
-        }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-            <h2 style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em",
-              color: "#211E1E", margin: 0,
-            }}>Apps &amp; access</h2>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-              color: "#78684C",
-            }}>
-              {selectedApps.length} provisioned
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {multiHire && onApplyPresetToAll && (
-              <button onClick={() => {
-                if (window.confirm(`Apply the ${ROLE_LABELS[role] || role} preset to all ${hires.length} hires? This replaces every hire's app selections.`)) {
-                  onApplyPresetToAll(role);
-                }
-              }} style={{
-                padding: "5px 10px",
-                background: "#FFFFFF", color: "#211E1E",
-                border: "1px dashed #211E1E", borderRadius: 4,
-                fontFamily: "'Archivo', sans-serif",
-                fontWeight: 800, fontSize: 10.5,
-                letterSpacing: "0.04em", textTransform: "uppercase",
-                cursor: "pointer",
-              }} title="Apply this preset to every hire in the batch">
-                Apply to all
-              </button>
-            )}
-            <div style={{
-              padding: "4px 10px",
-              background: "#211E1E", color: "#FDC831",
-              borderRadius: 3,
-              fontFamily: "'Archivo', monospace",
-              fontSize: 11.5, fontWeight: 800, letterSpacing: "0.04em",
-            }}>
-              ${thisCost}/mo
-              {multiHire && <span style={{ color: "#FFF9E6", marginLeft: 8, opacity: 0.7 }}>· ${allCost}/mo total</span>}
-            </div>
-          </div>
-        </div>
-
-        {/* Required apps — always-on, can't be removed. Surface them first so
-            HR sees what's automatic, then the optional preset picks below. */}
-        {requiredApps.length > 0 && (
-          <div>
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-              color: "#211E1E",
-              padding: "2px 7px",
-              background: "#FDC831",
-              border: "1px solid #211E1E", borderRadius: 3,
-              marginBottom: 8,
-            }}>Required for everyone</div>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(168px, 1fr))",
-              gap: 6,
-            }}>
-              {requiredApps.map(a => (
-                <AppRow key={a.id} app={a} onRemove={null} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Optional apps — role-preset picks. Each row has a remove button. */}
-        {optionalApps.length > 0 && (
-          <div>
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-              color: "#78684C",
-              marginBottom: 8,
-            }}>Role &amp; team picks · {optionalApps.length}</div>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(168px, 1fr))",
-              gap: 6,
-            }}>
-              {optionalApps.map(a => (
-                <AppRow key={a.id} app={a} onRemove={() => toggleApp(a.id)} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Add more apps — opens the full picker modal. */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 12,
-          paddingTop: 6,
-          borderTop: "1px dashed rgba(33,30,30,0.2)",
-          marginTop: 2,
-        }}>
-          <button onClick={() => setPickerOpen(true)}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "8px 14px",
-              background: "#211E1E", color: "#FDC831",
-              border: "1px solid #211E1E", borderRadius: 6,
-              boxShadow: "1px 1px 0 #FDC831",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 11.5,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-            }}>
-            + Add more apps
-          </button>
-          <div style={{ fontSize: 11.5, color: "#78684C", fontWeight: 600 }}>
-            Browse the full library — finance tools, design suites, Slice add-ons.
-          </div>
-        </div>
-      </div>
-
-      {pickerOpen && (
-        <AppPickerModal
-          form={form}
-          toggleApp={toggleApp}
-          onClose={() => setPickerOpen(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-// One row inside the "Apps & access" card. Compact: logo + name + price/REQ +
-// optional remove button. Required apps render with a charcoal "REQ" pill and
-// no remove control. Optional apps show their cost and a small × remover.
-function AppRow({ app, onRemove }) {
-  const required = !!app.essential;
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 8,
-      padding: "7px 9px",
-      background: required ? "#FFF9E6" : "#FFFFFF",
-      border: `1.5px solid ${required ? "#211E1E" : "rgba(33,30,30,0.25)"}`,
-      borderRadius: 6,
-      minWidth: 0,
-    }}>
-      <AppLogo app={app} size={26} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 700, fontSize: 12, color: "#211E1E",
-          letterSpacing: "-0.01em",
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          lineHeight: 1.2,
-        }}>{app.name}</div>
-        <div style={{
-          marginTop: 1,
-          fontFamily: "'Archivo', monospace",
-          fontSize: 9.5, fontWeight: 700,
-          color: "#78684C",
-          letterSpacing: "0.02em",
-        }}>
-          {app.cost > 0 ? `$${app.cost}/mo` : <span style={{ opacity: 0.6 }}>Free</span>}
-        </div>
-      </div>
-      {required && (
-        <span style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 8, fontWeight: 800, letterSpacing: "0.06em",
-          padding: "2px 5px",
-          background: "#211E1E", color: "#FDC831",
-          borderRadius: 2,
-          flexShrink: 0,
-        }}>REQ</span>
-      )}
-      {onRemove && (
-        <button onClick={onRemove}
-          title={`Remove ${app.name}`}
-          style={{
-            display: "grid", placeItems: "center",
-            width: 20, height: 20,
-            background: "transparent", color: "#211E1E",
-            border: "1px solid rgba(33,30,30,0.4)", borderRadius: 3,
-            cursor: "pointer", flexShrink: 0,
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 900, fontSize: 12,
-            lineHeight: 1,
-            transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = "#B92323"; e.currentTarget.style.color = "#FFFFFF"; e.currentTarget.style.borderColor = "#B92323"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#211E1E"; e.currentTarget.style.borderColor = "rgba(33,30,30,0.4)"; }}
-        >×</button>
-      )}
-    </div>
-  );
-}
-
-// Full-library picker — opens from the "Add more apps" button. Shows every
-// non-essential app grouped by category, with the current selections checked.
-// HR can multi-select and the changes apply live (no Save button — this is
-// a draft anyway, the wizard's main Continue is the commit point).
-function AppPickerModal({ form, toggleApp, onClose }) {
-  const cats = Array.from(new Set(ONB_APPS.map(a => a.cat)));
-  const [query, setQuery] = React.useState("");
-  return (
-    <OnbModal title="Add apps" kicker={`${form.apps.size} provisioned`} onClose={onClose} width={720}>
-      {/* Search bar — handy when the catalog grows. */}
-      <div style={{ marginBottom: 6 }}>
-        <input
-          autoFocus
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Search apps…"
-          style={{
-            width: "100%", boxSizing: "border-box",
-            padding: "10px 14px",
-            background: "#FFF9E6",
-            border: "1px solid #211E1E", borderRadius: 6,
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 13, fontWeight: 600,
-            color: "#211E1E",
-            outline: "none",
-          }}
-        />
-      </div>
-
-      <div style={{ maxHeight: 480, overflowY: "auto", paddingRight: 4 }}>
-        {cats.map(cat => {
-          const appsInCat = ONB_APPS
-            .filter(a => a.cat === cat)
-            .filter(a => !query.trim() || a.name.toLowerCase().includes(query.toLowerCase()) || (a.desc || "").toLowerCase().includes(query.toLowerCase()));
-          if (appsInCat.length === 0) return null;
-          return (
-            <div key={cat} style={{ marginBottom: 18 }}>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-                color: "#211E1E", marginBottom: 8,
-                display: "inline-flex", alignItems: "center", gap: 8,
-                padding: "2px 7px",
-                background: "#FDC831",
-                border: "1px solid #211E1E", borderRadius: 3,
-              }}>{cat}</div>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                gap: 6,
-              }}>
-                {appsInCat.map(a => (
-                  <AppTile key={a.id} app={a} selected={form.apps.has(a.id)} onToggle={() => toggleApp(a.id)} />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{
-        display: "flex", justifyContent: "flex-end",
-        marginTop: 12, paddingTop: 12,
-        borderTop: "1px dashed rgba(33,30,30,0.2)",
-      }}>
-        <button onClick={onClose}
-          style={{
-            padding: "8px 16px",
-            background: "#211E1E", color: "#FDC831",
-            border: "1px solid #211E1E", borderRadius: 6,
-            boxShadow: "1px 1px 0 #FDC831",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 11.5,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-          }}>Done</button>
-      </div>
-    </OnbModal>
-  );
-}
-
-function AppTile({ app, selected, onToggle }) {
-  return (
-    <button onClick={onToggle} disabled={app.essential}
-      title={app.desc}
-      style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "7px 9px",
-        background: selected ? "#FFF9E6" : "#FFFFFF",
-        border: `2px solid ${selected ? "#211E1E" : "rgba(33,30,30,0.3)"}`,
-        borderRadius: 6,
-        boxShadow: selected ? "1px 1px 0 #211E1E" : "none",
-        cursor: app.essential ? "default" : "pointer",
-        textAlign: "left",
-        transition: "transform .2s ease, box-shadow .2s ease, background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease",
-        opacity: app.essential ? 0.92 : 1,
-        position: "relative",
-        minWidth: 0,
-      }}>
-      <AppLogo app={app} size={26} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 700, fontSize: 12, color: "#211E1E",
-          letterSpacing: "-0.01em",
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          lineHeight: 1.2,
-        }}>
-          {app.name}
-        </div>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 5,
-          marginTop: 1,
-          fontFamily: "'Archivo', monospace",
-          fontSize: 9.5, fontWeight: 700,
-          color: selected ? "#211E1E" : "#78684C",
-          letterSpacing: "0.02em",
-        }}>
-          {app.essential ? (
-            <span style={{
-              fontSize: 8, fontWeight: 800, letterSpacing: "0.06em",
-              padding: "1px 4px",
-              background: "#211E1E", color: "#FDC831",
-              borderRadius: 2,
-              flexShrink: 0,
-            }}>REQ</span>
-          ) : app.cost > 0 ? (
-            <span>${app.cost}/mo</span>
-          ) : (
-            <span style={{ opacity: 0.6 }}>Free</span>
-          )}
-        </div>
-      </div>
-      <div style={{
-        width: 16, height: 16,
-        background: selected ? "#211E1E" : "transparent",
-        border: `2px solid ${selected ? "#211E1E" : "rgba(33,30,30,0.4)"}`,
-        borderRadius: 3,
-        display: "grid", placeItems: "center",
-        color: "#FDC831",
-        flexShrink: 0,
-      }}>
-        {selected && <IconCheck size={9} stroke={3.5} />}
-      </div>
-    </button>
-  );
-}
-
-// ---------- STEP 4: HARDWARE ----------
-function StepHardware({ form, setHW, toggleExtra, hires = [form], currentIdx = 0, onSwitchHire, onContinue }) {
-  const multiHire = hires.length > 1;
-  return (
-    <div>
-      {multiHire && <HireSwitcherBar hires={hires} currentIdx={currentIdx} onSwitchHire={onSwitchHire} step="Hardware kit" />}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, alignItems: "flex-start" }}>
-      <div>
-        <HWSection title="Laptop">
-          {ONB_HARDWARE.laptops.map(item => (
-            <HWTile key={item.id} item={item} category="Laptop" selected={form.hardware.laptop === item.id}
-              onSelect={() => setHW("laptop", item.id)} radio wide />
-          ))}
-        </HWSection>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <HWSection title="Monitor">
-            {ONB_HARDWARE.monitors.map(item => (
-              <HWTile key={item.id || "none"} item={item} category="Monitor" selected={form.hardware.monitor === item.id}
-                onSelect={() => setHW("monitor", item.id)} radio small />
-            ))}
-          </HWSection>
-          <HWSection title="Keyboard">
-            {ONB_HARDWARE.keyboards.map(item => (
-              <HWTile key={item.id} item={item} category="Keyboard" selected={form.hardware.keyboard === item.id}
-                onSelect={() => setHW("keyboard", item.id)} radio small />
-            ))}
-          </HWSection>
-          <HWSection title="Mouse / Trackpad">
-            {ONB_HARDWARE.mice.map(item => (
-              <HWTile key={item.id} item={item} category="Mouse" selected={form.hardware.mouse === item.id}
-                onSelect={() => setHW("mouse", item.id)} radio small />
-            ))}
-          </HWSection>
-          <HWSection title="Headphones">
-            {ONB_HARDWARE.audio.map(item => (
-              <HWTile key={item.id} item={item} category="Audio" selected={form.hardware.audio === item.id}
-                onSelect={() => setHW("audio", item.id)} radio small />
-            ))}
-          </HWSection>
-        </div>
-        <HWSection title="Extras">
-          {ONB_HARDWARE.extras.map(item => (
-            <HWTile key={item.id} item={item} category="Extras" selected={form.hardware.extras.has(item.id)}
-              onSelect={() => toggleExtra(item.id)} small />
-          ))}
-        </HWSection>
-      </div>
-
-      {/* Right column: ship list + Continue, sticky together */}
-      <div style={{ position: "sticky", top: 100, display: "flex", flexDirection: "column", gap: 14 }}>
-        <HWCart form={form} />
-        {onContinue && (
-          <button onClick={onContinue}
-            style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10,
-              width: "100%",
-              padding: "16px 20px",
-              background: "#FDC831",
-              border: "1px solid #211E1E",
-              borderRadius: 6,
-              boxShadow: "2px 2px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 13.5,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#211E1E",
-              cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}>
-            Continue to review
-            <IconArrow size={14} stroke={2.5} />
-          </button>
-        )}
-      </div>
-    </div>
-    </div>
-  );
-}
-
-function HWSection({ title, kicker, children }) {
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
-        <h3 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em",
-          color: "#211E1E", margin: 0,
-        }}>{title}</h3>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-          color: "#78684C",
-        }}>{kicker}</div>
-      </div>
-      <div style={{ display: "grid", gap: 8 }}>{children}</div>
-    </div>
-  );
-}
-
-// Tiny OS marker rendered next to laptop names. Apple = monochrome apple
-// glyph on a charcoal pill; Windows = the four-square Windows logo on a blue
-// pill. Keeps the row scannable without adding text — HR can tell at a glance
-// which laptops are Mac vs PC.
-function OSChip({ os }) {
-  if (os === "apple") {
-    return (
-      <span aria-label="macOS" title="macOS" style={{
-        display: "inline-grid", placeItems: "center",
-        width: 18, height: 18,
-        background: "#211E1E", color: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 3,
-        flexShrink: 0,
-      }}>
-        <svg width="11" height="11" viewBox="0 0 384 512" fill="currentColor" aria-hidden="true">
-          <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
-        </svg>
-      </span>
-    );
-  }
-  if (os === "windows") {
-    return (
-      <span aria-label="Windows" title="Windows" style={{
-        display: "inline-grid", placeItems: "center",
-        width: 18, height: 18,
-        background: "#0078D4", color: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 3,
-        flexShrink: 0,
-      }}>
-        <svg width="10" height="10" viewBox="0 0 88 88" fill="currentColor" aria-hidden="true">
-          <rect x="0" y="0" width="40" height="40"/>
-          <rect x="48" y="0" width="40" height="40"/>
-          <rect x="0" y="48" width="40" height="40"/>
-          <rect x="48" y="48" width="40" height="40"/>
-        </svg>
-      </span>
-    );
-  }
-  return null;
-}
-
-function HWTile({ item, selected, onSelect, radio, wide, small, category }) {
-  return (
-    <button onClick={onSelect}
-      style={{
-        display: "flex", alignItems: "center", gap: 14,
-        padding: small ? "10px 12px" : "14px 16px",
-        background: selected ? "#FFF9E6" : "#FFFFFF",
-        border: `2px solid ${selected ? "#211E1E" : "rgba(33,30,30,0.3)"}`,
-        borderRadius: 8,
-        boxShadow: selected ? "2px 2px 0 #211E1E" : "none",
-        cursor: "pointer",
-        textAlign: "left",
-        transition: "transform .2s ease, box-shadow .2s ease, background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease",
-      }}>
-      <div style={{
-        width: radio ? 20 : 20, height: 20,
-        borderRadius: radio ? "50%" : 4,
-        background: selected ? "#211E1E" : "transparent",
-        border: `2px solid ${selected ? "#211E1E" : "rgba(33,30,30,0.4)"}`,
-        display: "grid", placeItems: "center",
-        color: "#FDC831", flexShrink: 0,
-      }}>
-        {selected && (radio ? <span style={{ width: 6, height: 6, background: "#FDC831", borderRadius: "50%" }}/> : <IconCheck size={11} stroke={3.5}/>)}
-      </div>
-      {item.id && (
-        <div style={{
-          width: small ? 44 : 56, height: small ? 32 : 40,
-          display: "grid", placeItems: "center",
-          background: "#FFF9E6",
-          border: "1px solid rgba(33,30,30,0.25)",
-          borderRadius: 5,
-          color: "#211E1E",
-          flexShrink: 0,
-        }}>
-          <DeviceArt id={item.id} category={category} w={small ? 38 : 48} h={small ? 26 : 34} />
-        </div>
-      )}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 700, fontSize: small ? 13 : 14, color: "#211E1E",
-          letterSpacing: "-0.01em",
-          display: "flex", alignItems: "center", gap: 8,
-        }}>
-          {item.name}
-          {item.pop && <span style={{
-            fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
-            padding: "1px 6px",
-            background: "#FDC831", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 2,
-          }}>★ {item.pop}</span>}
-          {item.os && <OSChip os={item.os} />}
-        </div>
-        {item.spec && <div style={{ fontSize: 11.5, color: "#78684C", marginTop: 2, fontWeight: 500 }}>
-          {item.spec}
-        </div>}
-      </div>
-      <div style={{
-        fontFamily: "'Archivo', monospace",
-        fontSize: 12, fontWeight: 700,
-        color: "#211E1E", flexShrink: 0,
-        fontVariantNumeric: "tabular-nums",
-      }}>{item.price}</div>
-    </button>
-  );
-}
-
-function HWCart({ form }) {
-  const items = [];
-  const push = (id, category, pool) => {
-    if (!id) return;
-    const it = pool.find(p => p.id === id);
-    if (it) items.push({ ...it, category });
-  };
-  push(form.hardware.laptop,   "Laptop",    ONB_HARDWARE.laptops);
-  push(form.hardware.monitor,  "Monitor",   ONB_HARDWARE.monitors);
-  push(form.hardware.keyboard, "Keyboard",  ONB_HARDWARE.keyboards);
-  push(form.hardware.mouse,    "Mouse",     ONB_HARDWARE.mice);
-  push(form.hardware.audio,    "Audio",     ONB_HARDWARE.audio);
-  form.hardware.extras.forEach(id => push(id, "Extras", ONB_HARDWARE.extras));
-
-  const total = items.reduce((sum, it) => {
-    const n = parseFloat((it.price || "$0").replace(/[^\d.]/g, ""));
-    return sum + (isNaN(n) ? 0 : n);
-  }, 0);
-
-  // Hire name for the cart header — falls back gracefully when fields are blank.
-  const hireName = `${form.preferredName || form.firstName || ""} ${form.lastName || ""}`.trim();
-
-  return (
-    <div style={{
-      padding: "20px 22px",
-      background: "#211E1E",
-      border: "1px solid #211E1E", borderRadius: 10,
-      boxShadow: "2px 2px 0 #FDC831",
-      color: "#FFFFFF",
-    }}>
-      {/* Header — eyebrow on left, hire's name on right so HR always knows
-          WHICH person this cart is for (especially in batch mode). */}
-      <div style={{
-        display: "flex", alignItems: "baseline", gap: 10,
-        marginBottom: 4,
-      }}>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-          color: "#FDC831",
-        }}>Ship list</div>
-        <div style={{ flex: 1 }}/>
-        {hireName && (
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 11, fontWeight: 700,
-            color: "rgba(255,255,255,0.85)",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            maxWidth: 180,
-          }}>{hireName}</div>
-        )}
-      </div>
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "#FFFFFF",
-        marginBottom: 14,
-      }}>{items.length} items</div>
-
-      {items.length === 0 && (
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}>
-          Pick a laptop to start the ship list.
-        </div>
-      )}
-
-      {items.map((it, i) => (
-        <div key={it.id + i} style={{
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "10px 0",
-          borderBottom: "1px dashed rgba(253,200,49,0.22)",
-        }}>
-          <div style={{
-            width: 44, height: 30,
-            display: "grid", placeItems: "center",
-            background: "rgba(253,200,49,0.08)",
-            border: "1px solid rgba(253,200,49,0.2)",
-            borderRadius: 4,
-            color: "#FDC831",
-            flexShrink: 0,
-          }}>
-            <DeviceArt id={it.id} category={it.category} w={34} h={22} />
-          </div>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 9, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-            color: "#FDC831",
-            width: 50, flexShrink: 0,
-          }}>{it.category}</div>
-          <div style={{ flex: 1, fontSize: 12.5, color: "#FFFFFF", fontWeight: 500, lineHeight: 1.35, minWidth: 0 }}>
-            {it.name}
-          </div>
-          <div style={{
-            fontFamily: "'Archivo', monospace",
-            fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)",
-            fontVariantNumeric: "tabular-nums",
-            flexShrink: 0,
-          }}>{it.price}</div>
-        </div>
-      ))}
-
-      {items.length > 0 && (
-        <div style={{
-          display: "flex", justifyContent: "space-between", alignItems: "baseline",
-          marginTop: 14, paddingTop: 14, borderTop: "1px solid #FDC831",
-        }}>
-          <div className="eyebrow" style={{ color: "#FDC831", fontSize: 10.5 }}>Est. total</div>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 24, fontWeight: 800, color: "#FDC831",
-            letterSpacing: "-0.02em",
-            fontVariantNumeric: "tabular-nums",
-          }}>${total.toLocaleString()}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------- STEP 5: REVIEW ----------
-// Pre-flight summary. The goal: at a glance HR can see who's landing,
-// what they'll have on day 1, what tickets we'll file, and how much it
-// costs — then commit. Right column is sticky and houses the timeline
-// + the kickoff CTA so the action is always one scroll away.
-function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKickoff, onPatch }) {
-  const loc = ONB_LOCATIONS.find(l => l.id === form.location);
-  const selectedApps = ONB_APPS.filter(a => form.apps.has(a.id));
-  const requiredApps = selectedApps.filter(a => a.essential || a.roles?.includes("all"));
-  const optionalApps = selectedApps.filter(a => !(a.essential || a.roles?.includes("all")));
-  const monthlyAppCost = selectedApps.reduce((s, a) => s + (a.cost || 0), 0);
-  const multiHire = hires.length > 1;
-
-  // Hardware roll-up
-  const lap = ONB_HARDWARE.laptops.find(x => x.id === form.hardware?.laptop);
-  const mon = ONB_HARDWARE.monitors.find(x => x.id === form.hardware?.monitor);
-  const kbd = ONB_HARDWARE.keyboards.find(x => x.id === form.hardware?.keyboard);
-  const mse = ONB_HARDWARE.mice.find(x => x.id === form.hardware?.mouse);
-  const aud = ONB_HARDWARE.audio.find(x => x.id === form.hardware?.audio);
-  const extraItems = (form.hardware?.extras ? Array.from(form.hardware.extras) : [])
-    .map(id => (ONB_HARDWARE.extras || []).find(x => x.id === id))
-    .filter(Boolean);
-  const hwItems = [
-    lap && { ...lap, category: "Laptop" },
-    mon && { ...mon, category: "Monitor" },
-    kbd && { ...kbd, category: "Keyboard" },
-    mse && { ...mse, category: "Mouse" },
-    aud && { ...aud, category: "Audio" },
-    ...extraItems.map(e => ({ ...e, category: "Extra" })),
-  ].filter(Boolean).filter(it => it.id); // drop "no monitor" / "no keyboard" placeholders
-  const hwTotal = hwItems.reduce((s, it) => s + (parseFloat((it.price || "$0").replace(/[^\d.]/g, "")) || 0), 0);
-
-  // Build synthetic timeline
-  const startDate = form.startDate ? new Date(form.startDate) : new Date();
-  const fmt = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const fmtLong = (d) => d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-  const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
-  // Shift a date BACKWARD off weekends to the prior Friday — used for ship dates
-  // so we never tell HR "ships Saturday" (warehouse closed). Hardware leaves
-  // earlier rather than later if the natural date is a weekend.
-  const toBusinessDay = (d) => {
-    const r = new Date(d);
-    const day = r.getDay(); // 0 = Sun, 6 = Sat
-    if (day === 6) r.setDate(r.getDate() - 1);
-    if (day === 0) r.setDate(r.getDate() - 2);
-    return r;
-  };
-  const today = new Date(); today.setHours(0,0,0,0);
-  const daysUntil = Math.max(0, Math.round((startDate - today) / 86400000));
-  const timeline = [
-    { date: toBusinessDay(addDays(startDate, -7)), label: "Hardware ships",       who: "IT",        detail: "Laptop + peripherals shipped to home or office." },
-    { date: addDays(startDate, -3), label: "Accounts provisioned", who: "IT",        detail: "OneLogin, Google, Slack ready 3 days early." },
-    { date: addDays(startDate, -1), label: "Welcome email",        who: "People",    detail: "First‑day logistics, orientation Zoom link." },
-    { date: startDate,             label: "Day 1 · Orientation",  who: "People",    detail: "9 AM kickoff. OneLogin Protect enrollment at noon." },
-    { date: addDays(startDate, 1), label: "Team meet‑and‑greet",   who: form.topDept || "Their team", detail: "Manager runs intros + 30/60/90." },
-    { date: addDays(startDate, 7), label: "App access review",     who: "IT",        detail: "Final check: any missing tools? We auto‑nudge." },
-  ];
-
-  // Batch-summary rows — at-a-glance view of every hire in the queue.
-  const batchRow = (h) => {
-    const l = ONB_LOCATIONS.find(x => x.id === h.location);
-    const lp = ONB_HARDWARE.laptops.find(x => x.id === h.hardware?.laptop);
-    const monthly = ONB_APPS.filter(a => h.apps?.has?.(a.id)).reduce((s, a) => s + (a.cost || 0), 0);
-    return {
-      name: `${h.preferredName || h.firstName || "—"} ${h.lastName || ""}`.trim() || "Untitled",
-      title: h.title || "—",
-      loc: l ? l.site : "—",
-      country: l?.country,
-      apps: h.apps?.size || 0,
-      laptop: lp?.name || "—",
-      monthly,
-    };
-  };
-  const totalMonthly = hires.reduce((sum, h) => {
-    return sum + ONB_APPS.filter(a => h.apps?.has?.(a.id)).reduce((s, a) => s + (a.cost || 0), 0);
-  }, 0);
-
-  const fullName = `${form.preferredName || form.firstName || ""} ${form.lastName || ""}`.trim() || "New hire";
-  const initials = ((form.firstName || "?")[0] + (form.lastName || "")[0]).toUpperCase();
-  const workMode = (form.workMode || "hybrid").toLowerCase();
-  const workModeLabel = workMode === "remote" ? "Remote" : workMode === "office" ? "In‑office" : "Hybrid";
-
-  return (
-    <div>
-      {/* HireSwitcherBar intentionally OMITTED on Review — the combined hero
-          below already exposes the roster strip with click-to-switch, so
-          showing both would duplicate the same control. */}
-
-      {/* COMBINED HERO — one charcoal card that handles both single and multi hire.
-          - Single hire: avatar + name/role/location + countdown.
-          - Multi-hire: same header, plus a compact roster strip beneath
-            showing every hire as a clickable row. Active row is highlighted
-            in yellow; click to switch which hire the rest of the page reflects.
-          We deliberately do NOT show separate "Batch summary" + "Hero" cards —
-          they were duplicating the same who/where/laptop/$ data. */}
-      <div style={{
-        marginBottom: 22,
-        background: "#211E1E",
-        border: "1px solid #211E1E", borderRadius: 14,
-        boxShadow: "3px 3px 0 #FDC831",
-        overflow: "hidden",
-        color: "#FFFFFF",
-      }}>
-        {/* Header row — viewing-hire spotlight */}
-        <div style={{
-          padding: "20px 24px",
-          display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 20,
-          alignItems: "center",
-          borderBottom: multiHire ? "1.5px dashed rgba(253,200,49,0.28)" : "none",
-        }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 12,
-            background: "#FDC831", color: "#211E1E",
-            display: "grid", placeItems: "center",
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 22, fontWeight: 900, letterSpacing: "-0.02em",
-          }}>{initials}</div>
-
-          <div style={{ minWidth: 0 }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase",
-              color: "#FDC831", marginBottom: 3,
-            }}>
-              <span>Ready to ship</span>
-              {multiHire && (
-                <>
-                  <span style={{ color: "rgba(253,200,49,0.4)" }}>·</span>
-                  <span style={{ color: "rgba(255,255,255,0.6)" }}>Viewing {currentIdx + 1} of {hires.length}</span>
-                </>
-              )}
-            </div>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 24, fontWeight: 800, letterSpacing: "-0.025em",
-              color: "#FFFFFF", lineHeight: 1.1,
-            }}>{fullName}</div>
-            <div style={{
-              marginTop: 5,
-              display: "flex", flexWrap: "wrap", gap: 12,
-              fontSize: 12, color: "rgba(255,255,255,0.78)",
-            }}>
-              <span>{form.title || "No title"}</span>
-              <span style={{ color: "rgba(255,255,255,0.35)" }}>·</span>
-              <span>{form.topDept || "—"}{form.department ? ` / ${form.department}` : ""}</span>
-              <span style={{ color: "rgba(255,255,255,0.35)" }}>·</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                {loc && <CountryFlag country={loc.country} size={12} />}
-                {loc ? `${loc.label} · ${loc.site}` : "—"}
-              </span>
-              <span style={{ color: "rgba(255,255,255,0.35)" }}>·</span>
-              <span>{workModeLabel}</span>
-            </div>
-          </div>
-
-          <div style={{
-            textAlign: "right",
-            paddingLeft: 20,
-            borderLeft: "1px dashed rgba(253,200,49,0.35)",
-          }}>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase",
-              color: "rgba(255,255,255,0.55)", marginBottom: 2,
-            }}>Lands in</div>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 40, fontWeight: 900, letterSpacing: "-0.04em",
-              color: "#FDC831", lineHeight: 1,
-              fontVariantNumeric: "tabular-nums",
-            }}>{daysUntil}</div>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em",
-              color: "rgba(255,255,255,0.78)", marginTop: 2,
-            }}>{daysUntil === 1 ? "day" : "days"} · {fmtLong(startDate)}</div>
-          </div>
-        </div>
-
-        {/* Multi-hire roster strip — compact one-line-per-hire, click to switch.
-            Sits inside the same charcoal card so HR has ONE thing to look at,
-            not two competing summaries. */}
-        {multiHire && (
-          <div style={{
-            background: "rgba(0,0,0,0.18)",
-            padding: "10px 12px",
-          }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "0 8px 8px",
-            }}>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 9.5, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase",
-                color: "rgba(253,200,49,0.85)",
-              }}>Batch · {hires.length} hires</div>
-              <div style={{ flex: 1 }}/>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 11, color: "rgba(255,255,255,0.7)",
-              }}>
-                Total <strong style={{ color: "#FDC831", fontVariantNumeric: "tabular-nums" }}>${totalMonthly}</strong>/mo software
-              </div>
-            </div>
-            <div style={{ display: "grid", gap: 4 }}>
-              {hires.map((h, i) => {
-                const row = batchRow(h);
-                const active = i === currentIdx;
-                return (
-                  <button
-                    key={h.id || i}
-                    onClick={() => onSwitchHire?.(i)}
-                    style={{
-                      all: "unset",
-                      cursor: "pointer",
-                      display: "grid",
-                      gridTemplateColumns: "24px minmax(0,1.4fr) minmax(0,1.6fr) auto auto auto",
-                      gap: 12,
-                      alignItems: "center",
-                      padding: "8px 10px",
-                      borderRadius: 6,
-                      background: active ? "#FDC831" : "transparent",
-                      color: active ? "#211E1E" : "#FFFFFF",
-                      transition: "background .12s ease",
-                    }}
-                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "rgba(253,200,49,0.08)"; }}
-                    onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
-                  >
-                    <div style={{
-                      fontFamily: "'Archivo', monospace",
-                      fontSize: 10.5, fontWeight: 800,
-                      color: active ? "#211E1E" : "rgba(253,200,49,0.7)",
-                      textAlign: "center",
-                      fontVariantNumeric: "tabular-nums",
-                    }}>{String(i + 1).padStart(2, "0")}</div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{
-                        fontFamily: "'Archivo', sans-serif",
-                        fontSize: 13, fontWeight: 700, letterSpacing: "-0.01em",
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      }}>{row.name}</div>
-                    </div>
-                    <div style={{
-                      fontSize: 11.5, fontWeight: 500,
-                      color: active ? "rgba(33,30,30,0.7)" : "rgba(255,255,255,0.65)",
-                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      minWidth: 0,
-                    }}>{row.title}</div>
-                    <div style={{
-                      display: "inline-flex", alignItems: "center", gap: 5,
-                      fontSize: 11, fontWeight: 600,
-                      color: active ? "rgba(33,30,30,0.75)" : "rgba(255,255,255,0.7)",
-                    }}>
-                      {row.country && <CountryFlag country={row.country} size={11} />}
-                      {row.loc}
-                    </div>
-                    <div style={{
-                      fontFamily: "'Archivo', monospace",
-                      fontSize: 10.5, fontWeight: 700,
-                      color: active ? "rgba(33,30,30,0.65)" : "rgba(255,255,255,0.5)",
-                      letterSpacing: "0.04em", textTransform: "uppercase",
-                      fontVariantNumeric: "tabular-nums",
-                    }}>{row.apps} apps</div>
-                    <div style={{
-                      fontFamily: "'Archivo', monospace",
-                      fontSize: 12, fontWeight: 800,
-                      color: active ? "#211E1E" : "#FDC831",
-                      fontVariantNumeric: "tabular-nums",
-                      minWidth: 48, textAlign: "right",
-                    }}>${row.monthly}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* At-a-glance metric strip — REMOVED. The hero already telegraphs scale,
-          and the per-section "right" caption (e.g. "12 apps · $148/mo") puts
-          the same numbers in their natural context, which keeps the page
-          tighter without losing information. */}
-
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 24, alignItems: "flex-start" }}>
-      <div>
-        <ReviewSection title="Identity" icon="user">
-          <ReviewRow k="Name"         v={`${form.preferredName || form.firstName || "—"} ${form.lastName || ""}`.trim()} />
-          <ReviewRow k="Work email"   v={form.workEmail || "—"} mono />
-          <ReviewRow k="Phone"        v={form.phone || "—"} />
-          <ReviewRow k="Address"      v={(() => {
-            // Prefer structured parts; fall back to legacy single-string
-            // for older mock records that haven't been re-entered.
-            const line1 = [form.address1, form.address2].filter(Boolean).join(", ");
-            const line2 = [form.city, form.state, form.zip].filter(Boolean).join(", ");
-            if (line1 || line2) return [line1, line2].filter(Boolean).join(" · ");
-            return form.address || "—";
-          })()} />
-          <ReviewRow k="Start date"   v={fmtLong(startDate)} />
-          <ReviewRow k="Work mode"    v={workModeLabel} />
-        </ReviewSection>
-
-        <ReviewSection title="Role & Org" icon="org">
-          <ReviewRow k="Title"        v={form.title || "—"} />
-          <ReviewRow k="Department"   v={form.topDept ? `${form.topDept}${form.department ? " · " + form.department : ""}` : "—"} />
-          <ReviewRow k="Team"         v={form.team || "—"} />
-          <ReviewRow k="Manager"      v={form.manager || "Not yet set"} />
-          <ReviewRow k="Location"     v={loc ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <CountryFlag country={loc.country} size={12} />
-              {loc.label} · <span style={{ fontFamily: "'Archivo', monospace", fontWeight: 800 }}>{loc.site}</span>
-              <span style={{ color: "#78684C" }}>({loc.tz})</span>
-            </span>
-          ) : "—"} />
-        </ReviewSection>
-
-        <ReviewSection
-          title="Hardware kit"
-          icon="hw"
-          right={hwItems.length > 0 ? `${hwItems.length} items · $${hwTotal.toLocaleString()}` : null}
-        >
-          {hwItems.length === 0 ? (
-            <div style={{
-              padding: "10px 12px",
-              background: "#FFF9E6",
-              border: "1px dashed #B59020", borderRadius: 6,
-              fontSize: 12, color: "#78684C", lineHeight: 1.45,
-            }}>
-              No hardware in the box — they'll need a shared workstation on day 1.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 6 }}>
-              {hwItems.map((it, i) => (
-                <div key={it.id + i} style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "8px 10px",
-                  background: "#FBF6E6",
-                  border: "1px solid rgba(33,30,30,0.18)", borderRadius: 6,
-                }}>
-                  <div style={{
-                    width: 36, height: 26,
-                    display: "grid", placeItems: "center",
-                    background: "#FFFFFF",
-                    border: "1px solid rgba(33,30,30,0.2)", borderRadius: 4,
-                    flexShrink: 0,
-                  }}>
-                    <DeviceArt id={it.id} category={it.category} w={28} h={20} />
-                  </div>
-                  <div style={{
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 9, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-                    color: "#78684C",
-                    width: 56, flexShrink: 0,
-                  }}>{it.category}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "#211E1E" }}>{it.name}</div>
-                    {it.spec && <div style={{ fontSize: 10.5, color: "#78684C", marginTop: 1 }}>{it.spec}</div>}
-                  </div>
-                  <div style={{
-                    fontFamily: "'Archivo', monospace",
-                    fontSize: 11.5, fontWeight: 700, color: "#211E1E",
-                    fontVariantNumeric: "tabular-nums",
-                    flexShrink: 0,
-                  }}>{it.price}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </ReviewSection>
-
-        <ReviewSection
-          title="App access"
-          icon="apps"
-          right={`${selectedApps.length} apps · $${monthlyAppCost}/mo`}
-        >
-          {requiredApps.length > 0 && (
-            <div style={{ marginBottom: optionalApps.length > 0 ? 12 : 0 }}>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-                color: "#78684C", marginBottom: 6,
-              }}>Required for everyone — {requiredApps.length}</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {requiredApps.map(a => <ReviewAppChip key={a.id} app={a} required />)}
-              </div>
-            </div>
-          )}
-          {optionalApps.length > 0 && (
-            <div>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-                color: "#78684C", marginBottom: 6,
-              }}>Role‑specific — {optionalApps.length}</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {optionalApps.map(a => <ReviewAppChip key={a.id} app={a} />)}
-              </div>
-            </div>
-          )}
-        </ReviewSection>
-      </div>
-
-      {/* Right column: Timeline + Tickets + Kickoff CTA, sticky together */}
-      <div style={{ position: "sticky", top: 100, display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{
-          padding: "22px 24px",
-          background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 14,
-          boxShadow: "3px 3px 0 #211E1E",
-        }}>
-          <div className="eyebrow" style={{ color: "#78684C", fontSize: 10.5, marginBottom: 4 }}>
-            Launch timeline
-          </div>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em",
-            color: "#211E1E", marginBottom: 16,
-          }}>
-            {form.firstName || "New hire"} lands {fmt(startDate)}
-          </div>
-
-          <div style={{ position: "relative", paddingLeft: 24 }}>
-            {/* vertical line */}
-            <div style={{
-              position: "absolute", left: 9, top: 6, bottom: 6,
-              width: 2, background: "#211E1E",
-            }}/>
-            {timeline.map((t, i) => {
-              const past = t.date < today;
-              const isStart = t.date.getTime() === startDate.getTime();
-              return (
-                <div key={i} style={{ position: "relative", marginBottom: 14 }}>
-                  <div style={{
-                    position: "absolute", left: -24, top: 2,
-                    width: 20, height: 20, borderRadius: "50%",
-                    background: isStart ? "#FDC831" : (past ? "#211E1E" : "#FFFFFF"),
-                    border: "1px solid #211E1E",
-                    display: "grid", placeItems: "center",
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 9, fontWeight: 900,
-                    color: isStart ? "#211E1E" : (past ? "#FDC831" : "#211E1E"),
-                  }}>{past ? <IconCheck size={9} stroke={3.5}/> : (i + 1)}</div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
-                    <div style={{
-                      fontFamily: "'Archivo', sans-serif",
-                      fontSize: 12.5, fontWeight: 800, color: "#211E1E",
-                    }}>{t.label}</div>
-                    <div style={{
-                      fontFamily: "'Archivo', sans-serif",
-                      fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase",
-                      color: "#78684C",
-                    }}>{fmt(t.date)} · {t.who}</div>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: "#4A3F2E", lineHeight: 1.45 }}>
-                    {t.detail}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Additional information — free-form notes for HR.
-            Replaces the old "On submit, we'll file" ticket panel; the timeline
-            already conveys what the system will do, so this slot is better
-            spent capturing context the system can't infer (visa status,
-            mentor pairing requests, special equipment, allergies, etc.). */}
-        <div style={{
-          padding: "16px 18px",
-          background: "#FFF9E6",
-          border: "1px solid #211E1E", borderRadius: 10,
-          boxShadow: "2px 2px 0 #211E1E",
-        }}>
-          <div style={{
-            display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8,
-          }}>
-            <div className="eyebrow" style={{ color: "#78684C", fontSize: 10.5 }}>
-              Additional notes
-            </div>
-            <div style={{ flex: 1 }}/>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10, fontWeight: 600,
-              color: "#78684C",
-              fontVariantNumeric: "tabular-nums",
-            }}>{(form.notes || "").length}/500</div>
-          </div>
-          <textarea
-            value={form.notes || ""}
-            onChange={(e) => onPatch?.({ notes: e.target.value.slice(0, 500) })}
-            placeholder="Notes for IT, the manager, or whoever picks this up — visa status, mentor pairing, accessibility needs, parking, dietary, etc."
-            rows={4}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 12.5,
-              lineHeight: 1.5,
-              color: "#211E1E",
-              background: "#FFFFFF",
-              border: "1px solid #211E1E",
-              borderRadius: 6,
-              outline: "none",
-              resize: "vertical",
-              boxSizing: "border-box",
-            }}
-            onFocus={(e) => { e.currentTarget.style.boxShadow = "1px 1px 0 #FDC831"; }}
-            onBlur={(e) => { e.currentTarget.style.boxShadow = "none"; }}
-          />
-        </div>
-
-        {/* Primary CTA — mirrors Step 2's "Continue" pattern, sticky next to summary */}
-        {onKickoff && (
-          <button onClick={onKickoff}
-            style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10,
-              width: "100%",
-              padding: "18px 22px",
-              background: "#FDC831",
-              border: "1px solid #211E1E",
-              borderRadius: 6,
-              boxShadow: "2px 2px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 14,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#211E1E",
-              cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}>
-            {multiHire ? `Kick off ${hires.length} onboardings` : "Kick off onboarding"}
-            <IconArrow size={14} stroke={2.5} />
-          </button>
-        )}
-      </div>
-    </div>
-    </div>
-  );
-}
-
-// One row in the "On submit, we'll file" panel.
-function TicketLine({ code, label, muted }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, opacity: muted ? 0.6 : 1 }}>
-      <span style={{
-        fontFamily: "'Archivo', monospace",
-        fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em",
-        padding: "2px 6px",
-        background: "#211E1E", color: "#FDC831",
-        border: "1px solid #211E1E", borderRadius: 3,
-        flexShrink: 0,
-      }}>{code}</span>
-      <span style={{ fontSize: 12, color: "#211E1E", fontWeight: 600 }}>{label}</span>
-    </div>
-  );
-}
-
-// Compact app chip with logo + name + (optional) cost. The "required" variant
-// inverts to charcoal so the eye reads "this is locked in" at a glance.
-function ReviewAppChip({ app, required }) {
-  return (
-    <div style={{
-      display: "inline-flex", alignItems: "center", gap: 6,
-      padding: "4px 10px 4px 4px",
-      background: required ? "#211E1E" : "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 4,
-      color: required ? "#FFFFFF" : "#211E1E",
-    }}>
-      <div style={{
-        background: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 3,
-        padding: 1,
-        display: "grid", placeItems: "center",
-      }}>
-        <AppLogo app={app} size={16} />
-      </div>
-      <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "-0.005em" }}>{app.name}</span>
-      {!!app.cost && (
-        <span style={{
-          fontFamily: "'Archivo', monospace",
-          fontSize: 10, fontWeight: 700,
-          color: required ? "rgba(253,200,49,0.85)" : "#78684C",
-          marginLeft: 2,
-        }}>${app.cost}</span>
-      )}
-    </div>
-  );
-}
-
-function ReviewSection({ title, icon, right, children }) {
-  return (
-    <div style={{
-      padding: "18px 20px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 10,
-      boxShadow: "2px 2px 0 #211E1E",
-      marginBottom: 14,
-    }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        marginBottom: 12,
-      }}>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-          color: "#211E1E",
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "3px 9px",
-          background: "#FDC831",
-          border: "1px solid #211E1E", borderRadius: 3,
-        }}>
-          {icon && <ReviewIcon kind={icon} />}
-          {title}
-        </div>
-        <div style={{ flex: 1 }}/>
-        {right && <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 11, fontWeight: 700,
-          color: "#78684C",
-          fontVariantNumeric: "tabular-nums",
-        }}>{right}</div>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function ReviewIcon({ kind }) {
-  const common = { width: 12, height: 12, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", strokeLinejoin: "round" };
-  if (kind === "user") return <svg {...common}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
-  if (kind === "org")  return <svg {...common}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>;
-  if (kind === "hw")   return <svg {...common}><rect x="2" y="4" width="20" height="13" rx="1.5"/><path d="M2 20h20"/></svg>;
-  if (kind === "apps") return <svg {...common}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>;
-  return null;
-}
-
-function ReviewRow({ k, v, mono, cap }) {
-  return (
-    <div style={{
-      display: "grid", gridTemplateColumns: "110px 1fr", gap: 10,
-      padding: "6px 0",
-      fontSize: 13,
-    }}>
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 10.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-        color: "#78684C", paddingTop: 2,
-      }}>{k}</div>
-      <div style={{
-        fontFamily: mono ? "'Archivo', monospace" : "'Archivo', sans-serif",
-        fontSize: 13.5, fontWeight: 600, color: "#211E1E",
-        textTransform: cap ? "capitalize" : "none",
-      }}>{v}</div>
-    </div>
-  );
-}
-
-// ---------- FORM PRIMITIVES ----------
-const onbLabelStyle = {
-  fontFamily: "'Archivo', sans-serif",
-  fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-  color: "#78684C", marginBottom: 6,
-};
-
-function OnbCard({ title, kicker, children, topLeftAction }) {
-  return (
-    <div style={{
-      padding: "22px 24px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 12,
-      boxShadow: "2px 2px 0 #211E1E",
-      display: "flex", flexDirection: "column", gap: 14,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <h2 style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em",
-            color: "#211E1E", margin: 0,
-          }}>{title}</h2>
-          {topLeftAction}
-        </div>
-        {kicker && <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-          color: "#78684C",
-        }}>{kicker}</div>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function OnbInput({ label, labelBadge, value, onChange, placeholder, type = "text", suffix, required, error, hideLabel }) {
-  const [focus, setFocus] = React.useState(false);
-  const showError = error && !focus;
-  const borderColor = showError ? "#B92323" : (focus ? "#FDC831" : "#211E1E");
-  const shadowColor = showError ? "#B92323" : "#FDC831";
-  return (
-    <div data-err={showError ? "1" : undefined}>
-      {!hideLabel && (
-        <div style={{ ...onbLabelStyle, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{label}{required && <span style={{ color: "#B92323", marginLeft: 4 }}>*</span>}</span>
-          {labelBadge}
-          {showError && (
-            <span style={{
-              fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-              padding: "1px 6px",
-              background: "#B92323", color: "#FFFFFF",
-              borderRadius: 2,
-              animation: "shake .4s ease-in-out",
-            }}>Required</span>
-          )}
-        </div>
-      )}
-      <div style={{
-        display: "flex", alignItems: "stretch",
-        background: "#FFFFFF",
-        border: `2px solid ${borderColor}`,
-        borderRadius: 6,
-        boxShadow: (focus || showError) ? `3px 3px 0 ${shadowColor}` : "none",
-        transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
-      }}>
-        <input
-          type={type} value={value} onChange={(e) => onChange(e.target.value)}
-          onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-          placeholder={placeholder}
-          aria-label={hideLabel ? label : undefined}
-          style={{
-            flex: 1, minWidth: 0,
-            padding: "10px 12px",
-            border: "none", outline: "none", background: "transparent",
-            fontSize: 14, color: "#211E1E",
-            fontFamily: "'Archivo', sans-serif", fontWeight: 500,
-          }}
-        />
-        {suffix && <div style={{
-          display: "grid", placeItems: "center",
-          padding: "0 12px",
-          background: "#FFF9E6",
-          borderLeft: "1px solid #211E1E",
-          fontFamily: "'Archivo', monospace",
-          fontSize: 12, fontWeight: 700, color: "#211E1E",
-        }}>{suffix}</div>}
-      </div>
-    </div>
-  );
-}
-
-function OnbSelect({ label, labelBadge, value, options, onChange, placeholder, disabled, required, error }) {
-  const [open, setOpen] = React.useState(false);
-  const [query, setQuery] = React.useState("");
-  const ref = React.useRef(null);
-
-  React.useEffect(() => {
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  const filtered = options.filter(o => {
-    const q = query.toLowerCase();
-    return o.label.toLowerCase().includes(q) ||
-      (o.sub && o.sub.toLowerCase().includes(q));
-  });
-  const current = options.find(o => o.value === value);
-
-  return (
-    <div ref={ref} style={{ position: "relative" }} data-err={error && !open ? "1" : undefined}>
-      <div style={{ ...onbLabelStyle, display: "flex", alignItems: "center", gap: 6 }}>
-        <span>{label}{required && <span style={{ color: "#B92323", marginLeft: 4 }}>*</span>}</span>
-        {labelBadge}
-        {error && !open && (
-          <span style={{
-            fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-            padding: "1px 6px",
-            background: "#B92323", color: "#FFFFFF",
-            borderRadius: 2,
-            animation: "shake .4s ease-in-out",
-          }}>Required</span>
-        )}
-      </div>
-      <button onClick={() => !disabled && setOpen(!open)}
-        style={{
-          width: "100%", padding: "10px 12px",
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-          background: disabled ? "#F5F0E4" : "#FFFFFF",
-          border: `2px solid ${(error && !open) ? "#B92323" : (open ? "#FDC831" : "#211E1E")}`,
-          borderRadius: 6,
-          boxShadow: open ? "2px 2px 0 #FDC831" : ((error && !open) ? "2px 2px 0 #B92323" : "none"),
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 14, fontWeight: current ? 700 : 500,
-          color: current ? "#211E1E" : "#78684C",
-          textAlign: "left", cursor: disabled ? "not-allowed" : "pointer",
-          opacity: disabled ? 0.6 : 1,
-          transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
-        }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-          {current?.icon}
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {current ? current.label : placeholder}
-          </span>
-        </span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease", flexShrink: 0 }}>
-          <path d="m6 9 6 6 6-6"/>
-        </svg>
-      </button>
-
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0,
-          background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 6,
-          boxShadow: "2px 2px 0 #211E1E",
-          zIndex: 20,
-          maxHeight: 280, overflowY: "auto",
-        }}>
-          <input autoFocus
-            value={query} onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search…"
-            style={{
-              width: "100%", boxSizing: "border-box",
-              padding: "10px 12px",
-              background: "#FFF9E6",
-              border: "none", borderBottom: "1px solid #211E1E",
-              outline: "none",
-              fontSize: 13, fontFamily: "'Archivo', sans-serif", fontWeight: 500,
-              color: "#211E1E",
-            }}/>
-          {filtered.length === 0 && (
-            <div style={{ padding: "12px", fontSize: 12.5, color: "#78684C", textAlign: "center" }}>
-              No matches
-            </div>
-          )}
-          {filtered.map(o => (
-            <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); setQuery(""); }}
-              style={{
-                display: "block", width: "100%",
-                padding: o.sub ? "8px 12px" : "9px 12px",
-                background: o.value === value ? "#FDC831" : "transparent",
-                border: "none",
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 13, fontWeight: o.value === value ? 800 : 500,
-                color: "#211E1E", textAlign: "left", cursor: "pointer",
-              }}
-              onMouseEnter={(e) => { if (o.value !== value) e.currentTarget.style.background = "#FFF9E6"; }}
-              onMouseLeave={(e) => { if (o.value !== value) e.currentTarget.style.background = "transparent"; }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                {o.icon}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div>{o.label}</div>
-                  {o.sub && (
-                    <div style={{
-                      fontSize: 10.5, fontWeight: 600, color: o.value === value ? "#4A3F2E" : "#78684C",
-                      marginTop: 2, letterSpacing: "0.01em",
-                    }}>{o.sub}</div>
-                  )}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------- ONBOARDING SUCCESS SCREEN ----------
-// Accepts `form` for a single hire (legacy) or the new signature from the wizard
-// which passes the full `hires[]` array. If given `hires` we summarize the batch.
-function OnboardingFiled({ form, onDone }) {
-  const hires = Array.isArray(form) ? form : [form];
-  const first = hires[0];
-  const ref = "ONB‑" + (4000 + Math.floor(Math.random() * 500));
-  const startDate = first.startDate ? new Date(first.startDate) : new Date();
-  const fmt = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  const totalMonthly = hires.reduce((sum, h) => sum + appsMonthlyTotal(h.apps), 0);
-
-  const headline = hires.length === 1
-    ? `${first.firstName} is cleared for launch.`
-    : `${hires.length} new Slicers cleared for launch.`;
-
-  return (
-    <div data-screen-label="Onboarding Filed" className="page" style={{
-      maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "80px 32px 60px", textAlign: "center",
-    }}>
-    <div style={{ maxWidth: 720, margin: "0 auto" }}>
-      <div style={{
-        width: 72, height: 72, borderRadius: "50%",
-        background: "#0A8A3E", color: "#FFFFFF",
-        border: "1px solid #211E1E",
-        boxShadow: "2px 2px 0 #211E1E",
-        display: "grid", placeItems: "center",
-        margin: "0 auto 24px",
-        animation: "popIn .5s var(--ease) both",
-      }}>
-        <IconCheck size={36} stroke={3.5} />
-      </div>
-      <style>{`@keyframes popIn { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }`}</style>
-
-      <div className="eyebrow" style={{ color: "#78684C", fontSize: 11, marginBottom: 8 }}>
-        Request filed · {ref}
-      </div>
-      <h1 style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 44, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.05,
-        margin: "0 0 12px", color: "#211E1E",
-      }}>
-        {headline}
-      </h1>
-      <p style={{ fontSize: 16, color: "#4A3F2E", lineHeight: 1.55, margin: "0 0 28px", maxWidth: 540, marginLeft: "auto", marginRight: "auto" }}>
-        {hires.length === 1
-          ? <>We're filing provisioning, hardware, and orientation tickets right now. You'll get a Slack DM once accounts are live (~3 days before <strong>{fmt(startDate)}</strong>).</>
-          : <>We're filing <strong>{hires.length} provisioning tickets</strong>, hardware orders, and orientation packets. Combined software cost: <strong>${totalMonthly}/mo</strong>.</>
-        }
-      </p>
-
-      {hires.length > 1 && (
-        <div style={{
-          display: "inline-flex", flexDirection: "column", gap: 8,
-          padding: "14px 18px",
-          background: "#FFF9E6",
-          border: "1px solid #211E1E", borderRadius: 8,
-          boxShadow: "2px 2px 0 #211E1E",
-          marginBottom: 28, textAlign: "left",
-        }}>
-          {hires.map((h, i) => (
-            <div key={h.id || i} style={{
-              display: "flex", alignItems: "center", gap: 10,
-              paddingBottom: 8,
-              borderBottom: i < hires.length - 1 ? "1px dashed rgba(33,30,30,0.2)" : "none",
-            }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: "50%",
-                background: "#211E1E", color: "#FDC831",
-                display: "grid", placeItems: "center",
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 11.5, fontWeight: 900,
-              }}>
-                {(h.firstName?.[0] || "?") + (h.lastName?.[0] || "?")}
-              </div>
-              <div style={{ flex: 1, minWidth: 180 }}>
-                <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 13, color: "#211E1E" }}>
-                  {h.preferredName || h.firstName} {h.lastName}
-                </div>
-                <div style={{ fontSize: 11, color: "#78684C", fontFamily: "'Archivo', monospace" }}>
-                  {h.workEmail}
-                </div>
-              </div>
-              <div style={{ fontSize: 10.5, fontFamily: "'Archivo', sans-serif", color: "#78684C", fontWeight: 700, textAlign: "right" }}>
-                <div>{h.title || "—"}</div>
-                <div style={{ fontFamily: "'Archivo', monospace", color: "#211E1E" }}>${appsMonthlyTotal(h.apps)}/mo</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div style={{
-        display: "inline-flex", gap: 10, flexWrap: "wrap", justifyContent: "center",
-      }}>
-        <button onClick={onDone} style={{
-          padding: "12px 20px",
-          background: "#FDC831", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 4,
-          boxShadow: "2px 2px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 13,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          cursor: "pointer",
-        }}>
-          Onboard another
-        </button>
-        <button onClick={onDone} style={{
-          padding: "12px 20px",
-          background: "#FFFFFF", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 4,
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 13,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          cursor: "pointer",
-        }}>
-          Back to IT Hub
-        </button>
-      </div>
-    </div>
-    </div>
-  );
-}
-
-// ---------- MOCK COMPLETED SLICERS (for roster + clone modal) ----------
-// Realistic set of existing Slicers HR would have onboarded over the past months.
-// Used both on the roster landing page and in the "Clone user" picker.
-const MOCK_COMPLETED_SLICERS = [
-  {
-    id: "sl_priya",
-    firstName: "Priya", lastName: "Shah", preferredName: "Priya",
-    title: "Staff Engineer", topDept: "Engineering", department: "Platform", team: "Checkout",
-    manager: "Liridon Selmani", location: "us_ny",
-    workEmail: "priya.shah@slice.com", startDate: "2026-01-13",
-    workMode: "hybrid",
-    apps: new Set(["google","slack","onelogin","zoom","notion","linear","github","aws","datadog","pagerduty","workday","ramp","figma"]),
-    hardware: { laptop: "mbp16", monitor: "dell27", keyboard: "mag", mouse: "magic", audio: "generic", extras: new Set(["dock","yubi"]) },
-    customFields: new Set(),
-    status: "live", joined: "Jan 13, 2026",
-  },
-  {
-    id: "sl_aiden",
-    firstName: "Aiden", lastName: "Hart", preferredName: "",
-    title: "Senior Software Engineer", topDept: "Engineering", department: "Product Eng", team: "Web",
-    manager: "Priya Shah", location: "xk_prs",
-    workEmail: "aiden.hart@slice.com", startDate: "2026-02-03",
-    workMode: "hybrid",
-    apps: new Set(["google","slack","onelogin","zoom","notion","linear","github","aws","datadog","workday","ramp","figma"]),
-    hardware: { laptop: "mbp14", monitor: "dell27", keyboard: "mag", mouse: "generic", audio: "generic", extras: new Set(["yubi"]) },
-    customFields: new Set(),
-    status: "live", joined: "Feb 3, 2026",
-  },
-  {
-    id: "sl_mira",
-    firstName: "Mira", lastName: "Kovač", preferredName: "",
-    title: "Senior Designer", topDept: "Design", department: "Product Design", team: "Web Design",
-    manager: "Liridon Selmani", location: "mk_sk",
-    workEmail: "mira.kovac@slice.com", startDate: "2026-02-17",
-    workMode: "remote",
-    apps: new Set(["google","slack","onelogin","zoom","notion","linear","figma","adobe","workday","ramp"]),
-    hardware: { laptop: "mbp14", monitor: "dell27", keyboard: "mag", mouse: "magic", audio: "generic", extras: new Set(["stand"]) },
-    customFields: new Set(),
-    status: "live", joined: "Feb 17, 2026",
-  },
-  {
-    id: "sl_ben",
-    firstName: "Ben", lastName: "Osei", preferredName: "",
-    title: "Account Executive", topDept: "Sales", department: "Enterprise", team: "Strategic Accounts",
-    manager: "Maeve O'Brien", location: "ie_bfs",
-    workEmail: "ben.osei@slice.com", startDate: "2026-03-10",
-    workMode: "office",
-    apps: new Set(["google","slack","onelogin","zoom","notion","salesforce","gong","outreach","hubspot","workday","ramp"]),
-    hardware: { laptop: "mba15", monitor: "dell27", keyboard: "mag", mouse: "generic", audio: "generic", extras: new Set() },
-    customFields: new Set(),
-    status: "live", joined: "Mar 10, 2026",
-  },
-  {
-    id: "sl_yusra",
-    firstName: "Yusra", lastName: "Demiri", preferredName: "",
-    title: "Data Analyst", topDept: "Data", department: "Analytics", team: "Product Analytics",
-    manager: "Priya Shah", location: "mk_oh",
-    workEmail: "yusra.demiri@slice.com", startDate: "2026-03-24",
-    workMode: "hybrid",
-    apps: new Set(["google","slack","onelogin","zoom","notion","linear","looker","snowflake","dbt","workday","ramp"]),
-    hardware: { laptop: "mbp14", monitor: "dell27", keyboard: "generic", mouse: "generic", audio: "generic", extras: new Set(["stand"]) },
-    customFields: new Set(),
-    status: "live", joined: "Mar 24, 2026",
-  },
-];
-
-// Hires scheduled but not yet landed — in-progress pipeline on the roster page.
-// Enriched with full identity (address, phone, personal email, work mode) +
-// org details + apps + hardware so the detail modal renders the same density
-// as a completed Slicer record.
-const MOCK_IN_PROGRESS = [
-  {
-    id: "p_nora",
-    firstName: "Nora", lastName: "Krasniqi", preferredName: "",
-    title: "Product Manager", topDept: "Product", department: "Growth", team: "Activation",
-    manager: "Liridon Selmani", location: "xk_prs",
-    workEmail: "nora.krasniqi@slice.com",
-    personalEmail: "nora.krasniqi@gmail.com",
-    phone: "+383 44 218 906",
-    address: "Rr. Nëna Terezë 14, 10000 Prishtina, Kosovo",
-    workMode: "hybrid",
-    startDate: "2026-05-05", stage: "Accounts provisioning", progress: 3,
-    apps: new Set(["google","slack","onelogin","zoom","notion","linear","figma","workday","ramp"]),
-    hardware: { laptop: "mbp14", monitor: "dell27", keyboard: "mag", mouse: "magic", audio: "generic", extras: new Set(["yubi"]) },
-  },
-  {
-    id: "p_sam",
-    firstName: "Samuel", lastName: "Greene", preferredName: "Sam",
-    title: "Customer Success Manager", topDept: "Customer", department: "CS", team: "Mid-Market",
-    manager: "Maeve O'Brien", location: "us_ny",
-    workEmail: "sam.greene@slice.com",
-    personalEmail: "samuel.greene@outlook.com",
-    phone: "+1 (212) 555-0184",
-    address: "224 W 14th St, Apt 3B, New York, NY 10011",
-    workMode: "office",
-    startDate: "2026-05-05", stage: "Hardware shipped", progress: 2,
-    apps: new Set(["google","slack","onelogin","zoom","notion","salesforce","gong","workday","ramp"]),
-    hardware: { laptop: "mba15", monitor: "dell27", keyboard: "mag", mouse: "generic", audio: "generic", extras: new Set() },
-  },
-  {
-    id: "p_dani",
-    firstName: "Danilo", lastName: "Petrov", preferredName: "Dani",
-    title: "Software Engineer", topDept: "Engineering", department: "Platform", team: "Payments",
-    manager: "Priya Shah", location: "mk_db",
-    workEmail: "danilo.petrov@slice.com",
-    personalEmail: "dani.petrov94@proton.me",
-    phone: "+389 71 402 558",
-    address: "Bul. Kuzman Josifovski 18, 1300 Kumanovo, North Macedonia",
-    workMode: "remote",
-    startDate: "2026-05-12", stage: "Awaiting start date", progress: 4,
-    apps: new Set(["google","slack","onelogin","zoom","notion","linear","github","aws","datadog","workday","ramp"]),
-    hardware: { laptop: "mbp16", monitor: "dell27", keyboard: "mag", mouse: "magic", audio: "generic", extras: new Set(["dock","yubi","stand"]) },
-  },
-];
-
-// ---------- ICON: COPY (for Clone button) ----------
-function IconCopy({ size = 14, stroke = 2 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-    </svg>
-  );
-}
-
-// ---------- HIRE QUEUE LIST (Step 1 sidebar) ----------
-// Shows the batch of hires being created in this session, with the current one
-// highlighted. Click to switch. Has a prominent +Add button at the bottom.
-function HireQueueList({ hires, currentIdx, onSwitchHire, onAddHire, onRemoveHire }) {
-  return (
-    <div style={{
-      padding: "14px 14px 14px 14px",
-      background: "#211E1E",
-      border: "1px solid #211E1E", borderRadius: 10,
-      boxShadow: "2px 2px 0 #FDC831",
-      position: "sticky", top: 100,
-      display: "flex", flexDirection: "column", gap: 8,
-    }}>
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-        color: "#FDC831",
-        padding: "2px 2px 8px",
-        borderBottom: "1px dashed rgba(253,200,49,0.3)",
-      }}>
-        This batch · {hires.length}
-      </div>
-
-      {hires.map((h, i) => {
-        const initials = (h.firstName?.[0] || "?") + (h.lastName?.[0] || "?");
-        const name = h.firstName || h.lastName ? `${h.firstName || ""} ${h.lastName || ""}`.trim() : `New Slicer ${i + 1}`;
-        const isCurrent = i === currentIdx;
-        return (
-          <div key={h.id} style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "8px 8px",
-            background: isCurrent ? "#FDC831" : "transparent",
-            border: isCurrent ? "2px solid #FDC831" : "2px solid rgba(253,200,49,0.2)",
-            borderRadius: 6,
-            cursor: "pointer",
-            transition: "background .15s ease",
-          }}
-            onClick={() => onSwitchHire(i)}
-            onMouseEnter={(e) => { if (!isCurrent) e.currentTarget.style.background = "rgba(253,200,49,0.12)"; }}
-            onMouseLeave={(e) => { if (!isCurrent) e.currentTarget.style.background = "transparent"; }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: "50%",
-              background: isCurrent ? "#211E1E" : "#FDC831",
-              color: isCurrent ? "#FDC831" : "#211E1E",
-              display: "grid", placeItems: "center",
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10.5, fontWeight: 900,
-              flexShrink: 0,
-            }}>
-              {initials.trim() === "??" ? i + 1 : initials}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontWeight: 700, fontSize: 12,
-                color: isCurrent ? "#211E1E" : "#FFFFFF",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>{name}</div>
-              <div style={{
-                fontFamily: "'Archivo', monospace",
-                fontSize: 9.5, fontWeight: 600,
-                color: isCurrent ? "rgba(33,30,30,0.7)" : "rgba(253,200,49,0.8)",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>{h.title || "No title yet"}</div>
-            </div>
-            {hires.length > 1 && i > 0 && (
-              <button onClick={(e) => { e.stopPropagation(); onRemoveHire(i); }}
-                style={{
-                  background: "transparent", border: "none",
-                  color: isCurrent ? "#211E1E" : "rgba(253,200,49,0.6)",
-                  cursor: "pointer",
-                  padding: 2, lineHeight: 1,
-                  fontSize: 14, fontFamily: "'Archivo', sans-serif",
-                  fontWeight: 900,
-                }}
-                title="Remove from batch">×</button>
-            )}
-          </div>
-        );
-      })}
-
-      <button onClick={onAddHire}
-        style={{
-          marginTop: 4,
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          padding: "10px 8px",
-          background: "#FDC831", color: "#211E1E",
-          border: "1px solid #FDC831", borderRadius: 6,
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.05em", textTransform: "uppercase",
-          cursor: "pointer",
-          transition: "transform .12s ease",
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-        onMouseLeave={(e) => e.currentTarget.style.transform = "none"}>
-        <span style={{ fontSize: 14, fontWeight: 900, lineHeight: 1 }}>+</span> Add another
-      </button>
-    </div>
-  );
-}
-
-// ---------- MODAL SHELL ----------
-function OnbModal({ title, kicker, onClose, width = 520, children }) {
-  React.useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return ReactDOM.createPortal((
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 200,
-      background: "rgba(33,30,30,0.55)",
-      display: "grid", placeItems: "center",
-      padding: 20,
-      animation: "fadeUp .2s var(--ease) both",
-    }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%", maxWidth: width,
-          maxHeight: "calc(100vh - 40px)",
-          display: "flex", flexDirection: "column", overflow: "hidden",
-          background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 12,
-          boxShadow: "3px 3px 0 #FDC831",
-        }}>
-        <div style={{
-          padding: "12px 22px",
-          borderBottom: "1px solid #211E1E",
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-          flex: "0 0 auto",
-        }}>
-          <div>
-            {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 4 }}>{kicker}</div>}
-            <h2 style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em",
-              color: "#211E1E", margin: 0,
-            }}>{title}</h2>
-          </div>
-          <button onClick={onClose}
-            style={{
-              background: "#FFFFFF", color: "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
-              padding: "6px 8px",
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 13, fontWeight: 900, cursor: "pointer",
-              lineHeight: 1, minWidth: 28,
-            }} title="Close">×</button>
-        </div>
-        <div style={{ padding: "20px 22px", flex: "1 1 auto", overflowY: "auto", minHeight: 0 }}>
-          {children}
-        </div>
-      </div>
-    </div>
-  ), document.body);
-}
-
-// ---------- BULK ONBOARD MODAL ----------
-// Dashboard entry point for batched hires. HR picks how many cards to spin up
-// AND whether each card starts blank or seeded from an existing Slicer's
-// role/dept/location/manager (clone). Identity is always blank — HR still
-// types each new person's name.
-function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
-  const [count, setCount] = React.useState(2);
-  const [seed, setSeed] = React.useState("blank");        // 'blank' | 'clone'
-  const [cloneId, setCloneId] = React.useState(null);
-  const [pickerOpen, setPickerOpen] = React.useState(false);
-  const [query, setQuery] = React.useState("");
-
-  const cloneFrom = sources.find(s => s.id === cloneId) || null;
-  const canSubmit = seed === "blank" || (seed === "clone" && cloneFrom);
-
-  // Filter sources by query — same lightweight matcher CloneUserModal uses.
-  const q = query.toLowerCase().trim();
-  const filtered = !q ? sources : sources.filter(s => {
-    const name = `${s.firstName} ${s.lastName}`.toLowerCase();
-    const tt = (s.title || "").toLowerCase();
-    return name.includes(q) || tt.includes(q);
-  });
-
-  return (
-    <OnbModal title="Bulk onboard" kicker="Spin up multiple cards" onClose={onCancel} width={580}>
-      {/* Count picker */}
-      <div style={{ marginBottom: 18 }}>
-        <div style={onbLabelStyle}>How many Slicers are you onboarding?</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" }}>
-          {[2, 3, 5, 10, 20].map(n => (
-            <button key={n} onClick={() => setCount(n)}
-              style={{
-                padding: "10px 14px",
-                background: count === n ? "#FDC831" : "#FFFFFF",
-                border: "1px solid #211E1E", borderRadius: 6,
-                boxShadow: count === n ? "1px 1px 0 #211E1E" : "none",
-                fontFamily: "'Archivo', sans-serif",
-                fontWeight: 800, fontSize: 14,
-                color: "#211E1E", cursor: "pointer",
-                minWidth: 44,
-              }}>
-              {n}
-            </button>
-          ))}
-          <div style={{ width: 1, height: 28, background: "#211E1E", margin: "0 4px" }}/>
-          <input type="number" min="2" max="50"
-            value={count}
-            onChange={(e) => setCount(Math.max(2, Math.min(50, parseInt(e.target.value) || 2)))}
-            style={{
-              width: 70, padding: "10px 10px",
-              background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 6,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 14, fontWeight: 800,
-              color: "#211E1E", textAlign: "center",
-              outline: "none",
-            }}/>
-          <div style={{ fontSize: 12, color: "#78684C", fontFamily: "'Archivo', sans-serif", fontWeight: 600 }}>
-            cards in batch
-          </div>
-        </div>
-      </div>
-
-      {/* Seed source — Blank vs Clone */}
-      <div style={{ marginBottom: 18 }}>
-        <div style={onbLabelStyle}>Start each card from…</div>
-        <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
-          {/* Blank option */}
-          <button onClick={() => { setSeed("blank"); setPickerOpen(false); }} style={{
-            display: "grid", gridTemplateColumns: "auto 1fr", gap: 12, alignItems: "center",
-            padding: "12px 14px",
-            background: seed === "blank" ? "#FDC831" : "#FFFFFF",
-            color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 6,
-            cursor: "pointer", textAlign: "left",
-            boxShadow: seed === "blank" ? "1px 1px 0 #211E1E" : "none",
-          }}>
-            <span style={{
-              width: 18, height: 18, borderRadius: "50%",
-              border: "1px solid #211E1E",
-              background: seed === "blank" ? "#211E1E" : "#FFFFFF",
-              display: "grid", placeItems: "center",
-            }}>
-              {seed === "blank" && <span style={{
-                width: 8, height: 8, borderRadius: "50%", background: "#FDC831",
-              }}/>}
-            </span>
-            <div>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 800,
-                letterSpacing: "-0.005em",
-              }}>Blank</div>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 600,
-                color: "#78684C", marginTop: 1,
-              }}>Every card starts empty. HR fills in role, dept, apps, hardware per Slicer.</div>
-            </div>
-          </button>
-
-          {/* Clone option */}
-          <div style={{
-            border: "1px solid #211E1E", borderRadius: 6,
-            background: seed === "clone" ? "#FDC831" : "#FFFFFF",
-            boxShadow: seed === "clone" ? "1px 1px 0 #211E1E" : "none",
-            overflow: "hidden",
-          }}>
-            <button onClick={() => { setSeed("clone"); if (!cloneFrom) setPickerOpen(true); }} style={{
-              width: "100%",
-              display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, alignItems: "center",
-              padding: "12px 14px",
-              background: "transparent", color: "#211E1E",
-              border: "none",
-              cursor: "pointer", textAlign: "left",
-            }}>
-              <span style={{
-                width: 18, height: 18, borderRadius: "50%",
-                border: "1px solid #211E1E",
-                background: seed === "clone" ? "#211E1E" : "#FFFFFF",
-                display: "grid", placeItems: "center",
-              }}>
-                {seed === "clone" && <span style={{
-                  width: 8, height: 8, borderRadius: "50%", background: "#FDC831",
-                }}/>}
-              </span>
-              <div>
-                <div style={{
-                  fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 800,
-                  letterSpacing: "-0.005em",
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                }}>
-                  <IconCopy size={13} stroke={2.5}/> Clone an existing Slicer
-                </div>
-                <div style={{
-                  fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 600,
-                  color: "#78684C", marginTop: 1,
-                }}>Every card inherits role, dept, location, and manager. Apps and hardware are set per-Slicer.</div>
-              </div>
-              {cloneFrom && (
-                <div style={{
-                  display: "inline-flex", alignItems: "center", gap: 8,
-                  padding: "6px 10px",
-                  background: "#211E1E", color: "#FDC831",
-                  border: "1px solid #211E1E", borderRadius: 4,
-                  fontFamily: "'Archivo', sans-serif", fontSize: 11, fontWeight: 800,
-                  letterSpacing: "0.04em", textTransform: "uppercase",
-                }}>
-                  {cloneFrom.firstName} {cloneFrom.lastName}
-                </div>
-              )}
-            </button>
-
-            {/* Picker — visible when Clone is active */}
-            {seed === "clone" && (
-              <div style={{
-                padding: 10, borderTop: "1px solid #211E1E",
-                background: "#FFF9E6",
-              }}>
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search Slicers by name or role…"
-                  style={{
-                    width: "100%", padding: "9px 12px",
-                    background: "#FFFFFF",
-                    border: "1px solid #211E1E", borderRadius: 4,
-                    fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 600,
-                    color: "#211E1E", outline: "none",
-                    marginBottom: 8,
-                  }}
-                />
-                <div style={{
-                  maxHeight: 220, overflowY: "auto",
-                  border: "1px solid #211E1E", borderRadius: 4,
-                  background: "#FFFFFF",
-                }}>
-                  {filtered.length === 0 && (
-                    <div style={{ padding: 16, fontSize: 12, color: "#78684C", textAlign: "center" }}>
-                      No matches.
-                    </div>
-                  )}
-                  {filtered.map(s => {
-                    const sel = s.id === cloneId;
-                    return (
-                      <button key={s.id} onClick={() => setCloneId(s.id)} style={{
-                        width: "100%",
-                        display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 10, alignItems: "center",
-                        padding: "9px 12px",
-                        background: sel ? "#FDC831" : "#FFFFFF",
-                        color: "#211E1E",
-                        border: "none",
-                        borderBottom: "1px solid rgba(33,30,30,0.1)",
-                        cursor: "pointer", textAlign: "left",
-                      }}>
-                        <span style={{
-                          width: 28, height: 28, borderRadius: "50%",
-                          background: "#211E1E", color: "#FDC831",
-                          display: "grid", placeItems: "center",
-                          fontFamily: "'Archivo', sans-serif", fontSize: 10, fontWeight: 900,
-                        }}>{s.firstName[0]}{s.lastName[0]}</span>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{
-                            fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800,
-                            color: "#211E1E", letterSpacing: "-0.005em",
-                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                          }}>{s.firstName} {s.lastName}</div>
-                          <div style={{
-                            fontFamily: "'Archivo', monospace", fontSize: 10.5, fontWeight: 700,
-                            color: "#78684C", marginTop: 1,
-                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                          }}>{s.title} · {s.topDept}</div>
-                        </div>
-                        {sel && (
-                          <span style={{
-                            fontFamily: "'Archivo', sans-serif", fontSize: 10, fontWeight: 900,
-                            letterSpacing: "0.06em", color: "#211E1E",
-                          }}>SELECTED</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center" }}>
-        <div style={{ fontSize: 11, color: "#78684C", fontFamily: "'Archivo', monospace", fontWeight: 700, marginRight: "auto" }}>
-          {count} cards · {seed === "blank" ? "blank" : (cloneFrom ? `cloned from ${cloneFrom.firstName}` : "pick a Slicer")}
-        </div>
-        <button onClick={onCancel}
-          style={{
-            padding: "11px 18px",
-            background: "#FFFFFF", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 4,
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 12.5,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-          }}>Cancel</button>
-        <button onClick={() => canSubmit && onConfirm({ count, cloneFrom })}
-          disabled={!canSubmit}
-          style={{
-            padding: "11px 20px",
-            background: canSubmit ? "#FDC831" : "rgba(253,200,49,0.4)",
-            color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 4,
-            boxShadow: canSubmit ? "2px 2px 0 #211E1E" : "none",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 12.5,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: canSubmit ? "pointer" : "not-allowed",
-          }}>Create {count} cards</button>
-      </div>
-    </OnbModal>
-  );
-}
-
-// ---------- EXIT DRAFT MODAL ----------
-// Centered, branded confirmation when HR clicks Exit on Step 1 with data
-// already entered. Replaces the ugly browser-native confirm dialog.
-function ExitDraftModal({ hires, onCancel, onConfirm }) {
-  const named = hires.filter(h => (h.firstName || h.lastName)).map(h => `${h.firstName || ""} ${h.lastName || ""}`.trim()).filter(Boolean);
-  const count = hires.length;
-  return (
-    <OnbModal title="Discard this draft?" kicker="Unsaved progress" onClose={onCancel} width={460}>
-      <div style={{
-        display: "flex", gap: 12,
-        padding: "12px 14px",
-        background: "#FBE9E9",
-        border: "1px solid #B92323", borderRadius: 8,
-        boxShadow: "2px 2px 0 #B92323",
-        marginBottom: 16,
-      }}>
-        <div style={{
-          width: 26, height: 26, borderRadius: "50%",
-          background: "#B92323", color: "#FFFFFF",
-          display: "grid", placeItems: "center", flexShrink: 0,
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 14, fontWeight: 900,
-        }}>!</div>
-        <div style={{ flex: 1, fontSize: 13, lineHeight: 1.5, color: "#211E1E" }}>
-          <strong style={{ fontFamily: "'Archivo', sans-serif" }}>You'll lose this draft.</strong>
-          <div style={{ marginTop: 4, color: "#4A3F2E" }}>
-            {count > 1
-              ? <>You have <strong>{count} hires</strong> in progress{named.length ? <> ({named.slice(0, 3).join(", ")}{named.length > 3 ? `, +${named.length - 3} more` : ""})</> : ""}. Exiting now will discard everything you've entered.</>
-              : <>The fields you've filled in won't be saved. You'll have to start from scratch next time.</>}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <button onClick={onCancel}
-          style={{
-            padding: "11px 18px",
-            background: "#FFFFFF", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 6,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 12,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}>
-          Keep editing
-        </button>
-        <button onClick={onConfirm}
-          style={{
-            padding: "11px 18px",
-            background: "#B92323", color: "#FFFFFF",
-            border: "1px solid #211E1E", borderRadius: 6,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 12,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}>
-          Discard & exit
-        </button>
-      </div>
-    </OnbModal>
-  );
-}
-
-// ---------- REMOVE HIRE MODAL ----------
-// Branded confirmation when HR clicks the X on a stacked hire card with data
-// already entered. Same visual language as ExitDraftModal — red alert pill,
-// "are you sure" tone, two clear actions. Skipped entirely when the card is
-// blank (see requestRemoveHire).
-function RemoveHireModal({ hire, idx, onCancel, onConfirm }) {
-  const name = (hire.firstName || hire.lastName)
-    ? `${hire.firstName || ""} ${hire.lastName || ""}`.trim()
-    : `Hire ${idx + 1}`;
-  const loc = ONB_LOCATIONS.find(l => l.id === hire.location);
-  // Build a compact list of details that will be lost so HR sees what they're discarding.
-  const details = [];
-  if (hire.title)        details.push(hire.title);
-  if (loc)               details.push(`${loc.label} · ${loc.site}`);
-  if (hire.workEmail)    details.push(hire.workEmail);
-  if (hire.startDate)    details.push(`Starts ${new Date(hire.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`);
-  return (
-    <OnbModal title={`Remove ${name}?`} kicker="Confirm removal" onClose={onCancel} width={460}>
-      <div style={{
-        display: "flex", gap: 12,
-        padding: "12px 14px",
-        background: "#FBE9E9",
-        border: "1px solid #B92323", borderRadius: 8,
-        boxShadow: "2px 2px 0 #B92323",
-        marginBottom: 16,
-      }}>
-        <div style={{
-          width: 26, height: 26, borderRadius: "50%",
-          background: "#B92323", color: "#FFFFFF",
-          display: "grid", placeItems: "center", flexShrink: 0,
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 14, fontWeight: 900,
-        }}>!</div>
-        <div style={{ flex: 1, fontSize: 13, lineHeight: 1.5, color: "#211E1E" }}>
-          <strong style={{ fontFamily: "'Archivo', sans-serif" }}>This hire will be discarded.</strong>
-          <div style={{ marginTop: 4, color: "#4A3F2E" }}>
-            {details.length > 0
-              ? <>You'll lose what you've entered for <strong>{name}</strong>{details.length ? <> — {details.join(" · ")}</> : ""}. The other hires in this batch are unaffected.</>
-              : <>You'll lose what you've entered for <strong>{name}</strong>. The other hires in this batch are unaffected.</>
-            }
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <button onClick={onCancel}
-          style={{
-            padding: "11px 18px",
-            background: "#FFFFFF", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 6,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 12,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-            transition: "transform .15s ease, box-shadow .15s ease",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}>
-          Keep hire
-        </button>
-        <button onClick={onConfirm}
-          style={{
-            padding: "11px 18px",
-            background: "#B92323", color: "#FFFFFF",
-            border: "1px solid #211E1E", borderRadius: 6,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 12,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-            transition: "transform .15s ease, box-shadow .15s ease",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}>
-          Yes, remove
-        </button>
-      </div>
-    </OnbModal>
-  );
-}
-
-// ---------- UNVISITED HIRES MODAL ----------
-// Soft gate when HR hits Continue on Step 1 (Apps & Hardware) in a multi-hire
-// batch and some hires were never opened — or were opened but left with no
-// laptop and no apps. We list the flagged hires (clickable to jump back) and
-// ask HR to confirm before shipping them with empty kits.
-function UnvisitedHiresModal({ unvisited, totalHires, onCancel, onJumpTo, onConfirm }) {
-  const count = unvisited.length;
-  const allUnvisited = count === totalHires;
-  return (
-    <OnbModal
-      title={count === 1 ? "1 hire has nothing selected" : `${count} hires have nothing selected`}
-      kicker="Empty kit warning"
-      onClose={onCancel}
-      width={520}
-    >
-      <div style={{
-        display: "flex", gap: 12,
-        padding: "12px 14px",
-        background: "#FFF8DC",
-        border: "1px solid #211E1E", borderRadius: 8,
-        marginBottom: 16,
-      }}>
-        <span style={{
-          display: "inline-grid", placeItems: "center",
-          width: 26, height: 26, borderRadius: "50%",
-          background: "#211E1E", color: "#FDC831",
-          fontSize: 15, fontWeight: 900, flexShrink: 0,
-        }}>!</span>
-        <div style={{ fontSize: 13, color: "#211E1E", lineHeight: 1.5 }}>
-          {allUnvisited
-            ? <>You haven't picked apps or hardware for any hire yet. If you continue, every hire ships with the required apps only and <strong>no laptop</strong>.</>
-            : <>The {count === 1 ? "hire" : "hires"} below {count === 1 ? "has" : "have"} no laptop picked and no extra apps. {count === 1 ? "They'll" : "They'll"} ship with the required apps only.</>}
-          <br/>
-          <span style={{ color: "#78684C", fontWeight: 600 }}>Are you sure you want to continue?</span>
-        </div>
-      </div>
-
-      {/* List of flagged hires — click any one to jump back and configure */}
-      <div style={{
-        display: "flex", flexDirection: "column", gap: 6,
-        marginBottom: 16,
-      }}>
-        {unvisited.map(({ h, i }) => {
-          const name = (h.firstName || h.lastName)
-            ? `${h.firstName || ""} ${h.lastName || ""}`.trim()
-            : `Hire ${i + 1}`;
-          return (
-            <button key={h.id || i} onClick={() => onJumpTo(i)}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "8px 12px",
-                background: "#FFFFFF",
-                border: "1px solid #211E1E", borderRadius: 6,
-                fontFamily: "'Archivo', sans-serif",
-                cursor: "pointer", textAlign: "left",
-                transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#FFF9E6"; e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "#FFFFFF"; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
-              <span style={{
-                fontFamily: "'Archivo', monospace",
-                fontSize: 10, fontWeight: 900,
-                padding: "2px 6px",
-                background: "#FFF9E6", color: "#211E1E",
-                border: "1px solid #211E1E", borderRadius: 2,
-                flexShrink: 0,
-              }}>{String(i + 1).padStart(2, "0")}</span>
-              <span style={{
-                flex: 1, minWidth: 0,
-                fontSize: 13, fontWeight: 700, color: "#211E1E",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>{name}</span>
-              <span style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 9.5, fontWeight: 800,
-                letterSpacing: "0.06em", textTransform: "uppercase",
-                color: "#B92323",
-              }}>Configure →</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <button onClick={onCancel} style={{
-          padding: "10px 16px",
-          background: "#FFFFFF", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 6,
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          cursor: "pointer",
-        }}>Go back &amp; configure</button>
-        <button onClick={onConfirm} style={{
-          padding: "10px 16px",
-          background: "#211E1E", color: "#FDC831",
-          border: "1px solid #211E1E", borderRadius: 6,
-          boxShadow: "2px 2px 0 #FDC831",
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          cursor: "pointer",
-        }}>Continue anyway</button>
-      </div>
-    </OnbModal>
-  );
-}
-
-// ---------- CLONE USER MODAL ----------
-// Lets HR pick an existing Slicer (or a current draft) to clone from.
-// Identity is always stripped — you still have to type the new person's name.
-function CloneUserModal({ sources, currentDrafts, onCancel, onPick }) {
-  const [query, setQuery] = React.useState("");
-  const q = query.toLowerCase().trim();
-  const matches = sources.filter(s => {
-    if (!q) return true;
-    return (`${s.firstName} ${s.lastName} ${s.title} ${s.topDept} ${s.department}`).toLowerCase().includes(q);
-  });
-  return (
-    <OnbModal title="Clone from existing Slicer" kicker="Copies everything except identity" onClose={onCancel} width={620}>
-      <div style={{
-        padding: "10px 12px",
-        background: "#FFF9E6",
-        border: "1px dashed #211E1E", borderRadius: 8,
-        fontSize: 12.5, color: "#4A3F2E", lineHeight: 1.5,
-        marginBottom: 16,
-      }}>
-        We'll copy the selected Slicer's <strong>role, title, department, team, location, and manager</strong>. You'll still fill in the new person's name and email — apps and hardware stay per‑Slicer.
-      </div>
-
-      <div style={{
-        position: "relative",
-        marginBottom: 14,
-      }}>
-        <input autoFocus
-          value={query} onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name, title, department…"
-          style={{
-            width: "100%", boxSizing: "border-box",
-            padding: "11px 14px",
-            background: "#FFFFFF",
-            border: "1px solid #211E1E", borderRadius: 6,
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 14, fontWeight: 500,
-            color: "#211E1E", outline: "none",
-          }}/>
-      </div>
-
-      {matches.length === 0 && (
-        <div style={{ textAlign: "center", padding: "24px 10px", color: "#78684C", fontSize: 13 }}>
-          No matches for "{query}"
-        </div>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 360, overflowY: "auto" }}>
-        {matches.map(s => {
-          const loc = ONB_LOCATIONS.find(l => l.id === s.location);
-          return (
-            <button key={s.id} onClick={() => onPick(s)}
-              style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "12px 14px",
-                background: "#FFFFFF",
-                border: "1px solid #211E1E", borderRadius: 8,
-                cursor: "pointer", textAlign: "left",
-                transition: "transform .12s ease, box-shadow .12s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#FFF9E6";
-                e.currentTarget.style.transform = "translate(-1px,-1px)";
-                e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#FFFFFF";
-                e.currentTarget.style.transform = "none";
-                e.currentTarget.style.boxShadow = "none";
-              }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: "50%",
-                background: "#211E1E", color: "#FDC831",
-                display: "grid", placeItems: "center",
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 13, fontWeight: 900,
-                flexShrink: 0,
-              }}>
-                {s.firstName[0]}{s.lastName[0]}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 14, color: "#211E1E" }}>
-                  {s.firstName} {s.lastName}
-                </div>
-                <div style={{ fontSize: 11.5, color: "#78684C", fontFamily: "'Archivo', sans-serif", fontWeight: 600, marginTop: 2 }}>
-                  {s.title} · {s.topDept} / {s.department}
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                {loc && <CountryFlag country={loc.country} size={16} />}
-                <div style={{
-                  fontFamily: "'Archivo', monospace",
-                  fontSize: 10, fontWeight: 800,
-                  padding: "2px 6px",
-                  background: "#FDC831", color: "#211E1E",
-                  border: "1px solid #211E1E", borderRadius: 3,
-                }}>{s.apps.size} apps</div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </OnbModal>
-  );
-}
-
-// ---------- TRAIL DATA ----------
-// For the detail modal we want to show "who created this hire", "when", etc.
-// Rather than stuff every mock entry with timestamps, synthesize them
-// deterministically from the hire id — same id always produces the same trail,
-// so the modal is stable across re-renders.
-const TRAIL_RECRUITERS = [
-  "Jasmine Park",     "Marco Liu",        "Elena Voss",
-  "Tomás Ribeiro",    "Aanya Krishnan",   "Kai Whitfield",
-];
-function trailFor(hire) {
-  if (!hire) return null;
-  // Deterministic hash from id string
-  let h = 0;
-  for (let i = 0; i < hire.id.length; i++) h = ((h << 5) - h + hire.id.charCodeAt(i)) | 0;
-  const abs = Math.abs(h);
-  const recruiter = TRAIL_RECRUITERS[abs % TRAIL_RECRUITERS.length];
-  // createdOn: 35–70 days before startDate; lastUpdated: 1–10 days before
-  const start = new Date(hire.startDate || "2026-05-01");
-  const createdDaysBefore = 35 + (abs % 35);
-  const updatedDaysBefore = 1 + ((abs >> 3) % 10);
-  const created = new Date(start); created.setDate(created.getDate() - createdDaysBefore);
-  const updated = new Date(start); updated.setDate(updated.getDate() - updatedDaysBefore);
-  const fmt = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  const fmtTime = (d) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase();
-  return {
-    recruiter,
-    createdOn: fmt(created),
-    createdAt: fmtTime(created),
-    lastUpdatedBy: recruiter,
-    lastUpdatedOn: fmt(updated),
-    requestId: `ONB-${(abs % 9000 + 1000)}`,
-    batch: `Batch ${["A","B","C","D"][abs % 4]}-${((abs >> 5) % 50) + 10}`,
-  };
-}
-
-// ---------- HIRE DETAIL MODAL ----------
-// Big overlay modal opened from clicking a roster row (in-progress or completed).
-// Shows every data point about the hire — identity, role/org, apps, hardware,
-// trail (who filed the request + when + last update), and a footer with actions.
-function HireDetailModal({ hire, onClose }) {
-  const isCompleted = hire?.status === "live";
-  const loc = ONB_LOCATIONS.find(l => l.id === hire?.location);
-  const trail = trailFor(hire);
-  const apps = hire?.apps ? ONB_APPS.filter(a => hire.apps.has(a.id)) : [];
-  const appMonthly = apps.reduce((s, a) => s + (a.cost || 0), 0);
-
-  // IT auto-stage: when a checklist tick implies a more-advanced pipeline
-  // stage than the hire's filed stage, we display the auto-advanced stage
-  // (with a "Auto" badge) without mutating the source data.
-  const [autoStage, setAutoStage] = React.useState(null);
-
-  // Hardware lookup helpers
-  const pickHW = (pool, id) => pool.find(p => p.id === id);
-  const hw = hire?.hardware || {};
-  const hwItems = [];
-  const addHW = (cat, pool, id) => { const it = pickHW(pool, id); if (it) hwItems.push({ ...it, category: cat }); };
-  addHW("Laptop",    ONB_HARDWARE.laptops,   hw.laptop);
-  addHW("Monitor",   ONB_HARDWARE.monitors,  hw.monitor);
-  addHW("Keyboard",  ONB_HARDWARE.keyboards, hw.keyboard);
-  addHW("Mouse",     ONB_HARDWARE.mice,      hw.mouse);
-  addHW("Audio",     ONB_HARDWARE.audio,     hw.audio);
-  (hw.extras || new Set()).forEach(id => addHW("Extras", ONB_HARDWARE.extras, id));
-  const hwTotal = hwItems.reduce((s, it) => s + (parseFloat((it.price || "$0").replace(/[^\d.]/g, "")) || 0), 0);
-
-  const stages = ["Request filed", "Hardware shipped", "Accounts provisioning", "Welcome packet", "Awaiting start date"];
-  const baseStageIdx = hire ? stages.indexOf(hire.stage) : -1;
-  // Effective stage = max(filed stage, auto-advanced stage from IT ticks).
-  const autoIdx = autoStage ? stages.indexOf(autoStage) : -1;
-  const stageIdx = Math.max(baseStageIdx, autoIdx);
-
-  return (
-    <OnbModal
-      title={hire ? `${hire.firstName} ${hire.lastName}` : "Hire"}
-      kicker={isCompleted ? "Slicer — live" : "In progress"}
-      onClose={onClose}
-      width={920}
-    >
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-        {/* LEFT COLUMN */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-          {/* Identity card */}
-          <HDMCard title="Identity">
-            <HDMRow k="Full name" v={`${hire?.firstName} ${hire?.lastName}`} />
-            {hire?.preferredName && <HDMRow k="Preferred name" v={hire.preferredName} />}
-            <HDMRow k="Work email" v={hire?.workEmail || "—"} mono />
-            <HDMRow k="Start date" v={hire?.startDate ? new Date(hire.startDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : "—"} />
-            {hire?.workMode && <HDMRow k="Work mode" v={hire.workMode} cap />}
-          </HDMCard>
-
-          {/* Role & Org */}
-          <HDMCard title="Role & Org">
-            <HDMRow k="Title" v={hire?.title || "—"} />
-            <HDMRow k="Department" v={hire ? `${hire.topDept}${hire.department ? " · " + hire.department : ""}` : "—"} />
-            {hire?.manager && <HDMRow k="Manager" v={hire.manager} />}
-            <HDMRow k="Location" v={loc ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <CountryFlag country={loc.country} size={14} />
-                {loc.label} · <span style={{ fontFamily: "'Archivo', monospace", fontSize: 11, fontWeight: 800 }}>{loc.site}</span>
-                <span style={{ fontSize: 11, color: "#78684C" }}>({loc.tz})</span>
-              </span>
-            ) : "—"} />
-          </HDMCard>
-
-          {/* Trail */}
-          <HDMCard title="Onboarding trail" accent>
-            <HDMRow k="Request ID" v={trail?.requestId} mono />
-            <HDMRow k="Batch" v={trail?.batch} />
-            <HDMRow k="Created by" v={trail?.recruiter} />
-            <HDMRow k="Created on" v={`${trail?.createdOn} · ${trail?.createdAt}`} />
-            <HDMRow k="Last updated" v={`${trail?.lastUpdatedBy}, ${trail?.lastUpdatedOn}`} />
-          </HDMCard>
-
-        </div>
-
-        {/* RIGHT COLUMN */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-          {/* Pipeline stage card removed — provisioning state now lives in the
-              new ticketing system. */}
-
-          {/* Apps */}
-          <HDMCard
-            title={`Apps — ${apps.length}`}
-            action={<span style={{
-              fontFamily: "'Archivo', monospace",
-              fontSize: 10.5, fontWeight: 800, padding: "2px 6px",
-              background: "#211E1E", color: "#FDC831", borderRadius: 3,
-            }}>${appMonthly}/mo</span>}
-          >
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {apps.map(a => (
-                <div key={a.id} style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  padding: "3px 8px 3px 3px",
-                  background: "#FFFFFF",
-                  border: "1px solid #211E1E", borderRadius: 3,
-                }}>
-                  <AppLogo app={a} size={14} />
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#211E1E" }}>{a.name}</span>
-                </div>
-              ))}
-              {apps.length === 0 && (
-                <span style={{ fontSize: 12, color: "#78684C", fontStyle: "italic" }}>No apps assigned yet.</span>
-              )}
-            </div>
-          </HDMCard>
-
-          {/* Hardware */}
-          <HDMCard
-            title={`Hardware — ${hwItems.length}`}
-            action={<span style={{
-              fontFamily: "'Archivo', monospace",
-              fontSize: 10.5, fontWeight: 800, padding: "2px 6px",
-              background: "#211E1E", color: "#FDC831", borderRadius: 3,
-            }}>${hwTotal.toLocaleString()}</span>}
-          >
-            {hwItems.length === 0 && (
-              <span style={{ fontSize: 12, color: "#78684C", fontStyle: "italic" }}>No hardware selected yet.</span>
-            )}
-            {hwItems.map((it, i) => (
-              <div key={it.id + i} style={{
-                display: "flex", alignItems: "baseline", gap: 8,
-                padding: "5px 0",
-                borderBottom: i < hwItems.length - 1 ? "1px dashed rgba(33,30,30,0.15)" : "none",
-              }}>
-                <div style={{
-                  fontFamily: "'Archivo', sans-serif",
-                  fontSize: 8.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-                  color: "#78684C", width: 56,
-                }}>{it.category}</div>
-                <div style={{ flex: 1, fontSize: 12, color: "#211E1E", fontWeight: 600 }}>{it.name}</div>
-                <div style={{
-                  fontFamily: "'Archivo', monospace",
-                  fontSize: 11, fontWeight: 700, color: "#4A3F2E",
-                }}>{it.price}</div>
-              </div>
-            ))}
-          </HDMCard>
-
-        </div>
-      </div>
-
-      {/* Footer actions */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        marginTop: 20, paddingTop: 14,
-        borderTop: "1px dashed rgba(33,30,30,0.2)",
-      }}>
-        <div style={{ fontSize: 11, color: "#78684C", fontWeight: 600 }}>
-          Ref: <span style={{ fontFamily: "'Archivo', monospace", fontWeight: 800, color: "#211E1E" }}>{trail?.requestId}</span>
-        </div>
-        <div style={{ flex: 1 }}/>
-        <button onClick={onClose} style={{
-          padding: "8px 16px",
-          background: "#FFFFFF", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 4,
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 11.5, letterSpacing: "0.04em", textTransform: "uppercase",
-          cursor: "pointer",
-        }}>Close</button>
-      </div>
-    </OnbModal>
-  );
-}
-
-// Small helpers used by the detail modal
-function HDMCard({ title, accent, action, children }) {
-  return (
-    <div style={{
-      padding: "12px 14px",
-      background: accent ? "#FFF9E6" : "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 8,
-      boxShadow: "2px 2px 0 #211E1E",
-    }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        marginBottom: 8,
-      }}>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-          color: "#211E1E",
-        }}>{title}</div>
-        <div style={{ flex: 1 }}/>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function HDMRow({ k, v, mono, cap }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "baseline", gap: 8,
-      padding: "4px 0",
-      borderBottom: "1px dashed rgba(33,30,30,0.12)",
-    }}>
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-        color: "#78684C", width: 100, flexShrink: 0,
-      }}>{k}</div>
-      <div style={{
-        flex: 1,
-        fontSize: 12.5, color: "#211E1E", fontWeight: 600,
-        fontFamily: mono ? "'Archivo', monospace" : "'Archivo', sans-serif",
-        textTransform: cap ? "capitalize" : "none",
-        wordBreak: "break-word",
-      }}>{v}</div>
-    </div>
-  );
-}
-
-// ---------- ROSTER FILTER PILL ----------
-// Compact dropdown used in the In-progress filter bar. Closes on outside click.
-// Shared between onboarding + offboarding dashboards (exported below).
-function RosterFilterPill({ label, value, onChange, options }) {
-  const [open, setOpen] = React.useState(false);
-  const ref = React.useRef(null);
-  React.useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
-  const selected = options.find(o => o.id === value) || options[0];
-  const isActive = value !== "all";
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button onClick={() => setOpen(o => !o)} style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        padding: "5px 9px",
-        background: isActive ? "#FDC831" : "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 4,
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 11, fontWeight: 800, color: "#211E1E",
-        cursor: "pointer",
-        boxShadow: isActive ? "1px 1px 0 #211E1E" : "none",
-      }}>
-        <span style={{ color: "#78684C", fontWeight: 700, fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase" }}>{label}</span>
-        {selected.icon && (
-          <span style={{ display: "inline-flex", alignItems: "center" }}>{selected.icon}</span>
-        )}
-        <span style={{ fontWeight: 800 }}>{selected.label}</span>
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0,
-          minWidth: 200, maxHeight: 280, overflowY: "auto",
-          background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 6,
-          boxShadow: "2px 2px 0 #211E1E",
-          padding: 4, zIndex: 50,
-        }}>
-          {options.map(o => (
-            <button key={o.id} onClick={() => { onChange(o.id); setOpen(false); }} style={{
-              display: "flex", alignItems: "center", gap: 8, width: "100%",
-              padding: "7px 10px",
-              background: o.id === value ? "#FDC831" : "transparent",
-              border: "none", borderRadius: 3,
-              textAlign: "left",
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 12, fontWeight: o.id === value ? 800 : 600,
-              color: "#211E1E",
-              cursor: "pointer",
-            }}
-              onMouseEnter={(e) => { if (o.id !== value) e.currentTarget.style.background = "#FFF9E6"; }}
-              onMouseLeave={(e) => { if (o.id !== value) e.currentTarget.style.background = "transparent"; }}
-            >
-              {o.icon && <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>{o.icon}</span>}
-              <span style={{ flex: 1 }}>{o.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------- ROSTER LANDING PAGE ----------
-// The landing page you see when clicking "Onboarding" in the nav — before
-// entering the wizard. Shows in-progress + completed hires and a big CTA
-// to start a new hire session.
-// ITWorkspacePanel removed — IT provisioning will be handled by the new
-// ticketing system, so the localStorage-backed work panel is no longer used.
-// (Kept the lower-level getItProgress / window.ITWorkPanel module alive in
-// case any other surface still pulls per-row progress badges.)
-function _ITWorkspacePanel_DISABLED({ mode, rows, onOpenRow }) {
-  // Force a re-render when localStorage IT-task state changes (the panel
-  // reads task ticks on mount; we want it fresh after the manager flips a
-  // tick in the detail view). Listening on the storage event covers other-
-  // tab updates; a periodic refresh covers same-tab updates without forcing
-  // a context rewrite.
-  const [, force] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    const onStorage = (e) => { if (e.key && e.key.startsWith("portal2.itwork.")) force(); };
-    window.addEventListener("storage", onStorage);
-    const id = setInterval(force, 4000);
-    return () => { window.removeEventListener("storage", onStorage); clearInterval(id); };
-  }, []);
-
-  const isOnb = mode === "onboarding";
-  const items = (isOnb ? window.IT_ONBOARD_ITEMS : window.IT_OFFBOARD_ITEMS) || [];
-  const getItProgress = window.getItProgress || (() => ({ done: 0, total: 4, lastTouched: null }));
-
-  // Per-row progress + per-category counts of how many rows still need work
-  // in that category. We use localStorage ticks via getItProgress, but since
-  // we only have a "done/total" number (not which items are ticked), we
-  // approximate per-category remaining as: rows where done < total. For the
-  // panel this is good enough — clicking through opens the per-row detail.
-  const enriched = React.useMemo(() => {
-    return rows.map((row) => {
-      const id = isOnb ? row.id : row.ofb?.id;
-      const progress = id ? getItProgress(isOnb ? "onboard" : "offboard", id, isOnb ? row.stage : row.ofb?.stage) : { done: 0, total: items.length };
-      const slicer = isOnb ? row : row.slicer;
-      const ofb = isOnb ? null : row.ofb;
-      const dateStr = isOnb ? row.startDate : ofb?.lastDate;
-      const days = dateStr ? Math.ceil((new Date(dateStr) - new Date()) / 86400000) : null;
-      const name = `${slicer?.preferredName || slicer?.firstName || ""} ${slicer?.lastName || ""}`.trim() || "Unnamed";
-      return { row, slicer, ofb, id, progress, days, name, dateStr };
-    });
-  }, [rows, isOnb, items.length]);
-
-  // Total tasks pending = sum of (total - done) across all rows
-  const pending = enriched.reduce((sum, r) => sum + Math.max(0, (r.progress.total || items.length) - r.progress.done), 0);
-
-  // Per-category breakdown — for the chart row at the top
-  const stats = items.map((it) => ({
-    key: it.id,
-    label: it.label.split(" ").slice(0, 2).join(" "), // short label
-    full: it.label,
-    // Rows that haven't completed this stage yet (approximation by `stage` field)
-    pending: enriched.filter((r) => {
-      // If progress.done < items.indexOf(it) + 1 → this category not done.
-      const doneIdx = r.progress.done;
-      const myIdx = items.findIndex((x) => x.id === it.id);
-      return doneIdx <= myIdx;
-    }).length,
-  }));
-
-  // Top priority queue — sort by date proximity (overdue first), cap at 4
-  const priority = [...enriched]
-    .filter((r) => r.progress.done < (r.progress.total || items.length))
-    .sort((a, b) => {
-      const ad = a.days == null ? 999 : a.days;
-      const bd = b.days == null ? 999 : b.days;
-      return ad - bd;
-    })
-    .slice(0, 4);
-
-  const dayChip = (days) => {
-    if (days == null) return { label: "—", color: "#78684C", bg: "#FFF9E6" };
-    if (days < 0) return { label: `${Math.abs(days)}d overdue`, color: "#FFFFFF", bg: "#B92323" };
-    if (days === 0) return { label: "Today", color: "#FFFFFF", bg: "#B92323" };
-    if (days <= 3) return { label: `${days}d`, color: "#211E1E", bg: "#FDC831" };
-    if (days <= 7) return { label: `${days}d`, color: "#211E1E", bg: "#FFE8A3" };
-    return { label: `${days}d`, color: "#4A3F2E", bg: "#FFF9E6" };
-  };
-
-  // Recent activity — most-recent lastTouched across rows (top 3)
-  const activity = enriched
-    .filter((r) => r.progress.lastTouched)
-    .sort((a, b) => (b.progress.lastTouched || 0) - (a.progress.lastTouched || 0))
-    .slice(0, 3);
-
-  return (
-    <aside className="it-ws-panel" style={{
-      background: "#FFFFFF",
-      border: "1px solid #211E1E",
-      borderRadius: 14,
-      boxShadow: "3px 3px 0 #211E1E, 0 6px 16px rgba(33,30,30,0.06)",
-      padding: "18px 18px 16px",
-      position: "sticky", top: 24,
-      alignSelf: "start",
-    }}>
-      <style>{`
-        .it-ws-stat {
-          background: #FFFFFF;
-          border: 1px solid #211E1E;
-          border-radius: 8px;
-          padding: 10px 12px;
-          box-shadow: 1px 1px 0 #211E1E;
-          transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease;
-        }
-        .it-ws-stat:hover { transform: translate(-1.5px,-1.5px); box-shadow: 3.5px 3.5px 0 #211E1E; }
-        .it-ws-row {
-          display: flex; align-items: center; gap: 10px;
-          padding: 10px 12px;
-          background: #FFFFFF;
-          border: 1px solid #211E1E;
-          border-radius: 8px;
-          box-shadow: 1px 1px 0 #211E1E;
-          cursor: pointer;
-          text-align: left;
-          transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .15s;
-          width: 100%;
-        }
-        .it-ws-row:hover { transform: translate(-1.5px,-1.5px); box-shadow: 3.5px 3.5px 0 #211E1E; background: #FFFDF5; }
-        .it-ws-row:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #211E1E; }
-        .it-ws-cta {
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 8px 14px;
-          background: #211E1E; color: #FDC831;
-          border: 1px solid #211E1E; border-radius: 6px;
-          box-shadow: 1px 1px 0 #FDC831;
-          font-family: 'Archivo', sans-serif;
-          font-weight: 800; font-size: 11.5px;
-          letter-spacing: 0.04em; text-transform: uppercase;
-          cursor: pointer;
-          transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .15s;
-        }
-        .it-ws-cta:hover { background: #000; transform: translate(-1.5px,-1.5px); box-shadow: 3.5px 3.5px 0 #FDC831; }
-        .it-ws-cta:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #FDC831; }
-      `}</style>
-
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14, gap: 10 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{
-            fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 10,
-            letterSpacing: "0.10em", textTransform: "uppercase",
-            color: "#4A3F2E",
-            display: "inline-flex", alignItems: "center", gap: 6,
-            marginBottom: 4,
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FDC831", boxShadow: "0 0 0 2px rgba(253,200,49,0.30)" }} />
-            IT Workspace
-          </div>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 22, fontWeight: 900, letterSpacing: "-0.02em",
-            color: "#211E1E", lineHeight: 1.05,
-          }}>
-            {pending === 0 ? "All clear" : pending}
-            {pending > 0 && (
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#78684C", letterSpacing: 0, marginLeft: 6, textTransform: "uppercase" }}>
-                pending {pending === 1 ? "task" : "tasks"}
-              </span>
-            )}
-          </div>
-        </div>
-        {pending > 0 && (
-          <span style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 36, height: 36, flexShrink: 0,
-            background: pending > 8 ? "#B92323" : pending > 4 ? "#FDC831" : "#D4F4D4",
-            color: pending > 8 ? "#FFFFFF" : "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 8,
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 900, fontSize: 14,
-            boxShadow: "1px 1px 0 #211E1E",
-          }}>{pending}</span>
-        )}
-      </div>
-
-      {/* Stat grid */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 8,
-        marginBottom: 16,
-      }}>
-        {stats.map((s) => (
-          <div key={s.key} className="it-ws-stat" title={s.full}>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 18, fontWeight: 900, color: "#211E1E", lineHeight: 1,
-            }}>{s.pending}</div>
-            <div style={{
-              marginTop: 4,
-              fontFamily: "Archivo, sans-serif", fontSize: 9.5, fontWeight: 800,
-              letterSpacing: "0.06em", textTransform: "uppercase", color: "#78684C",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Priority list */}
-      {priority.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{
-            display: "flex", alignItems: "baseline", justifyContent: "space-between",
-            marginBottom: 8,
-          }}>
-            <div style={{
-              fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900,
-              letterSpacing: "0.08em", textTransform: "uppercase", color: "#78684C",
-            }}>Top priority</div>
-            <div style={{ fontSize: 10.5, color: "#78684C", fontWeight: 600 }}>
-              by {isOnb ? "start" : "last day"}
-            </div>
-          </div>
-          <div style={{ display: "grid", gap: 8 }}>
-            {priority.map((p) => {
-              const chip = dayChip(p.days);
-              const initials = p.name.split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase();
-              return (
-                <button key={p.id} className="it-ws-row" onClick={() => onOpenRow && onOpenRow(p)}>
-                  <div style={{
-                    width: 30, height: 30, borderRadius: "50%",
-                    background: "#211E1E", color: "#FDC831",
-                    display: "grid", placeItems: "center",
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 11, fontWeight: 900, flexShrink: 0,
-                  }}>{initials}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontFamily: "'Archivo', sans-serif",
-                      fontSize: 12.5, fontWeight: 800, color: "#211E1E",
-                      letterSpacing: "-0.005em",
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>{p.name}</div>
-                    <div style={{
-                      fontSize: 10.5, color: "#78684C", fontWeight: 600,
-                      fontFamily: "'Archivo', sans-serif",
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>{p.progress.done}/{p.progress.total || items.length} done</div>
-                  </div>
-                  <span style={{
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
-                    color: chip.color, background: chip.bg,
-                    border: "1px solid #211E1E", borderRadius: 3,
-                    padding: "2px 6px", flexShrink: 0,
-                  }}>{chip.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Recent activity */}
-      {activity.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{
-            fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900,
-            letterSpacing: "0.08em", textTransform: "uppercase", color: "#78684C",
-            marginBottom: 8,
-          }}>Recent activity</div>
-          <div style={{ display: "grid", gap: 6 }}>
-            {activity.map((a) => {
-              const ts = a.progress.lastTouched;
-              const ago = ts ? (() => {
-                const m = Math.floor((Date.now() - ts) / 60000);
-                if (m < 1) return "just now";
-                if (m < 60) return `${m}m ago`;
-                const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
-                return `${Math.floor(h / 24)}d ago`;
-              })() : "—";
-              return (
-                <div key={a.id} style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "6px 0",
-                  fontSize: 11.5,
-                }}>
-                  <span style={{
-                    width: 6, height: 6, borderRadius: "50%",
-                    background: a.progress.done >= (a.progress.total || items.length) ? "#0A8A3E" : "#FDC831",
-                    flexShrink: 0,
-                  }}/>
-                  <span style={{
-                    fontFamily: "'Archivo', sans-serif", fontWeight: 700, color: "#211E1E",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    flex: 1, minWidth: 0,
-                  }}>{a.name}</span>
-                  <span style={{ color: "#78684C", fontWeight: 600, fontFamily: "Archivo, sans-serif", fontSize: 10.5, flexShrink: 0 }}>{ago}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {pending === 0 && priority.length === 0 && activity.length === 0 && (
-        <div style={{
-          padding: "20px 12px", textAlign: "center",
-          background: "#FFF9E6", border: "1px dashed #211E1E", borderRadius: 8,
-          marginBottom: 14,
-        }}>
-          <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: "#211E1E", marginBottom: 4 }}>Inbox zero ✓</div>
-          <div style={{ fontSize: 11.5, color: "#78684C", lineHeight: 1.4 }}>Nothing waiting on IT right now.</div>
-        </div>
-      )}
-
-      {/* Footer / stats line */}
-      <div style={{
-        paddingTop: 12,
-        borderTop: "1px dashed rgba(33,30,30,0.18)",
-        fontSize: 10.5, color: "#78684C", fontWeight: 600,
-        fontFamily: "'Archivo', sans-serif",
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-      }}>
-        <span>{enriched.length} {isOnb ? "hire" : "leaver"}{enriched.length === 1 ? "" : "s"} tracked</span>
-        <span>{enriched.filter(e => e.progress.done >= (e.progress.total || items.length)).length} fully provisioned</span>
-      </div>
-    </aside>
-  );
-}
-
-function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, onDismissToast, onOpenApproval }) {
-  const [detailHire, setDetailHire] = React.useState(null);
-  const [bulkOpen, setBulkOpen] = React.useState(false);
-  // Subscribe to the approvals store so the queue re-renders when HR nudges,
-  // a manager approves, etc. (Hook re-fires the bus listener.)
-  const approvals = window.useApprovals ? window.useApprovals() : [];
-
-  // Search — filters the approvals (by any hire's name/manager/title) and the
-  // in-progress list (by name/role/dept/manager/email). Empty query = no filter.
-  const [query, setQuery] = React.useState("");
-  const [fLoc, setFLoc] = React.useState("all");
-  const [fStart, setFStart] = React.useState("all");
-  const [fStatus, setFStatus] = React.useState("all"); // all | awaiting | inprep
-  const q = query.trim().toLowerCase();
-  const hasFilters = fLoc !== "all" || fStart !== "all" || fStatus !== "all";
-
-  // Locations actually present in the live data — drop empty options
-  const onbLocOptions = React.useMemo(() => {
-    const seen = new Set();
-    approvals.forEach((a) => (a.hires || []).forEach((h) => h.location && seen.add(h.location)));
-    MOCK_IN_PROGRESS.forEach((h) => h.location && seen.add(h.location));
-    return ONB_LOCATIONS.filter((l) => seen.has(l.id));
-  }, [approvals]);
-
-  const startDateInWindow = (dateStr, win) => {
-    if (!dateStr) return win === "all";
-    const days = Math.ceil((new Date(dateStr) - new Date()) / 86400000);
-    if (win === "3")     return days <= 3;
-    if (win === "7")     return days <= 7;
-    if (win === "14")    return days <= 14;
-    if (win === "14plus") return days > 14;
-    return true;
-  };
-  const matchesHire = (h) => {
-    if (!h) return false;
-    if (fLoc !== "all" && h.location !== fLoc) return false;
-    if (fStart !== "all" && !startDateInWindow(h.startDate, fStart)) return false;
-    if (!q) return true;
-    const name = `${h.preferredName || h.firstName || ""} ${h.lastName || ""}`.toLowerCase();
-    const fields = [name, h.title, h.department, h.team, h.topDept, h.manager, h.workEmail].filter(Boolean).map(s => String(s).toLowerCase());
-    return fields.some((f) => f.includes(q));
-  };
-  const filteredApprovals = (fStatus === "inprep")
-    ? []
-    : approvals.filter((a) => (
-      Array.isArray(a.hires) && a.hires.some(matchesHire) ||
-      (q ? String(a.manager || "").toLowerCase().includes(q) : false)
-    ));
-  const filteredInProgress = (fStatus === "awaiting")
-    ? []
-    : MOCK_IN_PROGRESS.filter(matchesHire);
-  const totalMatches = filteredApprovals.reduce((n, a) => n + (a.hires?.length || 0), 0) + filteredInProgress.length;
-
-  return (
-    <div data-screen-label="Onboarding Dashboard" className="page" style={{ minHeight: "100vh", background: "#FDC831" }}>
-      {/* Hero strip — full-bleed cream banner. Mirrors Knowledge / Status so
-          the People Ops modules feel like part of the same product family. */}
-      <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "28px 32px 32px",
-      }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-      {/* Top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, gap: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-              const arr = e.currentTarget.querySelector("svg");
-              if (arr) arr.style.transform = "translateX(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
-              const arr = e.currentTarget.querySelector("svg");
-              if (arr) arr.style.transform = "none";
-            }}
-            onMouseDown={(e) => {
-              e.currentTarget.style.transform = "translate(1px,1px)";
-              e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
-            }}
-            onMouseUp={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "7px 12px 7px 10px",
-              background: "#FFFFFF", border: "1px solid #211E1E",
-              borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 11.5,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#211E1E", cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}>
-            <IconArrowLeft size={13} stroke={2.5} style={{ transition: "transform .15s ease" }} />
-            Exit to IT Hub
-          </button>
-          <button className="onb-history-btn" onClick={onHistory}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
-            }}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "7px 12px",
-              background: "#FFFFFF", border: "1px solid #211E1E",
-              borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 11.5,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#211E1E", cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}>
-            <svg className="onb-history-icon" width="13" height="13" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-              style={{ transition: "transform .5s cubic-bezier(.34,1.56,.64,1)" }}>
-              <path d="M3 12a9 9 0 1 0 3-6.7"/>
-              <path d="M3 4v5h5"/>
-              <path d="M12 7v5l3 2"/>
-            </svg>
-            History
-            <span style={{
-              fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
-              padding: "1px 5px",
-              background: "#211E1E", color: "#FDC831",
-              borderRadius: 2, marginLeft: 2,
-            }}>{MOCK_COMPLETED_SLICERS.length + (typeof MOCK_ONB_ARCHIVE !== "undefined" ? MOCK_ONB_ARCHIVE.length : 0)}</span>
-          </button>
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button className="onb-bulk-btn" onClick={() => setBulkOpen(true)}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "12px 18px",
-              background: "#FFFFFF", color: "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
-              boxShadow: "2px 2px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 13,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}
-            title="Onboard multiple Slicers at once">
-            {/* Stacked-people icon — matches the offboarding bulk button */}
-            <svg className="onb-bulk-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-              style={{ transition: "transform .25s cubic-bezier(.34,1.56,.64,1)", transformOrigin: "center" }}>
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            Bulk onboard
-          </button>
-          <button className="onb-start-btn" onClick={onStart}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "12px 22px",
-              background: "#FDC831", color: "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
-              boxShadow: "2px 2px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 13,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}>
-            <span className="onb-start-plus" style={{
-              fontSize: 15, fontWeight: 900, lineHeight: 1,
-              display: "inline-block",
-              transition: "transform .3s cubic-bezier(.34,1.56,.64,1)",
-              transformOrigin: "center",
-            }}>+</span> Start a new hire
-          </button>
-        </div>
-      </div>
-
-      {/* Hero */}
-      <div>
-        <h1 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 40, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.02,
-          margin: 0, color: "#211E1E",
-        }}>Onboarding Dashboard</h1>
-      </div>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "40px 32px 80px" }}>
-
-      {/* Sent-to-managers toast — shown briefly after HR submits Step 1 */}
-      {sentToast && <SentToManagersToast toast={sentToast} onDismiss={onDismissToast} onOpen={onOpenApproval} />}
-
-      {/* Search + inline filters — search left, filter dropdowns right.
-          Modern: no wrapping yellow bar, just an inline row. */}
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ position: "relative", flex: 1, minWidth: 260 }}>
-          <div style={{
-            position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)",
-            color: "#78684C", pointerEvents: "none",
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          </div>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search hires by name, role, manager, team, or email…"
-            style={{
-              width: "100%", padding: "11px 16px 11px 42px",
-              background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 8,
-              fontFamily: "'Archivo', sans-serif", fontSize: 13.5, fontWeight: 600, color: "#211E1E",
-              outline: "none", boxSizing: "border-box",
-              boxShadow: "1px 1px 0 #211E1E",
-            }} />
-          {query && (
-            <button type="button" onClick={() => setQuery("")} aria-label="Clear search" style={{
-              position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-              width: 24, height: 24, padding: 0, cursor: "pointer",
-              background: "#F7F4EF", border: "1px solid #211E1E", borderRadius: "50%",
-              display: "grid", placeItems: "center", color: "#211E1E",
-            }}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
-            </button>
-          )}
-        </div>
-
-        {/* Filter dropdowns — right of the search, mirroring Offboarding */}
-        <RosterFilterPill
-          label="Location"
-          value={fLoc}
-          onChange={setFLoc}
-          options={[
-            { id: "all", label: "All locations" },
-            ...onbLocOptions.map(l => ({
-              id: l.id,
-              label: `${l.label} · ${l.site}`,
-              icon: <CountryFlag country={l.country} size={11} />,
-            })),
-          ]}
-        />
-        <RosterFilterPill
-          label="Start date"
-          value={fStart}
-          onChange={setFStart}
-          options={[
-            { id: "all", label: "Any time" },
-            { id: "3", label: "≤ 3 days" },
-            { id: "7", label: "≤ 7 days" },
-            { id: "14", label: "≤ 14 days" },
-            { id: "14plus", label: "> 14 days" },
-          ]}
-        />
-        <RosterFilterPill
-          label="Status"
-          value={fStatus}
-          onChange={setFStatus}
-          options={[
-            { id: "all", label: "Any" },
-            { id: "awaiting", label: "Awaiting approval" },
-            { id: "inprep", label: "In prep" },
-          ]}
-        />
-        {hasFilters && (
-          <button onClick={() => { setFLoc("all"); setFStart("all"); setFStatus("all"); }}
-            style={{
-              padding: "6px 12px",
-              background: "transparent",
-              border: "none", borderRadius: 4,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 11, fontWeight: 800,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#78684C", cursor: "pointer",
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = "#211E1E"}
-            onMouseLeave={(e) => e.currentTarget.style.color = "#78684C"}
-          >Clear</button>
-        )}
-
-        {(q || hasFilters) && (
-          <span style={{
-            fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 700,
-            color: "#78684C", letterSpacing: "0.04em", textTransform: "uppercase",
-            marginLeft: "auto",
-          }}>{totalMatches} match{totalMatches === 1 ? "" : "es"}</span>
-        )}
-      </div>
-
-      {/* Two-section queue: awaiting-approval (top) + in-prep table (bottom). */}
-      {window.UnifiedOnboardingQueue && (
-        <window.UnifiedOnboardingQueue
-          approvals={filteredApprovals}
-          inProgress={filteredInProgress}
-          onOpenApproval={onOpenApproval}
-          onOpenHire={(h) => setDetailHire(h)}
-          onNudge={(id) => { window.nudgeApproval && window.nudgeApproval(id); }}
-        />
-      )}
-      {(q || hasFilters) && totalMatches === 0 && (
-        <div style={{
-          padding: "32px 20px", textAlign: "center",
-          background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 10,
-          fontFamily: "'Archivo', sans-serif", color: "#78684C",
-        }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#211E1E", marginBottom: 4 }}>
-            {q ? `No hires match "${query}"` : "No hires match the current filters"}
-          </div>
-          <div style={{ fontSize: 12.5 }}>Try a different search or clear the filters.</div>
-        </div>
-      )}
-
-      {/* "Recently onboarded" used to live here. Removed — that data lives
-          in the History view (top-right "History" button), and showing it on
-          the active roster blurred "what needs my attention" with "what's
-          already done". */}
-
-      {detailHire && <HireDetailModal hire={detailHire} onClose={() => setDetailHire(null)} />}
-      {bulkOpen && (
-        <BulkOnboardModal
-          sources={MOCK_COMPLETED_SLICERS}
-          onCancel={() => setBulkOpen(false)}
-          onConfirm={({ count, cloneFrom }) => {
-            setBulkOpen(false);
-            onStartBulk?.({ count, cloneFrom });
-          }}
-        />
-      )}
-      </div>
-    </div>
-  );
-}
-
-function RosterStat({ k, v, sub, highlight }) {
-  return (
-    <div style={{
-      padding: "16px 18px",
-      background: highlight ? "#FDC831" : "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 10,
-      boxShadow: "2px 2px 0 #211E1E",
-    }}>
-      <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 6 }}>{k}</div>
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em",
-        color: "#211E1E", lineHeight: 1,
-      }}>{v}</div>
-      <div style={{ fontSize: 11, color: "#4A3F2E", fontFamily: "'Archivo', sans-serif", fontWeight: 600, marginTop: 4 }}>
-        {sub}
-      </div>
-    </div>
-  );
-}
-
-function RosterSection({ title, count, kicker, children }) {
-  return (
-    <div style={{ marginBottom: 32 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <h2 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em",
-          color: "#211E1E", margin: 0, lineHeight: 1,
-        }}>{title}</h2>
-        <div style={{
-          fontFamily: "'Archivo', monospace",
-          fontSize: 12, fontWeight: 800, lineHeight: 1,
-          minWidth: 22, height: 22,
-          padding: "0 7px",
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          background: "#FDC831", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 3,
-        }}>{count}</div>
-        <div style={{ flex: 1 }}/>
-        <div className="eyebrow" style={{ color: "#78684C", fontSize: 10 }}>{kicker}</div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function InProgressRow({ hire, onOpen }) {
-  const loc = ONB_LOCATIONS.find(l => l.id === hire.location);
-  const start = new Date(hire.startDate);
-  const daysUntil = Math.ceil((start - new Date()) / (1000 * 60 * 60 * 24));
-  const stages = ["Request filed", "Hardware shipped", "Accounts provisioning", "Welcome packet", "Awaiting start date"];
-  const stageIdx = stages.indexOf(hire.stage);
-  // IT checklist progress (ticked/total) — read from the same store the
-  // detail-modal IT workspace writes to.
-  const itProgress = (typeof getItProgress === "function")
-    ? getItProgress("onboard", hire.id, hire.stage)
-    : { done: 0, total: 4 };
-  return (
-    <button onClick={onOpen} style={{
-      display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 14, alignItems: "center",
-      padding: "14px 16px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 10,
-      boxShadow: "2px 2px 0 #211E1E",
-      cursor: "pointer", textAlign: "left",
-      fontFamily: "'Archivo', sans-serif",
-      transition: "transform .12s ease, box-shadow .12s ease",
-    }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-      }}
-    >
-      <div style={{
-        width: 40, height: 40, borderRadius: "50%",
-        background: "#FDC831", color: "#211E1E",
-        display: "grid", placeItems: "center",
-        border: "1px solid #211E1E",
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 13, fontWeight: 900,
-      }}>
-        {hire.firstName[0]}{hire.lastName[0]}
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 14.5, color: "#211E1E",
-          }}>{hire.firstName} {hire.lastName}</div>
-          {loc && <CountryFlag country={loc.country} size={14} />}
-        </div>
-        <div style={{ fontSize: 11.5, color: "#78684C", fontFamily: "'Archivo', sans-serif", fontWeight: 600, marginTop: 2 }}>
-          {hire.title} · {hire.topDept}
-        </div>
-      </div>
-
-      {/* Progress pips */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ display: "flex", gap: 4 }}>
-            {stages.map((s, i) => (
-              <div key={s} style={{
-                width: 18, height: 5, borderRadius: 1,
-                background: i <= stageIdx ? "#211E1E" : "rgba(33,30,30,0.15)",
-              }}/>
-            ))}
-          </div>
-          {/* IT step count chip */}
-          <div style={{
-            fontFamily: "'Archivo', monospace",
-            fontSize: 10, fontWeight: 800,
-            padding: "1px 5px",
-            background: itProgress.done === itProgress.total
-              ? "#211E1E" : (itProgress.done > 0 ? "#FDC831" : "#FFF9E6"),
-            color: itProgress.done === itProgress.total ? "#FDC831" : "#211E1E",
-            border: "1px solid #211E1E",
-            borderRadius: 3,
-            letterSpacing: "0.02em",
-          }} title={`${itProgress.done}/${itProgress.total} IT tasks complete`}>
-            {itProgress.done}/{itProgress.total}
-          </div>
-        </div>
-        <div style={{ fontSize: 10.5, fontFamily: "'Archivo', sans-serif", fontWeight: 700, color: "#4A3F2E" }}>
-          {hire.stage}
-        </div>
-      </div>
-
-      {/* Countdown */}
-      <div style={{
-        padding: "6px 12px",
-        background: daysUntil <= 7 ? "#211E1E" : "#FFF9E6",
-        color: daysUntil <= 7 ? "#FDC831" : "#211E1E",
-        border: "1px solid #211E1E", borderRadius: 6,
-        textAlign: "center", minWidth: 72,
-      }}>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1,
-        }}>{daysUntil > 0 ? daysUntil : "—"}</div>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-          marginTop: 2,
-        }}>{daysUntil === 1 ? "Day away" : "Days away"}</div>
-      </div>
-    </button>
-  );
-}
-
-function CompletedCard({ slicer, onOpen }) {
-  const loc = ONB_LOCATIONS.find(l => l.id === slicer.location);
-  return (
-    <button onClick={onOpen} style={{
-      padding: "14px 16px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 10,
-      boxShadow: "2px 2px 0 #211E1E",
-      display: "flex", flexDirection: "column", gap: 10,
-      cursor: "pointer", textAlign: "left",
-      fontFamily: "'Archivo', sans-serif",
-      transition: "transform .12s ease, box-shadow .12s ease",
-    }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{
-          width: 38, height: 38, borderRadius: "50%",
-          background: "#211E1E", color: "#FDC831",
-          display: "grid", placeItems: "center",
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 12.5, fontWeight: 900,
-        }}>{slicer.firstName[0]}{slicer.lastName[0]}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 14, color: "#211E1E",
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          }}>{slicer.firstName} {slicer.lastName}</div>
-          <div style={{ fontSize: 11, color: "#78684C", fontFamily: "'Archivo', monospace", marginTop: 1 }}>
-            {slicer.workEmail}
-          </div>
-        </div>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          padding: "2px 6px 2px 4px",
-          background: "#E4F7EA", color: "#0A8A3E",
-          border: "1px solid #0A8A3E", borderRadius: 3,
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 9, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#0A8A3E" }}/>
-          Live
-        </div>
-      </div>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
-        padding: "8px 10px",
-        background: "#FFF9E6",
-        border: "1px solid #211E1E", borderRadius: 6,
-      }}>
-        <div style={{ fontSize: 11.5, fontFamily: "'Archivo', sans-serif", fontWeight: 700, color: "#211E1E" }}>
-          {slicer.title}
-        </div>
-        <div style={{ width: 1, height: 12, background: "rgba(33,30,30,0.3)" }}/>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          {loc && <CountryFlag country={loc.country} size={12} />}
-          <div style={{ fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800, color: "#211E1E" }}>
-            {loc?.site || "—"}
-          </div>
-        </div>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div className="eyebrow" style={{ color: "#78684C", fontSize: 10 }}>Joined</div>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 700, color: "#211E1E" }}>
-          {slicer.joined}
-        </div>
-      </div>
-    </button>
-  );
-}
-
-// Expose to window for cross-file access
-// ---------- SUBMISSION SUCCESS ----------
-// Full-page confirmation HR lands on after submitting Step 1 to manager(s).
-// This replaces dropping them straight back to the roster — the bigger
-// surface lets us tell them exactly what happened (X hires fanned out to Y
-// managers, with names), what's next (manager fills apps + hardware), and
-// give them three clear paths forward (back to roster, start another, jump
-// into a specific approval to track it).
-function SubmissionSuccess({ summary, onBackToRoster, onOpenApproval, onStartAnother }) {
-  if (!summary) {
-    // Defensive: if someone navigates here without a summary (e.g. refresh),
-    // bounce them back to the roster.
-    React.useEffect(() => { onBackToRoster && onBackToRoster(); }, []);
-    return null;
-  }
-  const { groupCount, hireCount, hires, groups, ts } = summary;
-  // Format submission timestamp as a friendly local time.
-  const sentAt = React.useMemo(() => {
-    const d = new Date(ts || Date.now());
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  }, [ts]);
-
-  return (
-    <div data-screen-label="Submission Successful" className="page" style={{
-      maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "48px 32px 80px",
-    }}>
-    <div style={{ maxWidth: 880, margin: "0 auto" }}>
-      {/* Top bar — minimal: just a back affordance. The success state is
-          the whole point of this screen, so we keep chrome out of the way. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32, gap: 16 }}>
-        <button onClick={onBackToRoster} className="kb-back-btn"><svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back to roster</button>
-        <div style={{
-          fontFamily: "'Archivo', monospace",
-          fontSize: 10.5, fontWeight: 700, color: "#5A5755",
-          letterSpacing: "0.08em", textTransform: "uppercase",
-        }}>Sent at {sentAt}</div>
-      </div>
-
-      {/* HERO CARD — the success card itself. Big yellow border + checkmark
-          medallion + a one-line summary that tells HR exactly what happened
-          and what they're waiting on. */}
-      <div style={{
-        position: "relative",
-        background: "#FFFFFF",
-        border: "1px solid #211E1E",
-        borderRadius: 16,
-        boxShadow: "4px 4px 0 #FDC831",
-        padding: "44px 36px 36px",
-        textAlign: "center",
-      }}>
-        {/* Checkmark medallion */}
-        <div style={{
-          width: 72, height: 72,
-          margin: "0 auto 20px",
-          background: "#0A8A3E",
-          border: "1px solid #211E1E",
-          borderRadius: "50%",
-          boxShadow: "2px 2px 0 #211E1E",
-          display: "grid", placeItems: "center",
-          animation: "successPop .45s cubic-bezier(.34,1.56,.64,1)",
-        }}>
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="4 12 10 18 20 6" />
-          </svg>
-        </div>
-
-        {/* Eyebrow */}
-        <div style={{
-          fontFamily: "'Archivo', monospace",
-          fontSize: 11, fontWeight: 800, color: "#0A8A3E",
-          letterSpacing: "0.14em", textTransform: "uppercase",
-          marginBottom: 10,
-        }}>Submission successful</div>
-
-        {/* Headline */}
-        <h1 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 36, fontWeight: 900, lineHeight: 1.05,
-          color: "#211E1E", margin: "0 0 12px",
-          letterSpacing: "-0.015em",
-        }}>
-          {hireCount === 1
-            ? "Sent to manager for next steps."
-            : `${hireCount} hires sent to ${groupCount} ${groupCount === 1 ? "manager" : "managers"}.`}
-        </h1>
-
-        {/* Subhead — explains what's next */}
-        <p style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 15, fontWeight: 500, lineHeight: 1.5,
-          color: "#5A5755", margin: "0 auto",
-          maxWidth: 520,
-        }}>
-          {hireCount === 1
-            ? <>The form has been sent to <b style={{ color: "#211E1E" }}>{groups[0]?.manager}</b> to choose apps & hardware. We'll surface their response on your roster.</>
-            : <>Each manager will choose apps & hardware for their hires. Responses appear on your <b style={{ color: "#211E1E" }}>"Waiting on Manager"</b> queue as they come in.</>}
-        </p>
-
-        {/* Stat strip — quick visual summary */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1px 1fr 1px 1fr",
-          gap: 0,
-          marginTop: 28,
-          padding: "16px 0",
-          borderTop: "1px solid #F0EDE6",
-          borderBottom: "1px solid #F0EDE6",
-        }}>
-          <Stat label="Hires" value={hireCount} />
-          <div style={{ background: "#F0EDE6" }} />
-          <Stat label={groupCount === 1 ? "Manager" : "Managers"} value={groupCount} />
-          <div style={{ background: "#F0EDE6" }} />
-          <Stat label="Status" value="Pending" valueColor="#C97A1F" />
-        </div>
-
-        {/* Per-manager breakdown. We list each approval request with the
-            manager's name + how many hires went their way + a "Track" link
-            that drops HR straight into the awaiting-status detail. */}
-        <div style={{ marginTop: 24, textAlign: "left" }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 11, fontWeight: 800, color: "#211E1E",
-            letterSpacing: "0.08em", textTransform: "uppercase",
-            marginBottom: 10,
-          }}>
-            {groupCount === 1 ? "Approval request" : "Approval requests"}
-          </div>
-          <div style={{ display: "grid", gap: 8 }}>
-            {groups.map((g, i) => {
-              const myHires = hires.filter(h => h.manager === g.manager);
-              return (
-                <div key={i} style={{
-                  display: "grid",
-                  gridTemplateColumns: "auto 1fr auto",
-                  gap: 14, alignItems: "center",
-                  padding: "12px 14px",
-                  background: "#FFF9E6",
-                  border: "1px solid #211E1E",
-                  borderRadius: 8,
-                }}>
-                  <div style={{
-                    width: 36, height: 36,
-                    background: "#211E1E", color: "#FDC831",
-                    border: "1px solid #211E1E", borderRadius: 6,
-                    display: "grid", placeItems: "center",
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 12, fontWeight: 900,
-                  }}>{initials(g.manager)}</div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{
-                      fontFamily: "'Archivo', sans-serif",
-                      fontSize: 14, fontWeight: 800, color: "#211E1E",
-                      lineHeight: 1.2, marginBottom: 2,
-                    }}>{g.manager}</div>
-                    <div style={{
-                      fontFamily: "'Archivo', sans-serif",
-                      fontSize: 12, fontWeight: 500, color: "#5A5755",
-                      lineHeight: 1.3,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>
-                      {g.count} {g.count === 1 ? "hire" : "hires"}
-                      {myHires.length > 0 && (
-                        <> · {myHires.map(h => h.name).join(", ")}</>
-                      )}
-                    </div>
-                  </div>
-                  {g.approvalId && (
-                    <button onClick={() => onOpenApproval(g.approvalId)}
-                      style={{
-                        padding: "7px 12px",
-                        background: "#FFFFFF", color: "#211E1E",
-                        border: "1px solid #211E1E", borderRadius: 4,
-                        boxShadow: "1px 1px 0 #211E1E",
-                        fontFamily: "'Archivo', sans-serif",
-                        fontWeight: 800, fontSize: 11,
-                        letterSpacing: "0.04em", textTransform: "uppercase",
-                        cursor: "pointer", whiteSpace: "nowrap",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
-                      onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E"; }}
-                    >Track</button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Primary actions */}
-        <div style={{
-          display: "flex", gap: 10, justifyContent: "center",
-          marginTop: 28, flexWrap: "wrap",
-        }}>
-          <button onClick={onStartAnother}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "12px 20px",
-              background: "#211E1E", color: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 6,
-              boxShadow: "2px 2px 0 #FDC831",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 13,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831"; }}
-          >+ Start another hire</button>
-          <button onClick={onBackToRoster}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "12px 20px",
-              background: "#FFFFFF", color: "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 6,
-              boxShadow: "2px 2px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 13,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
-          >Back to roster</button>
-        </div>
-      </div>
-
-      {/* Helper note */}
-      <p style={{
-        textAlign: "center",
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 12.5, fontWeight: 500, color: "#5A5755",
-        margin: "20px auto 0", maxWidth: 480, lineHeight: 1.5,
-      }}>
-        Managers receive a Slack DM and email with a focused approval link.
-        You'll be nudged automatically if no response arrives within 48 hours.
-      </p>
-
-      <style>{`
-        @keyframes successPop {
-          0%   { transform: scale(.4) rotate(-12deg); opacity: 0; }
-          60%  { transform: scale(1.15) rotate(4deg);  opacity: 1; }
-          100% { transform: scale(1)    rotate(0);     opacity: 1; }
-        }
-      `}</style>
-    </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, valueColor }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 26, fontWeight: 900, lineHeight: 1,
-        color: valueColor || "#211E1E", marginBottom: 4,
-      }}>{value}</div>
-      <div style={{
-        fontFamily: "'Archivo', monospace",
-        fontSize: 10, fontWeight: 700, color: "#5A5755",
-        letterSpacing: "0.1em", textTransform: "uppercase",
-      }}>{label}</div>
-    </div>
-  );
-}
-
-function initials(name) {
-  if (!name) return "—";
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "—";
-}
-
-// ---------- SENT TO MANAGERS TOAST ----------
-// Shown on the roster right after HR clicks "Send to manager(s)" on Step 1
-// (Identity). Summarizes the fan-out: if 5 hires went to 3 managers we say so.
-// Auto-dismisses after 8s but the user can also click ✕.
-function SentToManagersToast({ toast, onDismiss, onOpen }) {
-  React.useEffect(() => {
-    const t = setTimeout(() => onDismiss(), 8000);
-    return () => clearTimeout(t);
-  }, [toast.ts]);
-  const { groupCount, hireCount, managers, ids } = toast;
-  return (
-    <div style={{
-      marginBottom: 24,
-      padding: "16px 20px",
-      background: "#0A8A3E",
-      border: "1px solid #211E1E", borderRadius: 12,
-      boxShadow: "3px 3px 0 #211E1E",
-      color: "#FFFFFF",
-      display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 16, alignItems: "center",
-      fontFamily: "'Archivo', sans-serif",
-      animation: "fadeUp .4s var(--ease) both",
-    }}>
-      <div style={{
-        width: 40, height: 40, borderRadius: "50%",
-        background: "#FFFFFF", color: "#0A8A3E",
-        display: "grid", placeItems: "center",
-        border: "1px solid #211E1E",
-        fontSize: 20, fontWeight: 900,
-      }}>✓</div>
-      <div>
-        <div style={{ fontSize: 14.5, fontWeight: 800 }}>
-          Sent for approval — {hireCount} {hireCount === 1 ? "hire" : "hires"} routed to {groupCount} {groupCount === 1 ? "manager" : "managers"}
-        </div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 3 }}>
-          {managers.slice(0, 3).join(", ")}{managers.length > 3 ? `, +${managers.length - 3} more` : ""} · We'll notify you when each kit is approved.
-        </div>
-      </div>
-      {ids.length === 1 && (
-        <button onClick={() => onOpen(ids[0])} style={{
-          padding: "7px 12px",
-          background: "#FFFFFF", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 4,
-          boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          cursor: "pointer",
-        }}>View status</button>
-      )}
-      <button onClick={onDismiss} style={{
-        width: 28, height: 28,
-        background: "transparent", color: "#FFFFFF",
-        border: "1px solid rgba(255,255,255,0.5)", borderRadius: "50%",
-        fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14,
-        cursor: "pointer",
-      }} aria-label="Dismiss">×</button>
-    </div>
-  );
-}
-
-Object.assign(window, {
-  Onboarding, OnboardingFiled, RosterFilterPill, MOCK_IN_PROGRESS,
-  // Re-exports used by the Manager-side approval flow (manager-approval.jsx)
-  StepAppsHardware, ESSENTIAL_APP_IDS, ONB_LOCATIONS,
-  // Address parser — also used by the offboarding return-shipping card so
-  // we don't duplicate the same logic in two files.
-  parseAddressString,
-});
-
-// ─── offboarding-steps (bf21d6c8) ──────────────────────────────────
-// ============================================================================
-// OFFBOARDING WIZARD + STEPS
-// Lives in its own file so offboarding.jsx (dashboard + data) stays <600 lines.
-// Loaded after offboarding.jsx so all the OFB_* helpers and constants resolve.
-// ============================================================================
-
-function OffboardingWizard({ drafts, setDrafts, currentIdx, setCurrentIdx, maxBulk = 30, makeBlankDraft, onBack, onFiled }) {
-  const isBulk = drafts.length > 1;
-  const draft = drafts[currentIdx];
-
-  // Per-Slicer step + maxStep so each card can be at a different point in the
-  // wizard. HR might already have last-day for Slicer A but still be picking
-  // Slicer B. Stored as arrays indexed by draft index.
-  const [steps_, setSteps] = React.useState(() => drafts.map(d => d.slicer ? 1 : 0));
-  const [maxSteps, setMaxSteps] = React.useState(() => drafts.map(d => d.slicer ? 1 : 0));
-  const step = steps_[currentIdx] ?? 0;
-  const maxStep = maxSteps[currentIdx] ?? 0;
-  const setStep = (next) => setSteps(arr => arr.map((s, i) => i === currentIdx ? next : s));
-  const bumpMax = (next) => setMaxSteps(arr => arr.map((m, i) => i === currentIdx ? Math.max(m, next) : m));
-  const goToStep = (i) => { if (i <= maxStep) setStep(i); };
-
-  // Errors are scoped to the active draft only — switching cards clears
-  // visible errors. (We re-validate before file/advance, so no data loss.)
-  const [errors, setErrors] = React.useState({});
-  const [filed, setFiled] = React.useState(false);
-  const [confirmOpen, setConfirmOpen] = React.useState(false);
-  const [showAddModal, setShowAddModal] = React.useState(false);
-  const [confirmRemoveIdx, setConfirmRemoveIdx] = React.useState(null);
-
-  const steps = ["Select Slicer", "Last day & time"];
-
-  // ---- Mutators (always target the active draft) ----
-  const setDraft = (updater) => {
-    setDrafts(prev => prev.map((d, i) =>
-      i === currentIdx ? (typeof updater === "function" ? updater(d) : updater) : d
-    ));
-  };
-  const patch = (partial) => {
-    setDraft(d => ({ ...d, ...partial }));
-    setErrors(prev => {
-      const n = { ...prev };
-      Object.keys(partial).forEach(k => { if (partial[k]) delete n[k]; });
-      // Hardware sub-keys (shipAddress1, shipCity, etc.) live nested under
-      // `hardware`. The loop above only clears top-level keys, so we have
-      // to peek inside `hardware` and clear any matching error names too.
-      if (partial.hardware) {
-        Object.keys(partial.hardware).forEach(k => {
-          if (partial.hardware[k]) delete n[k];
-        });
-      }
-      return n;
-    });
-  };
-  const patchHandover = (partial) => {
-    setDraft(d => ({ ...d, handover: { ...d.handover, ...partial } }));
-  };
-  const patchHardware = (partial) => {
-    setDraft(d => ({ ...d, hardware: { ...d.hardware, ...partial } }));
-  };
-
-  // ---- Per-draft validation (pure, runs against any draft + step) ----
-  const missingFor = (d, s) => {
-    const e = {};
-    if (s === 0 && !d.slicer) e.slicer = "Pick a Slicer to continue";
-    if (s === 1) {
-      if (!d.lastDate) e.lastDate = "Required";
-      if (!d.lastTime) e.lastTime = "Required";
-      if (!d.reason)   e.reason   = "Pick a reason";
-
-      // Return-shipping contact: REQUIRED for US/Canada Slicers (most assets
-      // ship from those offices via a courier kit, and missing fields cause
-      // failed pickups). For everyone else, IT collects details over Slack
-      // closer to the date — leave optional. We key off the office country
-      // because that's where the Slicer's gear physically is.
-      const country = d.slicer
-        ? ONB_LOCATIONS.find(l => l.id === d.slicer.location)?.country
-        : null;
-      if (country === "US" || country === "CA") {
-        const hw = d.hardware || {};
-        if (!hw.shipAddress1?.trim())      e.shipAddress1      = "Required for US/Canada";
-        if (!hw.shipCity?.trim())          e.shipCity          = "Required";
-        if (!hw.shipState?.trim())         e.shipState         = "Required";
-        if (!hw.shipZip?.trim())           e.shipZip           = "Required";
-        if (!hw.shipPersonalEmail?.trim()) e.shipPersonalEmail = "Required";
-        if (!hw.shipPhone?.trim())         e.shipPhone         = "Required";
-      }
-    }
-    return e;
-  };
-
-  // Find the first card (any index) that fails validation. Used to gate "File all" —
-  // every card must validate clean on Step 0 (Slicer picked) and Step 1 (last day +
-  // ship details). Returns { idx, missing, atStep }.
-  const firstFailingDraft = () => {
-    for (let i = 0; i < drafts.length; i++) {
-      const m0 = missingFor(drafts[i], 0);
-      if (Object.keys(m0).length) return { idx: i, missing: m0, atStep: 0, reason: "step0" };
-      const m1 = missingFor(drafts[i], 1);
-      if (Object.keys(m1).length) return { idx: i, missing: m1, atStep: 1, reason: "step1" };
-    }
-    return null;
-  };
-
-  // ---- Per-active-draft validation for advancing one step ----
-  const validateStep = () => {
-    const e = missingFor(draft, step);
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const next = () => {
-    if (!validateStep()) return;
-    if (step === steps.length - 1) {
-      // On the last step — for single, open the confirm modal. For bulk,
-      // we need EVERY card to be at Review with clean data before we can
-      // file. If any card is behind, jump to it.
-      if (isBulk) {
-        const fail = firstFailingDraft();
-        if (fail) {
-          // Jump to the failing card and restore its step + errors. Use a
-          // micro-delay so the switchHire effects flush before we set errors.
-          if (fail.idx !== currentIdx) setCurrentIdx(fail.idx);
-          setSteps(arr => arr.map((s, i) => i === fail.idx ? fail.atStep : s));
-          setTimeout(() => setErrors(fail.missing), 0);
-          return;
-        }
-      }
-      // Always show the confirmation modal — without a Review step, this card
-      // IS the final lockout-moment confirmation. (Bulk has shown a roll-up
-      // confirmation here for a while; this brings single-mode in line.)
-      setConfirmOpen(true);
-    } else {
-      const nextStep = step + 1;
-      setStep(nextStep);
-      bumpMax(nextStep);
-    }
-  };
-
-  const confirmFile = () => {
-    setConfirmOpen(false);
-    setFiled(true);
-    // Pass every draft to the host so the dashboard can pipeline-render them.
-    drafts.forEach(d => onFiled?.({ ...d }));
-  };
-
-  const prev = () => {
-    if (step === 0) onBack();
-    else setStep(step - 1);
-  };
-
-  // ---- Bulk: switch / add / remove cards ----
-  const switchTo = (idx) => {
-    setCurrentIdx(idx);
-    setErrors({});
-  };
-  const addDraft = () => {
-    if (drafts.length >= maxBulk) return;
-    const blank = makeBlankDraft ? makeBlankDraft() : { ...draft, slicer: null, _id: "ofbd_" + Math.random().toString(36).slice(2, 9) };
-    setDrafts(prev => [...prev, blank]);
-    setSteps(prev => [...prev, 0]);
-    setMaxSteps(prev => [...prev, 0]);
-    setCurrentIdx(drafts.length);  // jump to the newly-added one
-    setErrors({});
-  };
-  const requestRemoveDraft = (idx) => {
-    if (drafts.length <= 1) return;
-    const d = drafts[idx];
-    // If the card is essentially empty (no slicer picked), skip the prompt.
-    if (!d.slicer) {
-      removeDraft(idx);
-    } else {
-      setConfirmRemoveIdx(idx);
-    }
-  };
-  const removeDraft = (idx) => {
-    if (drafts.length <= 1) return;
-    setDrafts(prev => prev.filter((_, i) => i !== idx));
-    setSteps(prev => prev.filter((_, i) => i !== idx));
-    setMaxSteps(prev => prev.filter((_, i) => i !== idx));
-    if (currentIdx >= drafts.length - 1) setCurrentIdx(Math.max(0, drafts.length - 2));
-    else if (currentIdx === idx && currentIdx > 0) setCurrentIdx(currentIdx - 1);
-    setErrors({});
-  };
-
-  if (filed) return <OffboardingFiled drafts={drafts} onDone={onBack} />;
-
-  // ---- Render ----
-  // Body block (header + steps + footer) — wrapped in a flex container with
-  // the optional left rail next to it on bulk.
-  const body = (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      {/* Top: back + stepper */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 24, gap: 16, flexWrap: "wrap",
-      }}>
-        <button onClick={prev} style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "7px 12px 7px 10px",
-          background: "#FFFFFF", border: "1px solid #211E1E",
-          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          color: "#211E1E", cursor: "pointer",
-        }}>
-          <IconArrowLeft size={13} stroke={2.5} />
-          {step === 0 ? "Exit" : "Back"}
-        </button>
-
-        <OfbStepper steps={steps} current={step} maxStep={maxStep} onGoTo={goToStep} />
-      </div>
-
-      {/* Step title + active-Slicer chip */}
-      <div style={{ margin: "0 0 28px", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 260 }}>
-          <div className="eyebrow" style={{ color: "#78684C", fontSize: 10.5, marginBottom: 6 }}>
-            {isBulk
-              ? `Slicer ${currentIdx + 1} of ${drafts.length} · Step ${step + 1} of ${steps.length}`
-              : `Step ${step + 1} of ${steps.length} · Offboarding Wizard`}
-          </div>
-          <h1 style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.05,
-            margin: 0, color: "#211E1E",
-          }}>{stepHeadline(step, draft)}</h1>
-        </div>
-        {draft.slicer && !isBulk && (
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "6px 12px",
-            background: "#FFF9E6", border: "1px solid #211E1E", borderRadius: 6,
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 11.5, fontWeight: 700, color: "#211E1E",
-          }}>
-            <span style={{
-              width: 22, height: 22, borderRadius: "50%",
-              background: "#211E1E", color: "#FDC831",
-              display: "grid", placeItems: "center",
-              fontSize: 9, fontWeight: 900,
-            }}>{draft.slicer.firstName[0]}{draft.slicer.lastName[0]}</span>
-            Offboarding <strong>{draft.slicer.firstName} {draft.slicer.lastName}</strong>
-          </div>
-        )}
-      </div>
-
-      {/* Step body */}
-      <div style={{ marginBottom: 28 }}>
-        {step === 0 && <OfbStepPick draft={draft} patch={patch} errors={errors} excludeSlicerIds={isBulk ? drafts.map((d, i) => i !== currentIdx && d.slicer?.id).filter(Boolean) : []} onAdvance={() => { setStep(1); bumpMax(1); }} />}
-        {step === 1 && <OfbStepWhen draft={draft} patch={patch} errors={errors} />}
-      </div>
-
-      {/* Footer nav */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14,
-        marginTop: 24,
-      }}>
-        <button onClick={next}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translate(-1px,-1px)";
-            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "none";
-            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-          }}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "13px 24px",
-            background: step === steps.length - 1 ? "#B92323" : "#FDC831",
-            color: step === steps.length - 1 ? "#FFFFFF" : "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 4,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-            transition: "transform .12s ease, box-shadow .12s ease",
-          }}>
-          {step === steps.length - 1
-            ? (isBulk ? `File ${drafts.length} offboardings` : "File offboarding")
-            : "Continue"}
-          <IconArrow size={14} stroke={2.5} />
-        </button>
-      </div>
-    </div>
-  );
-
-  return (
-    <div data-screen-label="Offboarding Wizard" className="page" style={{ minHeight: "100vh", background: "#FDC831", display: "flex", flexDirection: "column" }}>
-      {/* Body — flex:1 so the yellow page extends to the footer on short steps. */}
-      <div style={{ flex: 1, maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 80px", width: "100%" }}>
-      {isBulk ? (
-        <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 22, alignItems: "flex-start" }}>
-          <OfbDraftRail
-            drafts={drafts}
-            currentIdx={currentIdx}
-            steps_={steps_}
-            readyFlags={drafts.map(d => {
-              if (!d.slicer) return false;
-              const m0 = missingFor(d, 0);
-              const m1 = missingFor(d, 1);
-              return Object.keys(m0).length === 0 && Object.keys(m1).length === 0;
-            })}
-            onSwitch={switchTo}
-            onAdd={addDraft}
-            onRemove={requestRemoveDraft}
-            maxBulk={maxBulk}
-          />
-          {body}
-        </div>
-      ) : body}
-
-      {confirmOpen && (
-        <OfbConfirmFileModal
-          drafts={drafts}
-          onCancel={() => setConfirmOpen(false)}
-          onConfirm={confirmFile}
-        />
-      )}
-
-      {confirmRemoveIdx != null && (
-        <OfbRemoveDraftModal
-          draft={drafts[confirmRemoveIdx]}
-          idx={confirmRemoveIdx}
-          onCancel={() => setConfirmRemoveIdx(null)}
-          onConfirm={() => {
-            const i = confirmRemoveIdx;
-            setConfirmRemoveIdx(null);
-            removeDraft(i);
-          }}
-        />
-      )}
-      </div>
-    </div>
-  );
-}
-
-// Confirmation modal shown when HR clicks "File offboarding" on the last step.
-// Single-card mode reprints the lockout moment; bulk mode shows a roll-up of
-// every Slicer being filed in one go (with their per-card lockout time).
-function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
-  const isBulk = drafts.length > 1;
-  // Single-mode keeps the original "big lockout moment" layout, which is the
-  // emotional centerpiece of the original confirmation. Bulk mode swaps that
-  // for a list because no single time dominates.
-  const draft = drafts[0];
-  const tz = ofbTzFor(draft.slicer?.location);
-  const utc = wallTimeInZoneToUTC(draft.lastDate, draft.lastTime, tz.iana);
-  const f = utc ? formatInZone(utc, tz.iana) : null;
-  const reason = OFB_REASONS.find(r => r.id === draft.reason);
-  const [submitting, setSubmitting] = React.useState(false);
-
-  React.useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape" && !submitting) onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel, submitting]);
-
-  const handleSubmit = () => {
-    if (submitting) return;
-    setSubmitting(true);
-    // Small synthetic delay so the primary button can show a "Filing…" state —
-    // grounds the user in the gravity of the action.
-    setTimeout(() => { onConfirm(); }, 600);
-  };
-
-  return ReactDOM.createPortal((
-    <div style={{
-      position: "fixed", inset: 0,
-      background: "rgba(33,30,30,0.85)",
-      backdropFilter: "blur(10px) saturate(0.6)",
-      WebkitBackdropFilter: "blur(10px) saturate(0.6)",
-      display: "grid", placeItems: "center",
-      zIndex: 2147483000, padding: 24,
-      animation: "ofbFade .14s ease-out",
-    }}
-    onClick={() => { if (!submitting) onCancel(); }}>
-      <style>{`
-        @keyframes ofbFade { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes ofbRise { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
-      `}</style>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        width: "100%", maxWidth: 560,
-        background: "#FDC831",
-        border: "1px solid #211E1E", borderRadius: 14,
-        boxShadow: "3px 3px 0 #211E1E",
-        overflow: "hidden",
-        animation: "ofbRise .18s cubic-bezier(.2,.9,.3,1)",
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: "20px 24px 14px",
-          borderBottom: "1px solid rgba(33,30,30,0.25)",
-          display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16,
-        }}>
-          <div>
-            <div className="eyebrow" style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-              color: "#B92323", marginBottom: 4,
-            }}>Final confirmation</div>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 22, fontWeight: 900, letterSpacing: "-0.02em",
-              color: "#211E1E", lineHeight: 1.1,
-            }}>{isBulk
-              ? `File ${drafts.length} offboardings?`
-              : `File offboarding for ${draft.slicer?.firstName} ${draft.slicer?.lastName}?`}</div>
-          </div>
-          <button onClick={onCancel} disabled={submitting} aria-label="Close" style={{
-            width: 32, height: 32, flexShrink: 0,
-            background: "#FFFFFF", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 6,
-            fontSize: 16, fontWeight: 900, lineHeight: 1,
-            cursor: submitting ? "not-allowed" : "pointer",
-            opacity: submitting ? 0.4 : 1,
-          }}>×</button>
-        </div>
-
-        {!isBulk && (
-        <React.Fragment>
-        {/* Big lockout moment */}
-        <div style={{
-          margin: "18px 24px 0",
-          padding: "22px 22px 20px",
-          background: "#211E1E", color: "#FDC831",
-          border: "1px solid #211E1E", borderRadius: 10,
-          textAlign: "left",
-        }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 10, fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase",
-            opacity: 0.7, marginBottom: 10,
-          }}>Accounts will lock at</div>
-          {f ? (
-            <React.Fragment>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 42, fontWeight: 900, letterSpacing: "-0.03em",
-                lineHeight: 0.95, color: "#FDC831",
-                marginBottom: 4,
-              }}>{f.time}</div>
-              <div style={{
-                fontFamily: "'Archivo', monospace",
-                fontSize: 11, fontWeight: 700, color: "#FDC831", opacity: 0.7,
-                marginBottom: 10,
-              }}>{f.time24} · {tz.short}</div>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 15, fontWeight: 700, color: "#FFFFFF", lineHeight: 1.3,
-              }}>{f.weekday}, {f.date}</div>
-              <div style={{
-                fontSize: 11.5, fontWeight: 600, marginTop: 8,
-                color: "#FDC831", opacity: 0.7,
-              }}>Local time in {tz.label} · {draft.slicer?.firstName}'s office</div>
-
-              {/* Other offices — show the same moment in every Slice timezone so HR
-                  can sanity-check the cross-office impact before filing. */}
-              <div style={{
-                marginTop: 14, paddingTop: 12,
-                borderTop: "1px solid rgba(253,200,49,0.25)",
-                display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8,
-              }}>
-                {dedupeZones(OFB_TZS).filter(z => !z.ids.includes(tz.id)).map(z => {
-                  const zf = formatInZone(utc, z.iana);
-                  const primaryLabel = z.sites.length > 1
-                    ? z.sites.slice(0, 2).join(", ") + (z.sites.length > 2 ? "…" : "")
-                    : (z.sites[0] || z.labels[0]);
-                  const h = zf.hour24;
-                  const afterHours = h < 7 || h >= 20;
-                  return (
-                    <div key={z.id} style={{
-                      padding: "8px 10px",
-                      background: "rgba(253,200,49,0.08)",
-                      border: `1px solid ${afterHours ? "rgba(253,200,49,0.55)" : "rgba(253,200,49,0.22)"}`,
-                      borderRadius: 6,
-                    }}>
-                      <div style={{
-                        display: "flex", alignItems: "center", gap: 5, marginBottom: 4,
-                      }}>
-                        {z.countries.slice(0, 2).map(c => (
-                          <CountryFlag key={c} country={c} size={11}/>
-                        ))}
-                        <div style={{
-                          fontFamily: "'Archivo', sans-serif",
-                          fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em",
-                          color: "#FDC831", opacity: 0.85,
-                          textTransform: "uppercase",
-                        }}>{z.short}</div>
-                      </div>
-                      <div style={{
-                        fontFamily: "'Archivo', sans-serif",
-                        fontSize: 16, fontWeight: 900,
-                        color: "#FDC831", letterSpacing: "-0.01em", lineHeight: 1,
-                      }}>{zf.time}</div>
-                      <div style={{
-                        fontFamily: "'Archivo', monospace",
-                        fontSize: 9.5, fontWeight: 700,
-                        color: "#FDC831", opacity: 0.55, marginTop: 2,
-                      }}>{zf.time24}</div>
-                      <div style={{
-                        fontSize: 10, fontWeight: 600,
-                        color: "#FFFFFF", opacity: 0.7, marginTop: 4,
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }} title={primaryLabel}>{primaryLabel}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </React.Fragment>
-          ) : (
-            <div style={{ fontSize: 14, color: "#FDC831" }}>No time selected.</div>
-          )}
-        </div>
-
-        {/* Meta row */}
-        <div style={{
-          margin: "14px 24px 0",
-          padding: "12px 14px",
-          background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 8,
-          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
-          fontSize: 12, color: "#4A3F2E",
-        }}>
-          <div>
-            <div className="eyebrow" style={{ fontSize: 9.5, color: "#78684C", marginBottom: 2 }}>Reason</div>
-            <div style={{ fontWeight: 800, color: "#211E1E" }}>
-              {reason ? <span>{reason.label}</span> : "—"}
-            </div>
-          </div>
-          <div>
-            <div className="eyebrow" style={{ fontSize: 9.5, color: "#78684C", marginBottom: 2 }}>Filed by</div>
-            <div style={{ fontWeight: 800, color: "#211E1E" }}>You (People Ops)</div>
-          </div>
-        </div>
-
-        {/* What happens next */}
-        <div style={{
-          margin: "14px 24px 0",
-          padding: "12px 14px",
-          background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 8,
-          fontSize: 12, color: "#4A3F2E", lineHeight: 1.5,
-        }}>
-          <div className="eyebrow" style={{ fontSize: 9.5, color: "#78684C", marginBottom: 6 }}>What happens next</div>
-          <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 3 }}>
-            <li>IT revokes app access at the moment above.</li>
-            <li>Hardware return is scheduled.</li>
-            <li>{draft.slicer?.manager || "The manager"} is notified.</li>
-          </ul>
-        </div>
-        </React.Fragment>
-        )}
-
-        {isBulk && (
-        <React.Fragment>
-          {/* Bulk roll-up — every Slicer in the batch with their lockout time */}
-          <div style={{
-            margin: "18px 24px 0",
-            padding: "14px 16px",
-            background: "#211E1E", color: "#FDC831",
-            border: "1px solid #211E1E", borderRadius: 10,
-          }}>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10, fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase",
-              opacity: 0.7, marginBottom: 8,
-            }}>You are filing {drafts.length} offboardings</div>
-            <div style={{ display: "grid", gap: 6, maxHeight: 320, overflowY: "auto" }}>
-              {drafts.map((d, i) => {
-                const dtz = ofbTzFor(d.slicer?.location);
-                const dutc = wallTimeInZoneToUTC(d.lastDate, d.lastTime, dtz.iana);
-                const df = dutc ? formatInZone(dutc, dtz.iana) : null;
-                const dreason = OFB_REASONS.find(r => r.id === d.reason);
-                return (
-                  <div key={d._id || i} style={{
-                    display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 12,
-                    alignItems: "center",
-                    padding: "8px 10px",
-                    background: "rgba(253,200,49,0.08)",
-                    border: "1px solid rgba(253,200,49,0.2)",
-                    borderRadius: 6,
-                  }}>
-                    <span style={{
-                      fontFamily: "'Archivo', monospace",
-                      fontSize: 9.5, fontWeight: 900,
-                      padding: "2px 5px",
-                      background: "#FDC831", color: "#211E1E",
-                      borderRadius: 2,
-                    }}>{String(i + 1).padStart(2, "0")}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{
-                        fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800,
-                        color: "#FDC831", letterSpacing: "-0.005em",
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      }}>{d.slicer?.firstName} {d.slicer?.lastName}</div>
-                      <div style={{
-                        fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 700,
-                        color: "#FFFFFF", opacity: 0.6, marginTop: 1,
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      }}>{d.slicer?.title} · {dtz.short}</div>
-                    </div>
-                    {dreason && (
-                      <div style={{
-                        fontFamily: "'Archivo', sans-serif",
-                        fontSize: 9.5, fontWeight: 800,
-                        letterSpacing: "0.04em", textTransform: "uppercase",
-                        padding: "2px 6px",
-                        background: "rgba(253,200,49,0.15)",
-                        color: "#FDC831",
-                        border: "1px solid rgba(253,200,49,0.3)",
-                        borderRadius: 3,
-                      }}>{dreason.label}</div>
-                    )}
-                    <div style={{
-                      fontFamily: "'Archivo', monospace",
-                      fontSize: 11, fontWeight: 800,
-                      color: "#FDC831",
-                      whiteSpace: "nowrap",
-                    }}>{df ? `${df.date}, ${df.time24}` : "—"}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* What happens next — generic for bulk */}
-          <div style={{
-            margin: "14px 24px 0",
-            padding: "12px 14px",
-            background: "#FFFFFF",
-            border: "1px solid #211E1E", borderRadius: 8,
-            fontSize: 12, color: "#4A3F2E", lineHeight: 1.5,
-          }}>
-            <div className="eyebrow" style={{ fontSize: 9.5, color: "#78684C", marginBottom: 6 }}>What happens next</div>
-            <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 3 }}>
-              <li>Each Slicer's app access revokes at their per-card lockout time.</li>
-              <li>Hardware return is scheduled per Slicer.</li>
-              <li>Each manager is notified individually — no single batch email.</li>
-            </ul>
-          </div>
-        </React.Fragment>
-        )}
-
-        {/* Actions */}
-        <div style={{
-          margin: "18px 24px 22px",
-          display: "flex", gap: 10, justifyContent: "flex-end",
-        }}>
-          <button onClick={onCancel} disabled={submitting} style={{
-            padding: "11px 18px",
-            background: "#FFFFFF", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 6,
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 12, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: submitting ? "not-allowed" : "pointer",
-            opacity: submitting ? 0.5 : 1,
-          }}>Cancel</button>
-          <button onClick={handleSubmit} disabled={submitting} style={{
-            padding: "11px 20px",
-            background: submitting ? "rgba(185,35,35,0.35)" : "#B92323",
-            color: "#FFFFFF",
-            border: `2px solid ${submitting ? "rgba(185,35,35,0.35)" : "#B92323"}`,
-            borderRadius: 6,
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 12, fontWeight: 900, letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: submitting ? "not-allowed" : "pointer",
-            boxShadow: submitting ? "none" : "2px 2px 0 #211E1E",
-            transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
-          }}>
-            {submitting ? "Filing…" : (isBulk ? `Yes, file ${drafts.length} offboardings` : "Yes, file offboarding")}
-          </button>
-        </div>
-      </div>
-    </div>
-  ), document.body);
-}
-
-function stepHeadline(step, draft) {
-  const n = draft.slicer ? draft.slicer.firstName : "this Slicer";
-  return [
-    "Which Slicer is leaving?",
-    `When is ${n}'s last day?`,
-    `Confirm & file`,
-  ][step];
-}
-
-// ============================================================================
-// BULK RAIL — left sidebar shown only when drafts.length > 1
-// Each item is a clickable card representing one Slicer in the batch. Shows
-// who's filled in, who's still blank, which step they're stuck on, and lets
-// HR add/remove cards from the batch.
-// ============================================================================
-function OfbDraftRail({ drafts, currentIdx, steps_, readyFlags, onSwitch, onAdd, onRemove, maxBulk }) {
-  const total = drafts.length;
-  const ready = readyFlags ? readyFlags.filter(Boolean).length : drafts.filter((d, i) => (steps_[i] ?? 0) >= 2).length;
-  const canAdd = total < maxBulk;
-  const canRemove = total > 1;
-
-  return (
-    <aside style={{
-      position: "sticky", top: 24,
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 10,
-      boxShadow: "2px 2px 0 #211E1E",
-      overflow: "hidden",
-      alignSelf: "flex-start",
-      maxHeight: "calc(100vh - 56px)",
-      display: "flex", flexDirection: "column",
-    }}>
-      {/* Header — total + ready count, with the same Archivo eyebrow voice */}
-      <div style={{
-        padding: "14px 16px",
-        background: "#211E1E", color: "#FDC831",
-        borderBottom: "1px solid #211E1E",
-      }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 22, fontWeight: 900, letterSpacing: "-0.02em", lineHeight: 1,
-          }}>{total}</div>
-          <div className="eyebrow" style={{
-            fontSize: 9.5, fontWeight: 900, letterSpacing: "0.1em", opacity: 0.65,
-          }}>{total === 1 ? "Slicer" : "Slicers"}</div>
-        </div>
-        {/* Progress bar */}
-        <div style={{
-          marginTop: 10,
-          height: 6,
-          background: "rgba(253,200,49,0.18)",
-          borderRadius: 2,
-          overflow: "hidden",
-        }}>
-          <div style={{
-            width: total > 0 ? `${(ready / total) * 100}%` : "0%",
-            height: "100%",
-            background: "#FDC831",
-            transition: "width .25s ease",
-          }}/>
-        </div>
-        <div style={{
-          fontFamily: "'Archivo', monospace",
-          fontSize: 10.5, fontWeight: 700, marginTop: 5, opacity: 0.85,
-        }}>{ready}/{total} ready</div>
-      </div>
-
-      {/* Card list */}
-      <div style={{
-        padding: 8, display: "grid", gap: 6,
-        overflowY: "auto", flex: 1,
-      }}>
-        {drafts.map((d, i) => {
-          const active = i === currentIdx;
-          const s = steps_[i] ?? 0;
-          const slicerName = d.slicer
-            ? `${d.slicer.firstName} ${d.slicer.lastName}`
-            : "Unassigned Slicer";
-          const subline = d.slicer
-            ? (readyFlags ? (readyFlags[i] ? "Ready to file" : (s === 1 ? "Pick last day" : "Confirm details"))
-                          : (s >= 2 ? "Ready to file" : s === 1 ? "Pick last day" : "Confirm details"))
-            : "Pick a Slicer";
-          const initials = d.slicer
-            ? `${d.slicer.firstName[0]}${d.slicer.lastName[0]}`
-            : String(i + 1).padStart(2, "0");
-          const ready_ = readyFlags ? !!readyFlags[i] : s >= 2;
-
-          return (
-            <div key={d._id || i} style={{ position: "relative" }}>
-              <button
-                onClick={() => onSwitch(i)}
-                style={{
-                  width: "100%",
-                  display: "grid",
-                  gridTemplateColumns: "auto 1fr",
-                  gap: 10,
-                  alignItems: "center",
-                  padding: "10px 11px",
-                  paddingRight: canRemove ? 30 : 11,
-                  background: active ? "#FDC831" : ready_ ? "#FFF9E6" : "#FFFFFF",
-                  color: "#211E1E",
-                  border: active
-                    ? "2px solid #211E1E"
-                    : ready_
-                      ? "1.5px solid #211E1E"
-                      : "1.5px dashed rgba(120,104,76,0.45)",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  textAlign: "left",
-                  boxShadow: active ? "1px 1px 0 #211E1E" : "none",
-                  transition: "background .15s ease, transform .12s ease",
-                }}>
-                <div style={{
-                  width: 30, height: 30, borderRadius: "50%",
-                  display: "grid", placeItems: "center",
-                  background: d.slicer ? "#211E1E" : "transparent",
-                  color: d.slicer ? "#FDC831" : "#78684C",
-                  border: d.slicer ? "2px solid #211E1E" : "1.5px dashed rgba(120,104,76,0.5)",
-                  fontFamily: "'Archivo', sans-serif",
-                  fontSize: d.slicer ? 11 : 10.5,
-                  fontWeight: 900,
-                  letterSpacing: d.slicer ? 0 : "0.04em",
-                  flexShrink: 0,
-                }}>{initials}</div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 12.5, fontWeight: 800,
-                    letterSpacing: "-0.005em",
-                    color: d.slicer ? "#211E1E" : "#78684C",
-                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  }}>{slicerName}</div>
-                  <div style={{
-                    fontFamily: "'Archivo', monospace",
-                    fontSize: 10, fontWeight: 700, marginTop: 1,
-                    color: ready_ ? "#0E5F2A" : "#78684C",
-                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                  }}>
-                    {ready_ && <span style={{
-                      width: 8, height: 8, borderRadius: "50%",
-                      background: "#0E5F2A",
-                    }}/>}
-                    {subline}
-                  </div>
-                </div>
-              </button>
-              {canRemove && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRemove(i); }}
-                  aria-label={`Remove ${slicerName} from batch`}
-                  style={{
-                    position: "absolute",
-                    top: 6, right: 6,
-                    width: 20, height: 20,
-                    background: "transparent",
-                    color: active ? "#211E1E" : "#78684C",
-                    border: "none", borderRadius: 3,
-                    cursor: "pointer",
-                    display: "grid", placeItems: "center",
-                    fontSize: 14, lineHeight: 1, fontWeight: 700,
-                    transition: "background .15s ease, color .15s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#B92323";
-                    e.currentTarget.style.color = "#FFFFFF";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.color = active ? "#211E1E" : "#78684C";
-                  }}
-                >×</button>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Add card */}
-        <button
-          onClick={onAdd}
-          disabled={!canAdd}
-          style={{
-            width: "100%",
-            padding: "10px 11px",
-            background: canAdd ? "#FFFFFF" : "rgba(120,104,76,0.05)",
-            color: canAdd ? "#211E1E" : "rgba(120,104,76,0.5)",
-            border: `1.5px dashed ${canAdd ? "#211E1E" : "rgba(120,104,76,0.4)"}`,
-            borderRadius: 6,
-            cursor: canAdd ? "pointer" : "not-allowed",
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 11.5, fontWeight: 800,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-          title={canAdd ? "Add another Slicer to this batch" : `Batch capped at ${maxBulk}`}>
-          <span style={{ fontSize: 16, lineHeight: 1, fontWeight: 900 }}>+</span>
-          Add Slicer
-        </button>
-      </div>
-
-      {/* Footer — capacity hint */}
-      <div style={{
-        padding: "8px 12px",
-        background: "#FFF9E6",
-        borderTop: "1px solid #211E1E",
-        fontFamily: "'Archivo', monospace",
-        fontSize: 10, fontWeight: 700,
-        color: "#78684C",
-        textAlign: "center",
-      }}>
-        {total} / {maxBulk} cards in batch
-      </div>
-    </aside>
-  );
-}
-
-// ============================================================================
-// REMOVE-DRAFT MODAL — confirms removing a Slicer from the bulk batch.
-// Only shown when a card already has a Slicer attached (so HR doesn't lose
-// real work to a misclick); blank cards remove instantly without confirmation.
-// ============================================================================
-function OfbRemoveDraftModal({ draft, idx, onCancel, onConfirm }) {
-  React.useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") onCancel();
-      if (e.key === "Enter") onConfirm();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel, onConfirm]);
-
-  const name = draft.slicer
-    ? `${draft.slicer.firstName} ${draft.slicer.lastName}`
-    : `Card ${idx + 1}`;
-
-  return ReactDOM.createPortal((
-    <div className="overlay-in" style={{
-      position: "fixed", inset: 0, zIndex: 100,
-      background: "rgba(33,30,30,0.55)",
-      display: "grid", placeItems: "center",
-      padding: 24,
-    }} onClick={onCancel}>
-      <div className="overlay-panel-in" onClick={(e) => e.stopPropagation()} style={{
-        width: "min(440px, 100%)",
-        background: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 12,
-        boxShadow: "3px 3px 0 #211E1E",
-        overflow: "hidden",
-      }}>
-        <div style={{
-          padding: "14px 18px",
-          background: "#FDC831",
-          borderBottom: "1px solid #211E1E",
-        }}>
-          <div className="eyebrow" style={{
-            fontSize: 9.5, fontWeight: 900, color: "#78684C", letterSpacing: "0.1em",
-          }}>Remove from batch</div>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 18, fontWeight: 900, color: "#211E1E", marginTop: 2,
-            letterSpacing: "-0.01em",
-          }}>Drop {name}?</div>
-        </div>
-        <div style={{ padding: "16px 18px", color: "#4A3F2E", fontSize: 13.5, lineHeight: 1.5 }}>
-          The other Slicers in this batch stay put. You can always restart this
-          one from the dashboard.
-        </div>
-        <div style={{
-          padding: "12px 18px 16px",
-          display: "flex", gap: 10, justifyContent: "flex-end",
-        }}>
-          <button onClick={onCancel} style={{
-            padding: "10px 16px",
-            background: "#FFFFFF", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 6,
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 11.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-          }}>Keep card</button>
-          <button onClick={onConfirm} style={{
-            padding: "10px 18px",
-            background: "#B92323", color: "#FFFFFF",
-            border: "1px solid #B92323", borderRadius: 6,
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 11.5, fontWeight: 900, letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-            boxShadow: "2px 2px 0 #211E1E",
-          }}>Yes, remove</button>
-        </div>
-      </div>
-    </div>
-  ), document.body);
-}
-
-// Stepper — matches OnbStepper visually (same connected-track, same states).
-// Kept as a local component so offboarding-steps.jsx stays self-contained.
-function OfbStepper({ steps, current, maxStep, onGoTo }) {
-  const reach = typeof maxStep === "number" ? maxStep : current;
-  // Track the most-recently-visited step that's NOT the active one — when HR
-  // clicks Back, the step they came from gets a yellow outline so they can
-  // see "this is where I was, click to jump forward."
-  const lastVisited = reach > current ? reach : -1;
-  return (
-    <div style={{
-      display: "flex", alignItems: "stretch", gap: 0,
-      padding: 5,
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 8,
-      boxShadow: "2px 2px 0 #211E1E",
-      maxWidth: "100%", overflowX: "auto",
-    }}>
-      {steps.map((s, i) => {
-        const done = i < current;
-        const active = i === current;
-        const visited = i <= reach;
-        const pending = !visited;
-        const wasLastPos = i === lastVisited;
-        const clickable = visited && !active;
-        return (
-          <React.Fragment key={s}>
-            <button
-              onClick={() => clickable && onGoTo(i)}
-              disabled={!clickable}
-              style={{
-                position: "relative",
-                padding: "8px 14px 8px 10px",
-                background: active ? "#FDC831" : done ? "#211E1E" : wasLastPos ? "#FFF9E6" : "transparent",
-                color: active ? "#211E1E" : done ? "#FDC831" : pending ? "#78684C" : "#211E1E",
-                border: pending
-                  ? "1.5px dashed rgba(120,104,76,0.4)"
-                  : wasLastPos
-                    ? "2px solid #FDC831"
-                    : "1.5px solid transparent",
-                borderRadius: 5,
-                fontFamily: "'Archivo', sans-serif",
-                fontWeight: 800, fontSize: 11,
-                letterSpacing: "0.06em", textTransform: "uppercase",
-                cursor: clickable ? "pointer" : "default",
-                display: "inline-flex", alignItems: "center", gap: 8,
-                transition: "background .2s ease, color .2s ease, transform .15s ease, border-color .2s ease",
-                whiteSpace: "nowrap",
-                transform: active ? "scale(1.04)" : "scale(1)",
-                transformOrigin: "center",
-                boxShadow: active
-                  ? "1px 1px 0 #211E1E"
-                  : wasLastPos
-                    ? "1px 1px 0 rgba(253,200,49,0.6)"
-                    : "none",
-              }}
-              title={wasLastPos ? "Click to return to this step" : undefined}>
-              <span style={{
-                width: 20, height: 20, borderRadius: "50%",
-                display: "grid", placeItems: "center",
-                background: active ? "#211E1E" : done ? "#FDC831" : "transparent",
-                color: active ? "#FDC831" : done ? "#211E1E" : "#78684C",
-                border: pending ? "1.5px dashed rgba(120,104,76,0.5)" : "none",
-                fontSize: 10, fontWeight: 900,
-                fontFamily: "'Archivo', monospace",
-                flexShrink: 0,
-              }}>
-                {done ? "✓" : i + 1}
-              </span>
-              {s}
-            </button>
-            {i < steps.length - 1 && (
-              <div style={{
-                alignSelf: "center",
-                width: 18, height: 2,
-                background: i < reach ? "#211E1E" : "rgba(120,104,76,0.25)",
-                margin: "0 2px",
-                transition: "background .25s ease",
-              }}/>
-            )}
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-}
-
-// ============================================================================
-// STEP 0 — PICK SLICER
-// ============================================================================
-function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance }) {
-  const [q, setQ] = React.useState("");
-  const inputRef = React.useRef(null);
-  React.useEffect(() => { inputRef.current?.focus(); }, []);
-
-  const filtered = React.useMemo(() => {
-    // Only show results once HR starts typing — otherwise the list is
-    // overwhelming and almost always wrong-first.
-    if (!q.trim()) return [];
-    const needle = q.toLowerCase();
-    return MOCK_COMPLETED_SLICERS.filter(s => {
-      const hay = `${s.firstName} ${s.lastName} ${s.title} ${s.department} ${s.workEmail}`.toLowerCase();
-      return hay.includes(needle);
-    });
-  }, [q]);
-  const searching = q.trim().length > 0;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      {/* Big search */}
-      <div style={{ position: "relative" }}>
-        <div style={{
-          position: "absolute", left: 18, top: "50%", transform: "translateY(-50%)",
-          color: "#78684C", fontSize: 18, pointerEvents: "none",
-        }}>⌕</div>
-        <input
-          ref={inputRef}
-          value={q} onChange={e => setQ(e.target.value)}
-          placeholder="Search by name, email, role or department…"
-          style={{
-            width: "100%", padding: "18px 20px 18px 48px",
-            background: "#FFFFFF",
-            border: "1px solid #211E1E", borderRadius: 10,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif", fontSize: 16, fontWeight: 600, color: "#211E1E",
-            outline: "none", boxSizing: "border-box",
-          }}/>
-        {q && (
-          <button onClick={() => setQ("")} style={{
-            position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
-            width: 28, height: 28,
-            background: "#FFF9E6", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 4,
-            fontSize: 13, fontWeight: 900,
-            cursor: "pointer",
-          }}>×</button>
-        )}
-      </div>
-
-      {errors.slicer && (
-        <div style={{
-          padding: "8px 12px",
-          background: "#FFF0F0",
-          border: "1px solid #B92323", borderRadius: 6,
-          color: "#B92323", fontSize: 12, fontWeight: 800,
-        }}>{errors.slicer}</div>
-      )}
-
-      {searching && (
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          paddingBottom: 4,
-        }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-            color: "#78684C",
-          }}>
-            {filtered.length} {filtered.length === 1 ? "match" : "matches"} <span style={{ textTransform: "none", letterSpacing: 0, marginLeft: 4, fontWeight: 600 }}>for "{q}"</span>
-          </div>
-        </div>
-      )}
-
-      {!searching ? (
-        draft.slicer ? (
-          <div style={{
-            padding: "16px 18px",
-            background: "#FDC831",
-            border: "1px solid #211E1E", borderRadius: 10,
-            boxShadow: "2px 2px 0 #211E1E",
-            display: "flex", alignItems: "center", gap: 14,
-          }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: "50%",
-              background: "#211E1E", color: "#FDC831",
-              display: "grid", placeItems: "center",
-              fontSize: 14, fontWeight: 900, fontFamily: "'Archivo', sans-serif",
-            }}>{draft.slicer.firstName[0]}{draft.slicer.lastName[0]}</div>
-            <div style={{ flex: 1 }}>
-              <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 2 }}>Selected</div>
-              <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 15, fontWeight: 900, color: "#211E1E" }}>
-                {draft.slicer.firstName} {draft.slicer.lastName}
-              </div>
-              <div style={{ fontSize: 11.5, color: "#4A3F2E", fontWeight: 600, marginTop: 2 }}>
-                {draft.slicer.title} · {draft.slicer.department}
-              </div>
-            </div>
-            <button onClick={() => patch({
-              slicer: null,
-              revokeApps: new Set(),
-              hardware: { ...draft.hardware, returnTo: "" },
-            })} style={{
-              padding: "8px 14px",
-              background: "#FFFFFF", color: "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
-              fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 800,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-            }}>Change</button>
-          </div>
-        ) : (
-          <div style={{
-            padding: "56px 28px",
-            textAlign: "center",
-            background: "#FFFFFF",
-            border: "1px solid #211E1E", borderRadius: 12,
-            boxShadow: "2px 2px 0 #211E1E",
-          }}>
-            <div style={{
-              width: 56, height: 56,
-              margin: "0 auto 14px",
-              borderRadius: "50%",
-              background: "#FDC831",
-              border: "1px solid #211E1E",
-              display: "grid", placeItems: "center",
-              boxShadow: "2px 2px 0 #211E1E",
-            }}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
-              </svg>
-            </div>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 17, fontWeight: 900, color: "#211E1E",
-              letterSpacing: "-0.015em",
-            }}>
-              Search for the Slicer who's leaving
-            </div>
-            <div style={{
-              fontSize: 12.5, color: "#4A3F2E", marginTop: 6,
-              fontWeight: 500, lineHeight: 1.5,
-              maxWidth: 340, margin: "6px auto 0",
-            }}>
-              Start typing a name, email or team — results appear as you type.
-            </div>
-          </div>
-        )
-      ) : filtered.length === 0 ? (
-        <div style={{
-          padding: "40px 24px",
-          textAlign: "center",
-          background: "#FFF9E6",
-          border: "1px dashed #211E1E", borderRadius: 10,
-        }}>
-          <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 15, fontWeight: 800, color: "#211E1E" }}>
-            No Slicers match "{q}"
-          </div>
-          <div style={{ fontSize: 12, color: "#78684C", marginTop: 6 }}>
-            Try searching by first name, last name or team.
-          </div>
-        </div>
-      ) : (
-        <div style={{
-          display: "flex", flexDirection: "column", gap: 8,
-          background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 10,
-          boxShadow: "2px 2px 0 #211E1E",
-          padding: 8,
-        }}>
-          {filtered.map(s => {
-            const loc = ONB_LOCATIONS.find(l => l.id === s.location);
-            const selected = draft.slicer?.id === s.id;
-            return (
-              <button key={s.id} onClick={() => {
-                if (selected) {
-                  patch({
-                    slicer: null,
-                    revokeApps: new Set(),
-                    hardware: { ...draft.hardware, returnTo: "" },
-                  });
-                } else {
-                  patch({
-                    slicer: s,
-                    revokeApps: new Set(s.apps),
-                    hardware: { ...draft.hardware, returnTo: s.location },
-                  });
-                  // Auto-advance to the "When" step on pick — saves a click.
-                  if (onAdvance) setTimeout(onAdvance, 80);
-                }
-              }} style={{
-                textAlign: "left",
-                padding: "12px 14px",
-                width: "100%",
-                background: selected ? "#FDC831" : "#FFFFFF",
-                border: `2px solid ${selected ? "#211E1E" : "rgba(33,30,30,0.15)"}`,
-                borderRadius: 8,
-                boxShadow: selected ? "2px 2px 0 #211E1E" : "none",
-                cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 14,
-                transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
-                position: "relative",
-              }}
-              onMouseEnter={(e) => {
-                if (!selected) {
-                  e.currentTarget.style.background = "#FFF9E6";
-                  e.currentTarget.style.borderColor = "#211E1E";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!selected) {
-                  e.currentTarget.style.background = "#FFFFFF";
-                  e.currentTarget.style.borderColor = "rgba(33,30,30,0.15)";
-                }
-              }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: "50%",
-                  background: "#211E1E", color: "#FDC831",
-                  display: "grid", placeItems: "center",
-                  fontSize: 12, fontWeight: 900, fontFamily: "'Archivo', sans-serif",
-                  flexShrink: 0,
-                }}>{s.firstName[0]}{s.lastName[0]}</div>
-
-                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: "#211E1E", fontFamily: "'Archivo', sans-serif" }}>
-                    {s.firstName} {s.lastName}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#78684C", fontFamily: "'Archivo', monospace" }}>
-                    {s.workEmail}
-                  </div>
-                </div>
-
-                <div style={{ fontSize: 12, color: "#4A3F2E", fontFamily: "'Archivo', sans-serif", fontWeight: 600, minWidth: 0, flex: "0 1 200px", textAlign: "left" }}>
-                  {s.title}
-                </div>
-
-                <div style={{ fontSize: 11, color: "#78684C", fontFamily: "'Archivo', sans-serif", fontWeight: 700, flex: "0 1 120px", textAlign: "left" }}>
-                  {s.department}
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  {loc && <CountryFlag country={loc.country} size={14} />}
-                  <div style={{
-                    fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
-                    padding: "3px 6px",
-                    background: selected ? "#211E1E" : "#F5F0E4",
-                    color: selected ? "#FDC831" : "#211E1E",
-                    borderRadius: 3,
-                  }}>{s.apps.size} apps</div>
-                </div>
-
-                {selected && (
-                  <div style={{
-                    width: 24, height: 24,
-                    background: "#211E1E", color: "#FDC831",
-                    border: "1px solid #211E1E", borderRadius: "50%",
-                    display: "grid", placeItems: "center",
-                    fontSize: 13, fontWeight: 900,
-                    flexShrink: 0,
-                  }}>✓</div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// STEP 1 — WHEN (TZ-AWARE)
-// This is the marquee step — HR picks a date + time in the Slicer's local
-// timezone, and the right panel shows that moment rendered in every Slice
-// office clock + flags business-hours concerns.
-// ============================================================================
-function OfbStepWhen({ draft, patch, errors }) {
-  const tz = ofbTzFor(draft.slicer?.location);
-  const utc = wallTimeInZoneToUTC(draft.lastDate, draft.lastTime, tz.iana);
-
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 20, alignItems: "flex-start" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <OnbCard title="Last working moment" kicker={`Entered in ${tz.label} time`}>
-        {/* TZ context banner — so HR never forgets what zone they're typing in */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "10px 12px",
-          background: "#211E1E", color: "#FDC831",
-          borderRadius: 6,
-        }}>
-          <CountryFlag country={tz.country} size={18} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 12, fontWeight: 800, letterSpacing: "0.02em" }}>
-              Typing in {draft.slicer?.firstName}'s local time
-            </div>
-            <div style={{ fontFamily: "'Archivo', monospace", fontSize: 10.5, opacity: 0.8, marginTop: 2 }}>
-              {tz.label} · {tz.site} · {tz.short}
-            </div>
-          </div>
-        </div>
-
-        <SliceDatePicker label="Last day"
-          value={draft.lastDate}
-          onChange={v => patch({ lastDate: v })}
-          required error={errors.lastDate} />
-
-        <SliceTimePicker label="Time (local)"
-          value={draft.lastTime}
-          onChange={v => patch({ lastTime: v })}
-          required error={errors.lastTime} />
-
-        {/* Plain-language sentence HR can read back to confirm */}
-        {utc && (
-          <div style={{
-            padding: "14px 16px",
-            background: "#FDC831",
-            border: "1px solid #211E1E", borderRadius: 8,
-          }}>
-            <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 6 }}>The Slicer experiences</div>
-            <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 14.5, fontWeight: 800, color: "#211E1E", lineHeight: 1.35,
-            }}>
-              {draft.slicer?.firstName}'s accounts lock at{" "}
-              <u>{formatInZone(utc, tz.iana).weekday}, {formatInZone(utc, tz.iana).date}, {formatInZone(utc, tz.iana).time}</u>{" "}
-              {tz.short} ({tz.label}).
-            </div>
-          </div>
-        )}
-      </OnbCard>
-
-      {/* Reason for leaving — compact card grid that matches onboarding's
-          select-card style (yellow when selected, charcoal-on-cream when not).
-          Dropped the per-reason glyph and colored left-border to stay
-          consistent with the rest of the platform. The reason's `tone` color
-          still shows as a small left dot so the visual hierarchy remains
-          (red termination still pops), without inventing an icon language. */}
-      {/* Reason for leaving — when invalid we wrap the whole card in a
-          dashed red border + a flashing "Required" badge in the kicker so
-          the omission isn't easy to miss. The previous treatment (a small
-          red line below the grid) was too quiet. */}
-      <div data-err={errors.reason ? "1" : undefined} style={{
-        position: "relative",
-        outline: errors.reason ? "3px solid #B92323" : "none",
-        outlineOffset: errors.reason ? 4 : 0,
-        borderRadius: errors.reason ? 10 : 0,
-        animation: errors.reason ? "shake .4s ease-in-out" : "none",
-      }}>
-      <OnbCard
-        title={
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            Reason for leaving
-            {errors.reason && (
-              <span style={{
-                fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase",
-                padding: "2px 7px",
-                background: "#B92323", color: "#FFFFFF",
-                borderRadius: 3,
-              }}>Required — pick one</span>
-            )}
-          </span>
-        }
-        kicker={errors.reason ? "Pick a reason to continue" : "Required"}
-      >
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6,
-        }}>
-          {OFB_REASONS.map(r => {
-            const selected = draft.reason === r.id;
-            return (
-              <button key={r.id} onClick={() => patch({ reason: r.id })}
-                style={{
-                  textAlign: "left",
-                  padding: "10px 12px",
-                  background: selected ? "#FDC831" : "#FFFFFF",
-                  border: `2px solid ${selected ? "#211E1E" : "rgba(33,30,30,0.18)"}`,
-                  borderRadius: 6,
-                  boxShadow: selected ? "1px 1px 0 #211E1E" : "none",
-                  cursor: "pointer",
-                  display: "grid",
-                  gridTemplateColumns: "auto 1fr",
-                  alignItems: "center",
-                  gap: 10,
-                  transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
-                }}
-                onMouseEnter={(e) => {
-                  if (!selected) {
-                    e.currentTarget.style.background = "#FFF9E6";
-                    e.currentTarget.style.borderColor = "#211E1E";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!selected) {
-                    e.currentTarget.style.background = "#FFFFFF";
-                    e.currentTarget.style.borderColor = "rgba(33,30,30,0.18)";
-                  }
-                }}>
-                <div style={{
-                  width: 8, height: 8, borderRadius: "50%",
-                  background: r.tone,
-                  flexShrink: 0,
-                }}/>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 12.5, fontWeight: 800, color: "#211E1E",
-                    letterSpacing: "-0.005em",
-                  }}>{r.label}</div>
-                  <div style={{
-                    fontSize: 10.5, color: "#78684C",
-                    fontWeight: 500, marginTop: 1, lineHeight: 1.3,
-                  }}>{r.sub}</div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        {/* Older inline error removed — the loud "Required" badge in the
-            card title (and the red outline around the whole card) is much
-            more discoverable than a quiet line of red text below the grid. */}
-        <div style={{ marginTop: 10 }}>
-          <div style={onbLabelStyle}>Additional notes</div>
-          <textarea
-            value={draft.reasonNote}
-            onChange={e => patch({ reasonNote: e.target.value })}
-            placeholder="Anything the next owner should know — handover, access caveats, partner-company move."
-            rows={3}
-            style={{
-              width: "100%", boxSizing: "border-box",
-              padding: "8px 10px",
-              background: "#FFFFFF",
-              border: "1px solid rgba(33,30,30,0.3)",
-              borderRadius: 6,
-              fontFamily: "'Archivo', sans-serif", fontSize: 12.5, color: "#211E1E",
-              resize: "vertical",
-            }}/>
-        </div>
-      </OnbCard>
-      {/* close wrapper for reason-error highlight */}
-      </div>
-
-      {/* Currently-assigned assets — pulled from the Assets platform by the
-          Slicer's ID. Read-only "this is what they have" surface that sits
-          directly under "Reason for leaving" in the LEFT column so HR sees
-          inventory next to the decision they just made. Hidden entirely if
-          the Slicer has no assets on file. */}
-      <AssignedAssetsCard slicer={draft.slicer} />
-      </div>
-
-      {/* TZ world clock — the centerpiece. Wrapped in a column so we can
-          stack the return-shipping card directly below it. Without the
-          wrapper the second card flows back into column 1 of the parent grid. */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <OnbCard title="Around the world" kicker="Same moment in every office">
-        {!utc ? (
-          <div style={{
-            padding: "24px",
-            textAlign: "center", color: "#78684C",
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 13, fontWeight: 600,
-            background: "#FFF9E6", border: "1px dashed #211E1E", borderRadius: 8,
-          }}>
-            Pick a date and time — we'll show it in every office clock so your team isn't surprised.
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {dedupeZones(OFB_TZS).map(z => {
-              const f = formatInZone(utc, z.iana);
-              const isSlicerTz = z.ids.includes(tz.id);
-              const outsideHours = f.hour24 < 7 || f.hour24 >= 20;  // before 7am or after 8pm
-              const primaryLabel = z.labels.length > 1
-                ? `${z.labels[0]} +${z.labels.length - 1}`
-                : z.labels[0];
-              const primaryCountry = z.countries[0];
-              return (
-                <div key={z.iana} style={{
-                  display: "grid",
-                  gridTemplateColumns: "auto 1fr auto auto",
-                  alignItems: "center", gap: 12,
-                  padding: "10px 12px",
-                  background: isSlicerTz ? "#FDC831" : "#FFFFFF",
-                  border: `2px solid ${isSlicerTz ? "#211E1E" : "rgba(33,30,30,0.3)"}`,
-                  borderRadius: 6,
-                  boxShadow: isSlicerTz ? "1px 1px 0 #211E1E" : "none",
-                }}>
-                  <CountryFlag country={primaryCountry} size={18} />
-                  <div>
-                    <div style={{
-                      fontFamily: "'Archivo', sans-serif",
-                      fontSize: 12, fontWeight: 800, color: "#211E1E",
-                      display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap",
-                    }}>
-                      <span title={z.labels.join(", ")}>{primaryLabel}</span>
-                      <span style={{
-                        fontFamily: "'Archivo', monospace",
-                        fontSize: 9.5, fontWeight: 800, color: "#78684C",
-                        padding: "1px 4px",
-                        background: "rgba(33,30,30,0.08)",
-                        borderRadius: 2,
-                      }}>{z.short}</span>
-                      {isSlicerTz && (
-                        <span style={{
-                          fontFamily: "'Archivo', sans-serif",
-                          fontSize: 8.5, fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase",
-                          padding: "1px 5px",
-                          background: "#211E1E", color: "#FDC831", borderRadius: 2,
-                        }}>Slicer's office</span>
-                      )}
-                    </div>
-                    <div style={{
-                      fontFamily: "'Archivo', sans-serif",
-                      fontSize: 10.5, color: "#78684C", fontWeight: 600, marginTop: 2,
-                    }}>
-                      {f.weekday}, {f.date}
-                      {z.labels.length > 1 && (
-                        <span style={{ opacity: 0.7 }}> · {z.labels.join(" · ")}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{
-                    fontFamily: "'Archivo', monospace",
-                    fontSize: 17, fontWeight: 800, color: "#211E1E",
-                    letterSpacing: "-0.01em",
-                    textAlign: "right",
-                  }}>
-                    <div>{f.time}</div>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: "#78684C", marginTop: 1 }}>
-                      {f.time24}
-                    </div>
-                  </div>
-                  {outsideHours ? (
-                    <div title="Outside typical business hours" style={{
-                      fontSize: 9.5, fontWeight: 900,
-                      fontFamily: "'Archivo', sans-serif",
-                      letterSpacing: "0.04em", textTransform: "uppercase",
-                      padding: "3px 6px",
-                      background: "#B92323", color: "#FFFFFF",
-                      borderRadius: 3,
-                    }}>After hrs</div>
-                  ) : (
-                    <div style={{ width: 62 }}/>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Weekend warning — IT on-call is skeletal on Sat/Sun, so flag only
-                when the Slicer's local last-day falls on a weekend. */}
-            {(() => {
-              const slicerLocal = formatInZone(utc, tz.iana);
-              const isWeekend = slicerLocal.weekday === "Sat" || slicerLocal.weekday === "Sun";
-              if (!isWeekend) return null;
-              return (
-                <div style={{
-                  marginTop: 4, padding: "10px 12px",
-                  background: "#FFF9E6",
-                  border: "1px dashed #B92323", borderRadius: 6,
-                  display: "flex", gap: 8, alignItems: "flex-start",
-                }}>
-                  <div style={{ fontSize: 16, lineHeight: 1 }}>⚠</div>
-                  <div style={{
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 11.5, fontWeight: 700, color: "#211E1E", lineHeight: 1.4,
-                  }}>
-                    {slicerLocal.weekday === "Sat" ? "Saturday" : "Sunday"} cutoff — IT is skeleton-staffed on weekends.
-                    Provisioning errors may not be caught until Monday. Consider moving to a weekday.
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-      </OnbCard>
-
-      {/* Return-shipping contact — IT needs an address + personal email +
-          phone to send the gear-return kit (and to coordinate pickup if
-          plans change). We don't carry these forward from onboarding —
-          people move — so HR re-enters them at exit. */}
-      <ReturnShipCard draft={draft} patch={patch} errors={errors} />
-      </div>{/* /right column */}
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------------
-// Return-shipping contact card. Lives at the bottom of Step 2 (right column),
-// directly under "Around the world". Keeps shipping-relevant data in one
-// table-like grid: address (stacked, with smart paste), then a 2-col row for
-// personal email + phone. Uses the same parser that onboarding uses, so HR
-// can paste a full address into line 1 and we'll split it.
-// ----------------------------------------------------------------------------
-// AssignedAssetsCard — read-only listing of all hardware currently assigned
-// to the Slicer. Sits between "Reason for leaving" and "Return-shipping
-// contact" on Step 2. Sourced from the Assets platform; in this mock we
-// resolve from slicer.hardware against ONB_HARDWARE catalog.
-//
-// Design choices (per HR):
-//   - 2 columns only: Model/name + Serial number. No status, no actions.
-//   - No summary strip, no platform-attribution chip. Looks native.
-//   - Returns null entirely when the Slicer has nothing assigned (we don't
-//     want a "No assets" empty state taking up vertical space).
-//
-// Mock serial generation is deterministic (slicer.id + hardware key) so the
-// same Slicer always shows the same serials across renders. When wiring
-// the real API, replace getMockSerial with the asset record's `serial`.
-// ----------------------------------------------------------------------------
-function AssignedAssetsCard({ slicer }) {
-  if (!slicer) return null;
-  const hw = slicer.hardware || {};
-
-  // Flatten the slicer's hardware into a list of { type, name, serial }.
-  // Order matches how IT logs assets in the platform: laptop first, then
-  // displays, then input devices, then audio, then accessories.
-  const rows = [];
-  const push = (type, prefix, catalog, id) => {
-    const item = catalog.find(x => x.id === id);
-    if (item) rows.push({ type, name: item.name, serial: getMockSerial(slicer.id, prefix, id) });
-  };
-  push("Laptop",   "LP", ONB_HARDWARE.laptops,   hw.laptop);
-  push("Monitor",  "MN", ONB_HARDWARE.monitors,  hw.monitor);
-  push("Keyboard", "KB", ONB_HARDWARE.keyboards, hw.keyboard);
-  push("Mouse",    "MS", ONB_HARDWARE.mice,      hw.mouse);
-  push("Audio",    "AU", ONB_HARDWARE.audio,     hw.audio);
-  (hw.extras || new Set()).forEach(eid => {
-    push("Accessory", "AC", ONB_HARDWARE.extras, eid);
-  });
-
-  // Hide the card entirely if the Slicer has no assets — per HR, an empty
-  // state would just be visual noise here.
-  if (rows.length === 0) return null;
-
-  return (
-    <OnbCard
-      title="Assigned assets"
-      kicker={`${rows.length} item${rows.length === 1 ? "" : "s"} on file`}
-    >
-      <div style={{
-        border: "1px solid #211E1E", borderRadius: 6, overflow: "hidden",
-      }}>
-        {/* Column header row — monospace eyebrow */}
-        <div style={{
-          display: "grid", gridTemplateColumns: "1fr 0.8fr",
-          padding: "8px 12px",
-          background: "#F4F0E8",
-          borderBottom: "1px solid #211E1E",
-          fontFamily: "'Archivo', monospace",
-          fontSize: 9.5, fontWeight: 800, color: "#5A5755",
-          letterSpacing: "0.08em", textTransform: "uppercase",
-        }}>
-          <span>Model</span>
-          <span>Serial</span>
-        </div>
-        {rows.map((r, i) => (
-          <div key={i} style={{
-            display: "grid", gridTemplateColumns: "1fr 0.8fr",
-            padding: "10px 12px",
-            background: i % 2 === 1 ? "#FCFAF5" : "#FFFFFF",
-            borderBottom: i === rows.length - 1 ? "none" : "1px solid #E5DFD2",
-            alignItems: "center",
-          }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 13.5, fontWeight: 700, color: "#211E1E",
-                lineHeight: 1.25,
-              }}>{r.name}</div>
-              <div style={{
-                fontFamily: "'Archivo', monospace",
-                fontSize: 9.5, fontWeight: 700, color: "#78684C",
-                letterSpacing: "0.06em", textTransform: "uppercase",
-                marginTop: 2,
-              }}>{r.type}</div>
-            </div>
-            <div style={{
-              fontFamily: "'Archivo', monospace",
-              fontSize: 12.5, fontWeight: 600, color: "#211E1E",
-              letterSpacing: "0.02em",
-            }}>{r.serial}</div>
-          </div>
-        ))}
-      </div>
-    </OnbCard>
-  );
-}
-
-// Deterministic mock serial — same slicer + same hardware id always yields
-// the same string. Replace with `assetRecord.serial` when the Assets API
-// is wired. Format: SLC-<TYPE_PREFIX>-<6 alphanumerics> (e.g. SLC-LP-A4F2K9).
-function getMockSerial(slicerId, prefix, hwId) {
-  const seed = `${slicerId}|${prefix}|${hwId}`;
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
-  }
-  // Map hash to a 6-char base36 string, padded.
-  const code = Math.abs(hash).toString(36).toUpperCase().padStart(6, "0").slice(0, 6);
-  return `SLC-${prefix}-${code}`;
-}
-
-// ----------------------------------------------------------------------------
-function ReturnShipCard({ draft, patch, errors = {} }) {
-  const hw = draft.hardware || {};
-  // Patch a single hardware key — keeps draft.hardware shallow-merged.
-  const setHw = (patches) => patch({ hardware: { ...hw, ...patches } });
-
-  // Required only for US/Canada Slicers (see missingFor in the parent for
-  // the matching gate). For other regions, IT collects shipping info over
-  // Slack closer to the date — we don't want to block HR from filing.
-  const country = draft.slicer
-    ? ONB_LOCATIONS.find(l => l.id === draft.slicer.location)?.country
-    : null;
-  const isRequired = country === "US" || country === "CA";
-
-  const onLine1Change = (v) => {
-    // Use onboarding's parseAddressString helper (loaded earlier in the
-    // bundle). Falls back to plain assignment if the input isn't comma-sep.
-    const parser = window.parseAddressString;
-    const parsed = parser ? parser(v) : null;
-    if (parsed) {
-      setHw({
-        shipAddress1: parsed.line1,
-        shipAddress2: parsed.line2 || hw.shipAddress2,
-        shipCity:     parsed.city  || hw.shipCity,
-        shipState:    parsed.state || hw.shipState,
-        shipZip:      parsed.zip   || hw.shipZip,
-      });
-    } else {
-      setHw({ shipAddress1: v });
-    }
-  };
-
-  return (
-    <OnbCard
-      title={
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          Return-shipping contact
-          <span style={{
-            fontFamily: "'Archivo', monospace",
-            fontSize: 9.5, fontWeight: 800,
-            padding: "2px 7px",
-            background: isRequired ? "#FFE4E4" : "#F4F0E8",
-            color:      isRequired ? "#B92323" : "#78684C",
-            border: `1.5px solid ${isRequired ? "#B92323" : "#C5BCA9"}`,
-            borderRadius: 3,
-            letterSpacing: "0.08em", textTransform: "uppercase",
-          }}>{isRequired ? "Required" : "Optional"}</span>
-        </span>
-      }
-      kicker={isRequired
-        ? "US/Canada — courier kit needs full details to ship"
-        : "Outside US/Canada — IT will follow up via Slack if needed"}
-    >
-      {/* Address — section header */}
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 11, fontWeight: 800, color: "#211E1E",
-        letterSpacing: "0.06em", textTransform: "uppercase",
-        marginBottom: 6,
-        display: "flex", alignItems: "center", gap: 6,
-      }}>
-        <span>Shipping address</span>
-        <span style={{
-          marginLeft: "auto",
-          fontSize: 10, fontWeight: 600,
-          color: "#5A5755", textTransform: "none", letterSpacing: 0,
-          fontStyle: "italic",
-        }}>Tip: paste a full address — we'll split it</span>
-      </div>
-
-      <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
-        <RetShipInput
-          label="Address line 1"
-          value={hw.shipAddress1 || ""}
-          onChange={onLine1Change}
-          placeholder="Street address — or paste full address"
-          required={isRequired}
-          error={errors.shipAddress1}
-        />
-        <RetShipInput
-          label="Address line 2"
-          value={hw.shipAddress2 || ""}
-          onChange={(v) => setHw({ shipAddress2: v })}
-          placeholder="Apt, suite, floor (optional)"
-        />
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 0.9fr", gap: 8 }}>
-          <RetShipInput
-            label="City"
-            value={hw.shipCity || ""}
-            onChange={(v) => setHw({ shipCity: v })}
-            placeholder="City"
-            required={isRequired}
-            error={errors.shipCity}
-          />
-          <RetShipInput
-            label="State / Region"
-            value={hw.shipState || ""}
-            onChange={(v) => setHw({ shipState: v })}
-            placeholder="State / Region"
-            required={isRequired}
-            error={errors.shipState}
-          />
-          <RetShipInput
-            label="ZIP / Postal"
-            value={hw.shipZip || ""}
-            onChange={(v) => setHw({ shipZip: v })}
-            placeholder="ZIP / Postal"
-            required={isRequired}
-            error={errors.shipZip}
-          />
-        </div>
-      </div>
-
-      {/* Contact — section header */}
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 11, fontWeight: 800, color: "#211E1E",
-        letterSpacing: "0.06em", textTransform: "uppercase",
-        marginBottom: 6,
-      }}>Contact for return logistics</div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 8 }}>
-        <RetShipInput
-          label="Personal email"
-          value={hw.shipPersonalEmail || ""}
-          onChange={(v) => setHw({ shipPersonalEmail: v })}
-          placeholder="name@example.com"
-          type="email"
-          required={isRequired}
-          error={errors.shipPersonalEmail}
-        />
-        <RetShipInput
-          label="Phone"
-          value={hw.shipPhone || ""}
-          onChange={(v) => setHw({ shipPhone: v })}
-          placeholder="(555) 012-3456"
-          type="tel"
-          required={isRequired}
-          error={errors.shipPhone}
-        />
-      </div>
-    </OnbCard>
-  );
-}
-
-// Lightweight input that matches the visual language of OnbInput. Supports
-// per-field error state (red border + inline message) so HR sees exactly
-// which fields are missing when US/Canada validation fails.
-function RetShipInput({ label, value, onChange, placeholder, type = "text", required = false, error }) {
-  const [focus, setFocus] = React.useState(false);
-  const borderColor = error ? "#B92323" : (focus ? "#FDC831" : "#211E1E");
-  const shadow      = error ? "2px 2px 0 #B92323" : (focus ? "2px 2px 0 #FDC831" : "none");
-  return (
-    <label style={{ display: "block" }}>
-      <div style={{
-        fontFamily: "'Archivo', monospace",
-        fontSize: 9.5, fontWeight: 700, color: error ? "#B92323" : "#5A5755",
-        letterSpacing: "0.08em", textTransform: "uppercase",
-        marginBottom: 4,
-        display: "flex", alignItems: "center", gap: 6,
-      }}>
-        <span>{label}</span>
-        {required && <span style={{ color: "#B92323", fontSize: 11, lineHeight: 1 }}>*</span>}
-      </div>
-      <div style={{
-        background: "#FFFFFF",
-        border: `2px solid ${borderColor}`,
-        borderRadius: 6,
-        boxShadow: shadow,
-        transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
-      }}>
-        <input
-          type={type} value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-          placeholder={placeholder}
-          style={{
-            width: "100%", boxSizing: "border-box",
-            padding: "10px 12px",
-            border: "none", outline: "none", background: "transparent",
-            fontSize: 14, color: "#211E1E",
-            fontFamily: "'Archivo', sans-serif", fontWeight: 500,
-          }}
-        />
-      </div>
-      {error && (
-        <div style={{
-          marginTop: 4,
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 11, fontWeight: 700, color: "#B92323",
-        }}>{error}</div>
-      )}
-    </label>
-  );
-}
-
-// ============================================================================
-// STEP 2 — ACCESS REVIEW
-// ============================================================================
-function OfbStepAccess({ draft, patch, patchHardware }) {
-  const slicer = draft.slicer;
-  const apps = slicer ? ONB_APPS.filter(a => slicer.apps.has(a.id)) : [];
-  const hw = slicer?.hardware || {};
-  const hwItems = [];
-  if (hw.laptop)   hwItems.push({ k: "Laptop",   ...ONB_HARDWARE.laptops.find(x => x.id === hw.laptop) });
-  if (hw.monitor)  hwItems.push({ k: "Monitor",  ...ONB_HARDWARE.monitors.find(x => x.id === hw.monitor) });
-  if (hw.keyboard) hwItems.push({ k: "Keyboard", ...ONB_HARDWARE.keyboards.find(x => x.id === hw.keyboard) });
-  if (hw.mouse)    hwItems.push({ k: "Mouse",    ...ONB_HARDWARE.mice.find(x => x.id === hw.mouse) });
-  if (hw.audio)    hwItems.push({ k: "Audio",    ...ONB_HARDWARE.audio.find(x => x.id === hw.audio) });
-  (hw.extras || new Set()).forEach(eid => {
-    const x = ONB_HARDWARE.extras.find(x => x.id === eid);
-    if (x) hwItems.push({ k: "Accessory", ...x });
-  });
-
-  const toggleApp = (id) => {
-    const nextRevoke = new Set(draft.revokeApps);
-    if (nextRevoke.has(id)) nextRevoke.delete(id);
-    else nextRevoke.add(id);
-    patch({ revokeApps: nextRevoke });
-  };
-
-  const appCostTotal = apps
-    .filter(a => draft.revokeApps.has(a.id))
-    .reduce((sum, a) => sum + (a.cost || 0), 0);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <OnbCard
-        title="Apps to revoke"
-        kicker={`${draft.revokeApps.size} of ${apps.length} selected · $${appCostTotal}/mo recovered`}
-        topLeftAction={
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => patch({ revokeApps: new Set(apps.map(a => a.id)) })}
-              style={ofbMiniBtn(true)}>All</button>
-            <button onClick={() => patch({ revokeApps: new Set() })}
-              style={ofbMiniBtn(false)}>None</button>
-          </div>
-        }>
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8,
-        }}>
-          {apps.map(a => {
-            const on = draft.revokeApps.has(a.id);
-            return (
-              <button key={a.id} onClick={() => toggleApp(a.id)} style={{
-                textAlign: "left",
-                display: "grid",
-                gridTemplateColumns: "auto 1fr auto",
-                alignItems: "center", gap: 10,
-                padding: "10px 12px",
-                background: on ? "#FFFFFF" : "rgba(33,30,30,0.04)",
-                border: `2px solid ${on ? "#B92323" : "rgba(33,30,30,0.25)"}`,
-                borderRadius: 6,
-                cursor: "pointer",
-                transition: "transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease",
-                opacity: on ? 1 : 0.65,
-              }}>
-                <img src={`https://www.google.com/s2/favicons?sz=32&domain=${a.favicon}`}
-                  alt="" width={20} height={20}
-                  style={{ borderRadius: 3 }}/>
-                <div>
-                  <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 12, fontWeight: 800, color: "#211E1E" }}>
-                    {a.name}
-                  </div>
-                  <div style={{ fontSize: 10, color: "#78684C", fontFamily: "'Archivo', monospace", marginTop: 1 }}>
-                    {on ? "Will revoke" : "Keep access"}
-                  </div>
-                </div>
-                <div style={{
-                  width: 20, height: 20,
-                  background: on ? "#B92323" : "#FFFFFF",
-                  border: "1px solid #211E1E",
-                  borderRadius: 3,
-                  display: "grid", placeItems: "center",
-                  color: "#FFFFFF", fontSize: 11, fontWeight: 900,
-                }}>{on ? "✕" : ""}</div>
-              </button>
-            );
-          })}
-        </div>
-      </OnbCard>
-
-      <OnbCard title="Hardware to recover" kicker={`${hwItems.length} item${hwItems.length === 1 ? "" : "s"} assigned`}>
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8,
-        }}>
-          {hwItems.map((item, i) => (
-            <div key={i} style={{
-              display: "flex", alignItems: "center", gap: 12,
-              padding: "10px 12px",
-              background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 6,
-            }}>
-              <div style={{
-                width: 50, height: 36,
-                display: "grid", placeItems: "center",
-                background: "#FFF9E6",
-                border: "1px solid rgba(33,30,30,0.25)",
-                borderRadius: 5,
-                color: "#211E1E",
-                flexShrink: 0,
-              }}>
-                <DeviceArt id={item.id} category={item.k} w={42} h={28} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="eyebrow" style={{ color: "#78684C", fontSize: 9, marginBottom: 3 }}>{item.k}</div>
-                <div style={{
-                  fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 800, color: "#211E1E",
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                }}>
-                  {item.name}
-                </div>
-                {item.spec && (
-                  <div style={{
-                    fontSize: 10.5, color: "#78684C", fontFamily: "'Archivo', monospace", marginTop: 2,
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>
-                    {item.spec}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Return logistics */}
-        <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
-          marginTop: 6,
-        }}>
-          <div>
-            <div style={onbLabelStyle}>Return method</div>
-            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-              {[
-                { id: true,  label: "Ship to office", desc: "Pre-paid box" },
-                { id: false, label: "Drop off",       desc: "In person" },
-              ].map(o => (
-                <button key={String(o.id)} onClick={() => patchHardware({ shipBox: o.id })}
-                  style={{
-                    flex: 1, padding: "10px 8px",
-                    background: draft.hardware.shipBox === o.id ? "#FDC831" : "#FFFFFF",
-                    border: "1px solid #211E1E", borderRadius: 6,
-                    boxShadow: draft.hardware.shipBox === o.id ? "1px 1px 0 #211E1E" : "none",
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 12, fontWeight: 800, color: "#211E1E",
-                    cursor: "pointer",
-                  }}>
-                  <div>{o.label}</div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "#78684C", marginTop: 2 }}>{o.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div style={onbLabelStyle}>Wipe policy</div>
-            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-              {[
-                { id: "factory", label: "Factory reset", desc: "Standard" },
-                { id: "archive", label: "Image + archive", desc: "Role transfer" },
-              ].map(o => (
-                <button key={o.id} onClick={() => patchHardware({ wipeMode: o.id })}
-                  style={{
-                    flex: 1, padding: "10px 8px",
-                    background: draft.hardware.wipeMode === o.id ? "#FDC831" : "#FFFFFF",
-                    border: "1px solid #211E1E", borderRadius: 6,
-                    boxShadow: draft.hardware.wipeMode === o.id ? "1px 1px 0 #211E1E" : "none",
-                    fontFamily: "'Archivo', sans-serif",
-                    fontSize: 12, fontWeight: 800, color: "#211E1E",
-                    cursor: "pointer",
-                  }}>
-                  <div>{o.label}</div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "#78684C", marginTop: 2 }}>{o.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </OnbCard>
-    </div>
-  );
-}
-
-function ofbMiniBtn(primary) {
-  return {
-    padding: "4px 8px",
-    background: primary ? "#211E1E" : "#FFFFFF",
-    color: primary ? "#FDC831" : "#211E1E",
-    border: "1px solid #211E1E", borderRadius: 4,
-    fontFamily: "'Archivo', sans-serif",
-    fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-    cursor: "pointer",
-  };
-}
-
-
-// ============================================================================
-// STEP 3 — REVIEW & FILE
-// ============================================================================
-function OfbStepReview({ draft }) {
-  const tz = ofbTzFor(draft.slicer?.location);
-  const utc = wallTimeInZoneToUTC(draft.lastDate, draft.lastTime, tz.iana);
-  const slicerTime = utc ? formatInZone(utc, tz.iana) : null;
-  const loc = ONB_LOCATIONS.find(l => l.id === draft.slicer?.location);
-  const reason = OFB_REASONS.find(r => r.id === draft.reason);
-  const appsRev = (draft.slicer ? ONB_APPS.filter(a => draft.revokeApps.has(a.id) && draft.slicer.apps.has(a.id)) : []);
-  const costTotal = appsRev.reduce((s, a) => s + (a.cost || 0), 0);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <OnbCard title="Offboarding summary" kicker="Review before filing">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <OfbReviewRow k="Slicer" v={
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: "50%",
-                background: "#211E1E", color: "#FDC831",
-                display: "grid", placeItems: "center",
-                fontSize: 12, fontWeight: 900, fontFamily: "'Archivo', sans-serif",
-              }}>{draft.slicer?.firstName[0]}{draft.slicer?.lastName[0]}</div>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 14, color: "#211E1E" }}>
-                  {draft.slicer?.firstName} {draft.slicer?.lastName}
-                </div>
-                <div style={{ fontSize: 11, color: "#78684C", fontFamily: "'Archivo', monospace" }}>
-                  {draft.slicer?.workEmail}
-                </div>
-              </div>
-            </div>
-          } />
-          <OfbReviewRow k="Role" v={<span>{draft.slicer?.title}<br/><span style={{ color: "#78684C", fontSize: 12 }}>{draft.slicer?.department} · reports to {draft.slicer?.manager || "—"}</span></span>} />
-          <OfbReviewRow k="Location" v={loc ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <CountryFlag country={loc.country} size={14} />
-              {loc.label} · <span style={{ fontFamily: "'Archivo', monospace", fontSize: 11, fontWeight: 800 }}>{loc.site}</span>
-            </span>
-          ) : "—"} />
-          <OfbReviewRow k="Reason" v={reason ? (
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "3px 8px",
-              background: "#FFF9E6",
-              border: `1.5px solid ${reason.tone}`,
-              borderRadius: 3,
-              fontWeight: 800, color: reason.tone, fontSize: 12,
-            }}>{reason.label}</span>
-          ) : "—"} />
-        </div>
-      </OnbCard>
-
-      <OnbCard title="When" kicker="Final lockout time">
-        {slicerTime && (
-          <div style={{
-            padding: "14px 18px",
-            background: "#FDC831",
-            border: "1px solid #211E1E", borderRadius: 8,
-          }}>
-            <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 5 }}>Accounts lock at</div>
-            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 900, color: "#211E1E", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
-              {slicerTime.weekday}, {slicerTime.date} · {slicerTime.time} {tz.short}
-            </div>
-            <div style={{ fontSize: 12, color: "#78684C", marginTop: 4, fontWeight: 600 }}>
-              Local time in {tz.label}, {draft.slicer?.firstName}'s office.
-            </div>
-          </div>
-        )}
-        {utc && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 8 }}>
-            {dedupeZones(OFB_TZS).filter(z => !z.ids.includes(tz.id)).map(z => {
-              const f = formatInZone(utc, z.iana);
-              const primaryLabel = z.labels.length > 1
-                ? `${z.sites[0]} +${z.sites.length - 1}`
-                : z.site;
-              return (
-                <div key={z.iana} style={{
-                  padding: "8px 10px",
-                  background: "#FFFFFF",
-                  border: "1px solid rgba(33,30,30,0.3)", borderRadius: 6,
-                  display: "flex", alignItems: "center", gap: 8,
-                }}>
-                  <CountryFlag country={z.countries[0]} size={14} />
-                  <div>
-                    <div style={{ fontFamily: "'Archivo', monospace", fontSize: 13, fontWeight: 800, color: "#211E1E" }}>
-                      {f.time}
-                    </div>
-                    <div style={{ fontSize: 9.5, color: "#78684C", fontWeight: 600 }} title={z.labels.join(", ")}>
-                      {primaryLabel} · {f.weekday}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </OnbCard>
-
-      <OnbCard title="Access & hardware" kicker={`${appsRev.length} apps · $${costTotal}/mo recovered`}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <div>
-            <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 6 }}>Revoking</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {appsRev.map(a => (
-                <span key={a.id} style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  padding: "3px 7px",
-                  background: "#FFFFFF",
-                  border: "1px solid #B92323", borderRadius: 3,
-                  fontSize: 11, fontWeight: 700, color: "#211E1E", fontFamily: "'Archivo', sans-serif",
-                }}>
-                  <img src={`https://www.google.com/s2/favicons?sz=16&domain=${a.favicon}`}
-                    alt="" width={12} height={12}/>
-                  {a.name}
-                </span>
-              ))}
-              {appsRev.length === 0 && <span style={{ fontSize: 12, color: "#78684C" }}>No apps selected</span>}
-            </div>
-          </div>
-          <div>
-            <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 6 }}>Hardware return</div>
-            <div style={{ fontSize: 12, color: "#211E1E", fontFamily: "'Archivo', sans-serif", fontWeight: 700, lineHeight: 1.6 }}>
-              {draft.hardware.shipBox ? "Pre-paid box shipped to Slicer" : "In-person drop-off"}<br/>
-              Wipe: <span style={{ fontFamily: "'Archivo', monospace", fontSize: 11 }}>{draft.hardware.wipeMode}</span>
-            </div>
-          </div>
-        </div>
-      </OnbCard>
-    </div>
-  );
-}
-
-function OfbReviewRow({ k, v }) {
-  return (
-    <div>
-      <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 4 }}>{k}</div>
-      <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, color: "#211E1E", lineHeight: 1.4 }}>
-        {v}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// FILED CONFIRMATION
-// ============================================================================
-function OffboardingFiled({ drafts, onDone }) {
-  // drafts is always an array now — multi-draft support comes free if we
-  // generate per-Slicer tickets but display a single confirmation page.
-  const list = Array.isArray(drafts) ? drafts : [drafts];
-  const isBulk = list.length > 1;
-  // Stable tickets per render — useMemo so re-renders during exit don't reshuffle.
-  const tickets = React.useMemo(
-    () => list.map(() => "OFB-" + Math.random().toString(36).slice(2, 8).toUpperCase()),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [list.length]
-  );
-
-  // Sort by lockout time ascending so the next-to-lock Slicer is at the top.
-  const rows = list.map((d, i) => {
-    const tz = ofbTzFor(d.slicer?.location);
-    const utc = wallTimeInZoneToUTC(d.lastDate, d.lastTime, tz.iana);
-    return { d, tz, utc, ticket: tickets[i], f: utc ? formatInZone(utc, tz.iana) : null };
-  }).sort((a, b) => (a.utc?.getTime() || 0) - (b.utc?.getTime() || 0));
-
-  return (
-    <div className="page" style={{ maxWidth: 1120, boxSizing: "content-box", margin: "80px auto", padding: "0 28px", textAlign: "center" }}>
-      <div style={{
-        maxWidth: isBulk ? 820 : 720, margin: "0 auto",
-        padding: "40px 36px",
-        background: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 12,
-        boxShadow: "3px 3px 0 #211E1E",
-      }}>
-        <div style={{
-          display: "inline-grid", placeItems: "center",
-          width: 64, height: 64,
-          background: "#FDC831",
-          border: "1px solid #211E1E", borderRadius: "50%",
-          margin: "0 auto 18px",
-          fontSize: 30, fontWeight: 900, color: "#211E1E",
-        }}>✓</div>
-        <h1 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 36, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1,
-          margin: 0, color: "#211E1E",
-        }}>{isBulk ? `${list.length} offboardings filed` : "Offboarding filed"}</h1>
-        {!isBulk && (
-          <p style={{ fontSize: 14.5, color: "#4A3F2E", margin: "12px 0 0", lineHeight: 1.5 }}>
-            IT will revoke <strong>{rows[0].d.slicer?.firstName}</strong>'s access at {rows[0].f ? `${rows[0].f.weekday}, ${rows[0].f.date}, ${rows[0].f.time} ${rows[0].tz.short}` : "—"}.<br/>
-            Hardware recovery is scheduled, and the manager has been looped in.
-          </p>
-        )}
-        {isBulk && (
-          <p style={{ fontSize: 14.5, color: "#4A3F2E", margin: "12px 0 0", lineHeight: 1.5 }}>
-            Each Slicer's access will revoke at their own lockout time. Tickets are below.
-          </p>
-        )}
-
-        {!isBulk && (
-          <div style={{
-            display: "inline-block",
-            marginTop: 20, padding: "8px 14px",
-            background: "#FFF9E6",
-            border: "1px solid #211E1E", borderRadius: 4,
-            fontFamily: "'Archivo', monospace",
-            fontSize: 12, fontWeight: 800, color: "#211E1E", letterSpacing: "0.04em",
-          }}>Ticket {rows[0].ticket}</div>
-        )}
-
-        {isBulk && (
-          <div style={{
-            marginTop: 22, textAlign: "left",
-            display: "grid", gap: 6,
-            maxHeight: 360, overflowY: "auto",
-          }}>
-            {rows.map((r, i) => (
-              <div key={r.ticket} style={{
-                display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 12,
-                alignItems: "center",
-                padding: "10px 12px",
-                background: "#FFF9E6",
-                border: "1px solid #211E1E", borderRadius: 6,
-              }}>
-                <span style={{
-                  fontFamily: "'Archivo', monospace",
-                  fontSize: 9.5, fontWeight: 900,
-                  padding: "2px 5px",
-                  background: "#211E1E", color: "#FDC831",
-                  borderRadius: 2,
-                }}>{String(i + 1).padStart(2, "0")}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{
-                    fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800,
-                    color: "#211E1E", letterSpacing: "-0.005em",
-                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  }}>{r.d.slicer?.firstName} {r.d.slicer?.lastName}</div>
-                  <div style={{
-                    fontFamily: "'Archivo', monospace", fontSize: 10.5, fontWeight: 700,
-                    color: "#78684C", marginTop: 1,
-                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  }}>{r.f ? `${r.f.date}, ${r.f.time24} ${r.tz.short}` : "—"}</div>
-                </div>
-                <div style={{
-                  fontFamily: "'Archivo', monospace",
-                  fontSize: 10.5, fontWeight: 800, color: "#211E1E",
-                  padding: "3px 7px",
-                  background: "#FFFFFF",
-                  border: "1px solid #211E1E", borderRadius: 3,
-                  letterSpacing: "0.04em",
-                }}>{r.ticket}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{ marginTop: 24 }}>
-          <button onClick={onDone} style={{
-            padding: "12px 22px",
-            background: "#211E1E", color: "#FDC831",
-            border: "1px solid #211E1E", borderRadius: 6,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 800,
-            letterSpacing: "0.05em", textTransform: "uppercase",
-            cursor: "pointer",
-          }}>Back to dashboard</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// DETAIL MODAL — clicked from the dashboard "Scheduled" rows
-// ============================================================================
-function OfbDetailModal({ ofb, slicer, onClose }) {
-  const loc = ONB_LOCATIONS.find(l => l.id === slicer.location);
-  const reason = OFB_REASONS.find(r => r.id === ofb.reason);
-  const tz = ofbTzFor(slicer.location);
-  const utc = wallTimeInZoneToUTC(ofb.lastDate, ofb.lastTime, tz.iana);
-
-  // IT auto-stage from checklist ticks. Display-only — doesn't mutate the
-  // source MOCK_OFB_IN_PROGRESS record.
-  const [autoStage, setAutoStage] = React.useState(null);
-  const effectiveStage = autoStage || ofb.stage;
-
-  React.useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return ReactDOM.createPortal((
-    <div className="overlay-in" onClick={onClose} style={{
-      position: "fixed", inset: 0, background: "rgba(33,30,30,0.55)",
-      display: "grid", placeItems: "center", zIndex: 1000, padding: 24,
-    }}>
-      <div className="overlay-panel-in" onClick={(e) => e.stopPropagation()} style={{
-        maxWidth: 760, width: "100%", maxHeight: "90vh",
-        display: "flex", flexDirection: "column", overflow: "hidden",
-        background: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 12,
-        boxShadow: "3px 3px 0 #211E1E",
-      }}>
-        {/* Header */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "12px 22px",
-          borderBottom: "1px solid #211E1E",
-          background: "#FDC831",
-          flex: "0 0 auto",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: "50%",
-              background: "#211E1E", color: "#FDC831",
-              display: "grid", placeItems: "center",
-              fontSize: 13, fontWeight: 900, fontFamily: "'Archivo', sans-serif",
-            }}>{slicer.firstName[0]}{slicer.lastName[0]}</div>
-            <div>
-              <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: "#211E1E" }}>
-                {slicer.firstName} {slicer.lastName}
-              </div>
-              <div style={{ fontSize: 11, color: "#78684C", fontFamily: "'Archivo', monospace", marginTop: 1 }}>
-                {slicer.workEmail}
-              </div>
-            </div>
-          </div>
-          <button onClick={onClose} style={{
-            width: 32, height: 32,
-            background: "#FFFFFF", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 4,
-            fontSize: 16, fontWeight: 900,
-            cursor: "pointer",
-          }}>×</button>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: "22px 24px", display: "flex", flexDirection: "column", gap: 18, flex: "1 1 auto", overflowY: "auto", minHeight: 0 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <OfbReviewRow k="Role"     v={`${slicer.title} · ${slicer.department}`} />
-            <OfbReviewRow k="Location" v={loc ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><CountryFlag country={loc.country} size={14}/>{loc.label} · {loc.site}</span> : "—"} />
-            <OfbReviewRow k="Manager"  v={slicer.manager || "—"} />
-            <OfbReviewRow k="Reason"   v={reason ? <span style={{ color: reason.tone, fontWeight: 800 }}>{reason.label}</span> : "—"} />
-          </div>
-
-          {utc && (
-            <div style={{
-              padding: "14px 18px",
-              background: "#FFF9E6",
-              border: "1px solid #211E1E", borderRadius: 8,
-            }}>
-              <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 6 }}>Scheduled lockout</div>
-              <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 900, color: "#211E1E", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
-                {formatInZone(utc, tz.iana).weekday}, {formatInZone(utc, tz.iana).date} · {formatInZone(utc, tz.iana).time} {tz.short}
-              </div>
-              <div style={{
-                marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 6,
-              }}>
-                {dedupeZones(OFB_TZS).filter(z => !z.ids.includes(tz.id)).map(z => {
-                  const f = formatInZone(utc, z.iana);
-                  const primaryLabel = z.sites.length > 1
-                    ? `${z.sites[0]} +${z.sites.length - 1}`
-                    : z.site;
-                  return (
-                    <div key={z.iana} style={{
-                      display: "flex", alignItems: "center", gap: 6,
-                      padding: "5px 8px",
-                      background: "#FFFFFF",
-                      border: "1px solid rgba(33,30,30,0.3)", borderRadius: 4,
-                    }}>
-                      <CountryFlag country={z.countries[0]} size={12} />
-                      <div>
-                        <div style={{ fontFamily: "'Archivo', monospace", fontSize: 11, fontWeight: 800, color: "#211E1E" }}>
-                          {f.time} <span style={{ fontSize: 9, fontWeight: 600, color: "#78684C" }}>· {f.time24}</span>
-                        </div>
-                        <div style={{ fontSize: 9, color: "#78684C", fontWeight: 600 }} title={z.labels.join(", ")}>{primaryLabel}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 6 }}>Apps to revoke · {slicer.apps.size}</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {ONB_APPS.filter(a => slicer.apps.has(a.id)).map(a => (
-                <span key={a.id} style={{
-                  display: "inline-flex", alignItems: "center", gap: 4,
-                  padding: "3px 7px",
-                  background: "#FFFFFF",
-                  border: "1px solid #211E1E", borderRadius: 3,
-                  fontSize: 11, fontWeight: 700, color: "#211E1E",
-                }}>
-                  <img src={`https://www.google.com/s2/favicons?sz=16&domain=${a.favicon}`}
-                    alt="" width={12} height={12}/>
-                  {a.name}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {(() => {
-            const hw = slicer.hardware || {};
-            const items = [];
-            if (hw.laptop)   items.push({ k: "Laptop",    ...ONB_HARDWARE.laptops.find(x => x.id === hw.laptop) });
-            if (hw.monitor)  items.push({ k: "Monitor",   ...ONB_HARDWARE.monitors.find(x => x.id === hw.monitor) });
-            if (hw.keyboard) items.push({ k: "Keyboard",  ...ONB_HARDWARE.keyboards.find(x => x.id === hw.keyboard) });
-            if (hw.mouse)    items.push({ k: "Mouse",     ...ONB_HARDWARE.mice.find(x => x.id === hw.mouse) });
-            if (hw.audio)    items.push({ k: "Audio",     ...ONB_HARDWARE.audio.find(x => x.id === hw.audio) });
-            (hw.extras || new Set()).forEach(eid => {
-              const x = ONB_HARDWARE.extras.find(x => x.id === eid);
-              if (x) items.push({ k: "Accessory", ...x });
-            });
-            if (items.length === 0) return null;
-            return (
-              <div>
-                <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 6 }}>
-                  Hardware to recover · {items.length}
-                </div>
-                <div style={{
-                  display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6,
-                }}>
-                  {items.map((it, i) => (
-                    <div key={i} style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "8px 10px",
-                      background: "#FFFFFF",
-                      border: "1px solid #211E1E", borderRadius: 5,
-                    }}>
-                      <div style={{
-                        width: 44, height: 30,
-                        display: "grid", placeItems: "center",
-                        background: "#FFF9E6",
-                        border: "1px solid rgba(33,30,30,0.2)",
-                        borderRadius: 4,
-                        color: "#211E1E",
-                        flexShrink: 0,
-                      }}>
-                        <DeviceArt id={it.id} category={it.k} w={34} h={22} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontFamily: "'Archivo', sans-serif", fontSize: 10,
-                          fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
-                          color: "#78684C",
-                        }}>{it.k}</div>
-                        <div style={{
-                          fontFamily: "'Archivo', sans-serif", fontSize: 12, fontWeight: 800, color: "#211E1E",
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                        }}>{it.name}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Stage card removed — IT provisioning state lives in the new
-              ticketing system, not here. */}
-
-        </div>
-      </div>
-    </div>
-  ), document.body);
-}
-
-// Expose to window for cross-file access
-Object.assign(window, {
-  OffboardingDashboard, OffboardingWizard, OffboardingFiled,
-  OfbStepPick, OfbStepWhen, OfbStepAccess, OfbStepReview,
-  OfbDetailModal,
-});
-
-// ─── offboarding-steps (4e33ea22) ──────────────────────────────────
-// ============================================================================
-// OFFBOARDING WIZARD
-// Mirrors the shape of onboarding.jsx: a Dashboard landing page → a 5-step
-// wizard that ends with a "filed" confirmation. Operates on a single Slicer
-// at a time (unlike Onboarding, which supports batched hires).
-//
-// Steps:
-//   0. Select Slicer
-//   1. Last day & time  ←  the key step. Multi-timezone preview so HR in
-//                           NYC/PRS/SK/DB/OH/BFS never misjudges the cutoff.
-//   2. Access review    ←  apps to revoke + hardware to recover, pulled from
-//                           the Slicer's current record.
-//   3. Handover         ←  reason, transfer owner, manager ack, mailbox fwd.
-//   4. Review & file    ←  final summary + submit.
-//
-// Reuses from onboarding.jsx (loaded first):
-//   ONB_LOCATIONS, ONB_APPS, ONB_HARDWARE, MOCK_COMPLETED_SLICERS,
-//   CountryFlag, OnbCard, OnbInput, onbLabelStyle, IconArrowLeft
-// ============================================================================
-
-// ---------- TZ CATALOG ----------
-// Office timezones, with IANA names for Intl.DateTimeFormat. HR enters a
-// date+time "as-of the Slicer's local wall clock"; we project that moment
-// into every office so the team can see exactly when lockouts fire for them.
-const OFB_TZS = [
-  { id: "us_ny",  country: "US", label: "New York",   site: "NYC", iana: "America/New_York",    short: "ET"  },
-  { id: "xk_prs", country: "XK", label: "Prishtina",  site: "PRS", iana: "Europe/Belgrade",      short: "CET" },
-  { id: "mk_db",  country: "MK", label: "Debar",      site: "DB",  iana: "Europe/Skopje",        short: "CET" },
-  { id: "mk_sk",  country: "MK", label: "Skopje",     site: "SK",  iana: "Europe/Skopje",        short: "CET" },
-  { id: "mk_oh",  country: "MK", label: "Ohrid",      site: "OH",  iana: "Europe/Skopje",        short: "CET" },
-  { id: "ie_bfs", country: "GB", label: "Belfast",    site: "BFS", iana: "Europe/London",        short: "GMT" },
-];
-
-// Map an onboarding location id → offboarding TZ entry (they share ids, but
-// kept as a lookup to be defensive against future drift).
-function ofbTzFor(locationId) {
-  return OFB_TZS.find(t => t.id === locationId) || OFB_TZS[0];
-}
-
-// Parse a (date, time) pair typed against a given IANA zone and return a
-// JS Date representing that instant in UTC. We don't have a TZ library; we
-// approximate by computing the target zone's UTC offset at that wall time
-// via Intl.DateTimeFormat.formatToParts — works correctly across DST because
-// we ask the zone what UTC corresponds to the wall clock we typed.
-function wallTimeInZoneToUTC(dateStr, timeStr, iana) {
-  if (!dateStr || !timeStr) return null;
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const [hh, mm] = timeStr.split(":").map(Number);
-  // "Naive" UTC guess: pretend the wall clock was UTC.
-  const naive = Date.UTC(y, m - 1, d, hh, mm, 0);
-  // Find out what that UTC moment reads as in the target zone, and compute
-  // the delta — that's the zone's offset at that instant.
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: iana,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false,
-  });
-  const parts = fmt.formatToParts(new Date(naive)).reduce((o, p) => { o[p.type] = p.value; return o; }, {});
-  const asZone = Date.UTC(
-    +parts.year, +parts.month - 1, +parts.day,
-    +parts.hour === 24 ? 0 : +parts.hour, +parts.minute, 0,
-  );
-  const offset = asZone - naive; // ms the zone is ahead of UTC at this wall time
-  return new Date(naive - offset);
-}
-
-// Format a UTC instant in a given IANA zone, returning nicely structured parts.
-function formatInZone(utcDate, iana) {
-  if (!utcDate) return { date: "—", time: "—", weekday: "", hour24: null };
-  const fmt = new Intl.DateTimeFormat("en-GB", {
-    timeZone: iana,
-    weekday: "short", month: "short", day: "numeric", year: "numeric",
-    hour: "2-digit", minute: "2-digit", hour12: false,
-  });
-  const parts = fmt.formatToParts(utcDate).reduce((o, p) => { o[p.type] = p.value; return o; }, {});
-  // "24-hour" quirk: Intl/en-GB returns "24:00" for midnight. Normalize to 0
-  // for both the numeric hour AND the display string, otherwise the picker
-  // shows "24:00" instead of "12:00 AM".
-  const rawHour = parts.hour === "24" ? 0 : +parts.hour;
-  const minute = parts.minute;
-  // Build a 12-hour AM/PM display — HR types/reviews in local-wall terms,
-  // so we mirror the picker's meridiem-based UI back to them.
-  const period = rawHour >= 12 ? "PM" : "AM";
-  const h12 = rawHour % 12 === 0 ? 12 : rawHour % 12;
-  return {
-    weekday: parts.weekday,
-    date: `${parts.month} ${parts.day}, ${parts.year}`,
-    time: `${h12}:${minute} ${period}`,
-    time24: `${String(rawHour).padStart(2, "0")}:${minute}`,
-    hour24: rawHour,
-  };
-}
-
-// Collapse offices that share the same IANA zone into a single row.
-// Preserves the order of the first occurrence and concatenates labels.
-// Returns entries shaped like OFB_TZS items with extra { labels, sites, countries, ids }.
-function dedupeZones(tzs) {
-  const seen = new Map();
-  tzs.forEach(z => {
-    const prev = seen.get(z.iana);
-    if (!prev) {
-      seen.set(z.iana, {
-        ...z,
-        labels: [z.label],
-        sites: [z.site],
-        countries: [z.country],
-        ids: [z.id],
-      });
-    } else {
-      prev.labels.push(z.label);
-      prev.sites.push(z.site);
-      if (!prev.countries.includes(z.country)) prev.countries.push(z.country);
-      prev.ids.push(z.id);
-    }
-  });
-  return Array.from(seen.values());
-}
-
-// ---------- BLANK OFFBOARDING DRAFT ----------
-function makeBlankOffboarding() {
-  return {
-    slicer: null,          // full Slicer record from MOCK_COMPLETED_SLICERS
-    lastDate: "",          // YYYY-MM-DD (wall clock in Slicer's local TZ)
-    lastTime: "17:00",     // 24h HH:MM
-    reason: "",            // "resignation" | "termination" | "contract_end" | "retirement" | "role_change"
-    reasonNote: "",
-    revokeApps: new Set(), // apps to revoke (default: all)
-    keepApps: new Set(),   // apps to keep (e.g. personal Google archive)
-    hardware: {
-      returnAll: true,
-      shipBox: true,
-      returnTo: "",        // auto-inferred from Slicer's location
-      wipeMode: "factory", // 'factory' | 'archive'
-      // Return-shipping address & contact for the EXITING Slicer. Pre-filled
-      // from the Slicer's onboarding record but editable here, since people
-      // move between hire and exit. Used by IT to send a return-shipping kit
-      // for laptop/peripherals when shipBox=true.
-      shipAddress1: "",
-      shipAddress2: "",
-      shipCity: "",
-      shipState: "",
-      shipZip: "",
-      shipPersonalEmail: "",
-      shipPhone: "",
-    },
-    handover: {
-      transferOwner: "",   // name of the person taking ownership
-      managerAck: false,
-      mailboxFwd: true,
-      mailboxFwdTo: "",
-      driveTransfer: true,
-      driveTransferTo: "",
-      calendarRelease: true,
-    },
-    exitNote: "",
-  };
-}
-
-// ---------- IN-PROGRESS OFFBOARDING MOCK ----------
-// Shown on the dashboard to demonstrate the "pipeline" view. Each uses a
-// Slicer pulled from MOCK_COMPLETED_SLICERS so the join is clean.
-const MOCK_OFB_IN_PROGRESS = [
-  { id: "o_mira",  slicerId: "sl_mira",  lastDate: "2026-05-02", lastTime: "18:00", reason: "resignation",   stage: "Access being revoked", progress: 3 },
-  { id: "o_ben",   slicerId: "sl_ben",   lastDate: "2026-05-09", lastTime: "17:30", reason: "contract_end",  stage: "Hardware return scheduled", progress: 2 },
-];
-
-// Completed offboardings — the archive. Synthesized Slicers for history-only records.
-const MOCK_OFB_COMPLETED = [
-  { id: "o_arch_01", name: "Linnea Holm",         title: "Senior Backend Engineer",   department: "Platform",      location: "mk_sk",  lastDate: "2026-04-18", reason: "resignation",   filedBy: "Alex Park",    daysToComplete: 9  },
-  { id: "o_arch_02", name: "Dario Russo",         title: "Account Manager",           department: "Enterprise",    location: "us_nyc", lastDate: "2026-04-11", reason: "termination",   filedBy: "Jamie Chen",   daysToComplete: 1  },
-  { id: "o_arch_03", name: "Priya Ramaswamy",     title: "Staff Product Designer",    department: "Product Design", location: "ie_bfs",lastDate: "2026-04-02", reason: "resignation",   filedBy: "Alex Park",    daysToComplete: 14 },
-  { id: "o_arch_04", name: "Oriol Serra",         title: "Sales Development Rep",     department: "Growth",        location: "xk_prs", lastDate: "2026-03-28", reason: "contract_end",  filedBy: "Jamie Chen",   daysToComplete: 5  },
-  { id: "o_arch_05", name: "Tomás Fernández",     title: "People Operations Lead",    department: "People Ops",    location: "us_nyc", lastDate: "2026-03-20", reason: "retirement",    filedBy: "Alex Park",    daysToComplete: 21 },
-  { id: "o_arch_06", name: "Selma Bajrami",       title: "QA Engineer II",            department: "Platform",      location: "mk_db",  lastDate: "2026-03-15", reason: "role_change",   filedBy: "Alex Park",    daysToComplete: 3  },
-  { id: "o_arch_07", name: "Noah Weiss",          title: "Data Analyst",              department: "Analytics",     location: "us_nyc", lastDate: "2026-03-07", reason: "resignation",   filedBy: "Jamie Chen",   daysToComplete: 7  },
-  { id: "o_arch_08", name: "Elira Dushi",         title: "Customer Support Agent",    department: "Support",       location: "mk_oh",  lastDate: "2026-02-28", reason: "contract_end",  filedBy: "Alex Park",    daysToComplete: 2  },
-  { id: "o_arch_09", name: "Marko Jovanovski",    title: "DevOps Engineer",           department: "Platform",      location: "mk_sk",  lastDate: "2026-02-21", reason: "resignation",   filedBy: "Alex Park",    daysToComplete: 11 },
-  { id: "o_arch_10", name: "Clodagh McBride",     title: "Content Strategist",        department: "Marketing",     location: "ie_bfs", lastDate: "2026-02-14", reason: "resignation",   filedBy: "Jamie Chen",   daysToComplete: 8  },
-  { id: "o_arch_11", name: "Valon Krasniqi",      title: "Mobile Engineer",           department: "Product Eng",   location: "xk_prs", lastDate: "2026-02-06", reason: "termination",   filedBy: "Alex Park",    daysToComplete: 1  },
-  { id: "o_arch_12", name: "Hannah Kowalski",     title: "Recruiter",                 department: "People Ops",    location: "us_nyc", lastDate: "2026-01-30", reason: "resignation",   filedBy: "Jamie Chen",   daysToComplete: 6  },
-];
-
-// Reasons catalog — ordered by frequency, with a tone color each.
-const OFB_REASONS = [
-  { id: "resignation",  label: "Resignation",       tone: "#4A7F9E", sub: "They gave notice. Standard last-day flow." },
-  { id: "termination",  label: "Termination",       tone: "#B92323", sub: "Involuntary. Access revokes immediately." },
-  { id: "contract_end", label: "End of contract",   tone: "#78684C", sub: "Contractor or fixed-term wrap-up." },
-  { id: "retirement",   label: "Retirement",        tone: "#D49B3A", sub: "Leaving the workforce." },
-  { id: "role_change",  label: "Internal transfer", tone: "#3F7A4E", sub: "Moving to another team or entity." },
-];
-
-// ---------- ROOT ----------
-// Drafts are an array — single offboarding is just length=1, bulk uses
-// length>1. Mirrors how Onboarding handles bulk hires.
-function Offboarding({ onBack, onFiled }) {
-  const [mode, setMode] = React.useState("dashboard");  // 'dashboard' | 'wizard' | 'history'
-  const [drafts, setDrafts] = React.useState([makeBlankOffboarding()]);
-  const [currentIdx, setCurrentIdx] = React.useState(0);
-
-  // Reset scroll on every sub-mode swap (dashboard ↔ wizard ↔ history). The
-  // top-level App also resets on stage change, but sub-mode changes inside
-  // Offboarding don't bubble up — without this, switching to history while
-  // scrolled deep on the dashboard leaves the new view scrolled offscreen.
-  useScrollToTop([mode]);
-
-  // Hard cap on bulk size — see questionnaire (max_bulk=30). Beyond this,
-  // HR should be using a CSV import flow we haven't built yet.
-  const MAX_BULK = 30;
-
-  // Build a draft for a Slicer (or blank if none). Pre-seeds revokeApps and
-  // returnTo from the Slicer record so HR doesn't have to retype.
-  const draftFor = (slicer) => {
-    const base = makeBlankOffboarding();
-    if (slicer) {
-      base.slicer = slicer;
-      base.revokeApps = new Set(slicer.apps);
-      base.hardware.returnTo = slicer.location;
-    }
-    base._id = "ofbd_" + Math.random().toString(36).slice(2, 9);
-    return base;
-  };
-
-  const startWizard = (slicer = null) => {
-    setDrafts([draftFor(slicer)]);
-    setCurrentIdx(0);
-    setMode("wizard");
-  };
-
-  // "+ Bulk offboard" — open the wizard with N blank drafts (default 2).
-  // The bulk-add modal asks for the count, like onboarding does.
-  const startBulk = (count = 2) => {
-    const n = Math.max(2, Math.min(MAX_BULK, count));
-    setDrafts(Array.from({ length: n }, () => draftFor(null)));
-    setCurrentIdx(0);
-    setMode("wizard");
-  };
-
-  if (mode === "dashboard") {
-    return <OffboardingDashboard
-      onBack={onBack}
-      onStart={() => startWizard()}
-      onStartBulk={(n) => startBulk(n)}
-      onStartFor={(s) => startWizard(s)}
-      onHistory={() => setMode("history")}
-      maxBulk={MAX_BULK}
-    />;
-  }
-
-  if (mode === "history") {
-    return <OffboardingHistory onBack={() => setMode("dashboard")} />;
-  }
-
-  return (
-    <OffboardingWizard
-      drafts={drafts}
-      setDrafts={setDrafts}
-      currentIdx={currentIdx}
-      setCurrentIdx={setCurrentIdx}
-      maxBulk={MAX_BULK}
-      makeBlankDraft={() => draftFor(null)}
-      onBack={() => setMode("dashboard")}
-      onFiled={onFiled}
-    />
-  );
-}
-
-// ============================================================================
-// DASHBOARD
-// ============================================================================
-function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHistory, maxBulk }) {
-  const [detail, setDetail] = React.useState(null);
-  const [bulkOpen, setBulkOpen] = React.useState(false);
-
-  // Scheduled-section filters
-  const [fLoc, setFLoc] = React.useState("all");
-  const [fDays, setFDays] = React.useState("all");
-  const [fReason, setFReason] = React.useState("all");
-  const [fSteps, setFSteps] = React.useState("all");
-  // Free-text search across the scheduled list — matches name, role, dept, manager, email.
-  const [query, setQuery] = React.useState("");
-  const q = query.trim().toLowerCase();
-
-  // Resolve in-progress rows once (slicer join), then filter.
-  const inProgressRows = React.useMemo(() => {
-    return MOCK_OFB_IN_PROGRESS.map(o => {
-      const s = MOCK_COMPLETED_SLICERS.find(x => x.id === o.slicerId);
-      return s ? { ofb: o, slicer: s } : null;
-    }).filter(Boolean);
-  }, []);
-  const filteredScheduled = React.useMemo(() => {
-    return inProgressRows.filter(({ ofb, slicer }) => {
-      if (fLoc !== "all" && slicer.location !== fLoc) return false;
-      if (fReason !== "all" && ofb.reason !== fReason) return false;
-      if (fDays !== "all") {
-        const days = Math.ceil((new Date(ofb.lastDate) - new Date()) / (1000 * 60 * 60 * 24));
-        if (fDays === "3" && !(days <= 3)) return false;
-        if (fDays === "7" && !(days <= 7)) return false;
-        if (fDays === "14" && !(days <= 14)) return false;
-        if (fDays === "14plus" && !(days > 14)) return false;
-      }
-      if (fSteps !== "all") {
-        const it = (typeof getItProgress === "function")
-          ? getItProgress("offboard", ofb.id, ofb.stage)
-          : { done: 0, total: 4 };
-        if (fSteps === "incomplete" && it.done >= it.total) return false;
-        if (fSteps === "stuck" && it.done > 0) return false;
-      }
-      if (q) {
-        const name = `${slicer.preferredName || slicer.firstName || ""} ${slicer.lastName || ""}`.toLowerCase();
-        const hay = [name, slicer.title, slicer.department, slicer.team, slicer.topDept, slicer.manager, slicer.workEmail, ofb.reason]
-          .filter(Boolean).map(s => String(s).toLowerCase());
-        if (!hay.some((f) => f.includes(q))) return false;
-      }
-      return true;
-    });
-  }, [inProgressRows, fLoc, fDays, fReason, fSteps, q]);
-
-  // Locations actually present in the scheduled list (no empty options).
-  const locOptions = React.useMemo(() => {
-    const ids = [...new Set(inProgressRows.map(r => r.slicer.location))];
-    return ids.map(id => ONB_LOCATIONS.find(l => l.id === id)).filter(Boolean);
-  }, [inProgressRows]);
-  const reasonOptions = React.useMemo(() => {
-    const ids = [...new Set(inProgressRows.map(r => r.ofb.reason))];
-    return ids.map(id => OFB_REASONS.find(r => r.id === id)).filter(Boolean);
-  }, [inProgressRows]);
-  const hasFilters = fLoc !== "all" || fDays !== "all" || fSteps !== "all";
-
-  return (
-    <div data-screen-label="Offboarding Dashboard" className="page" style={{ minHeight: "100vh", background: "#FDC831" }}>
-      {/* Hero strip — full-bleed cream banner. Mirrors Knowledge / Status so
-          the People Ops modules feel like part of the same product family. */}
-      <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "28px 32px 32px",
-      }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-      {/* Top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-              const arr = e.currentTarget.querySelector("svg");
-              if (arr) arr.style.transform = "translateX(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
-              const arr = e.currentTarget.querySelector("svg");
-              if (arr) arr.style.transform = "none";
-            }}
-            onMouseDown={(e) => {
-              e.currentTarget.style.transform = "translate(1px,1px)";
-              e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
-            }}
-            onMouseUp={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "7px 12px 7px 10px",
-              background: "#FFFFFF", border: "1px solid #211E1E",
-              borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 11.5,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#211E1E", cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}>
-            <IconArrowLeft size={13} stroke={2.5} style={{ transition: "transform .15s ease" }} />
-            Exit to IT Hub
-          </button>
-          <button className="onb-history-btn" onClick={onHistory}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
-            }}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "7px 12px",
-              background: "#FFFFFF", border: "1px solid #211E1E",
-              borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 11.5,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#211E1E", cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}>
-            <svg className="onb-history-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-              style={{ transition: "transform .5s cubic-bezier(.34,1.56,.64,1)" }}>
-              <path d="M3 12a9 9 0 1 0 3-6.7"/>
-              <path d="M3 4v5h5"/>
-              <path d="M12 7v5l3 2"/>
-            </svg>
-            History
-            <span style={{
-              fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
-              padding: "1px 5px",
-              background: "#211E1E", color: "#FDC831",
-              borderRadius: 2, marginLeft: 2,
-            }}>{MOCK_OFB_COMPLETED.length}</span>
-          </button>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Secondary CTA — bulk offboarding (RIF / layoff event). White-on-charcoal
-              treatment so HR has to read it; this is rarely the right tool but
-              when it's right, it's really right. */}
-          <button className="onb-bulk-btn" onClick={() => setBulkOpen(true)}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "12px 18px",
-              background: "#FFFFFF", color: "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
-              boxShadow: "2px 2px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 13,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}>
-            {/* Stacked-people icon to telegraph "multiple Slicers at once" */}
-            <svg className="onb-bulk-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-              style={{ transition: "transform .25s cubic-bezier(.34,1.56,.64,1)", transformOrigin: "center" }}>
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            Bulk offboard
-          </button>
-          <button className="onb-start-btn" onClick={onStart}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "12px 22px",
-              background: "#FDC831", color: "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
-              boxShadow: "2px 2px 0 #211E1E",
-              fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: 13,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              cursor: "pointer",
-              transition: "transform .12s ease, box-shadow .12s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-            }}>
-            <span className="onb-start-plus" style={{
-              fontSize: 15, fontWeight: 900, lineHeight: 1,
-              display: "inline-block",
-              transition: "transform .3s cubic-bezier(.34,1.56,.64,1)",
-              transformOrigin: "center",
-            }}>+</span> File an offboarding
-          </button>
-        </div>
-      </div>
-
-      {/* Hero */}
-      <div>
-        <h1 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 40, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.02,
-          margin: 0, color: "#211E1E",
-        }}>Offboarding Dashboard</h1>
-      </div>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "40px 32px 80px" }}>
-
-      {/* Search + inline filters — search left, filter dropdowns right.
-          Modern: no wrapping yellow bar, just an inline row. */}
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ position: "relative", flex: 1, minWidth: 260 }}>
-          <div style={{
-            position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)",
-            color: "#78684C", pointerEvents: "none",
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          </div>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name, role, manager, team, or reason…"
-            style={{
-              width: "100%", padding: "11px 16px 11px 42px",
-              background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 8,
-              fontFamily: "'Archivo', sans-serif", fontSize: 13.5, fontWeight: 600, color: "#211E1E",
-              outline: "none", boxSizing: "border-box",
-              boxShadow: "1px 1px 0 #211E1E",
-            }} />
-          {query && (
-            <button type="button" onClick={() => setQuery("")} aria-label="Clear search" style={{
-              position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-              width: 24, height: 24, padding: 0, cursor: "pointer",
-              background: "#F7F4EF", border: "1px solid #211E1E", borderRadius: "50%",
-              display: "grid", placeItems: "center", color: "#211E1E",
-            }}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
-            </button>
-          )}
-        </div>
-
-        {/* Filter dropdowns — to the right of the search */}
-        <RosterFilterPill
-          label="Location"
-          value={fLoc}
-          onChange={setFLoc}
-          options={[
-            { id: "all", label: "All locations" },
-            ...locOptions.map(l => ({
-              id: l.id,
-              label: `${l.label} · ${l.site}`,
-              icon: <CountryFlag country={l.country} size={11} />,
-            })),
-          ]}
-        />
-        <RosterFilterPill
-          label="Last day"
-          value={fDays}
-          onChange={setFDays}
-          options={[
-            { id: "all", label: "Any time" },
-            { id: "3", label: "≤ 3 days" },
-            { id: "7", label: "≤ 7 days" },
-            { id: "14", label: "≤ 14 days" },
-            { id: "14plus", label: "> 14 days" },
-          ]}
-        />
-        <RosterFilterPill
-          label="IT progress"
-          value={fSteps}
-          onChange={setFSteps}
-          options={[
-            { id: "all", label: "Any" },
-            { id: "incomplete", label: "Incomplete only" },
-            { id: "stuck", label: "Not started" },
-          ]}
-        />
-        {hasFilters && (
-          <button onClick={() => { setFLoc("all"); setFDays("all"); setFSteps("all"); }}
-            style={{
-              padding: "6px 12px",
-              background: "transparent",
-              border: "none", borderRadius: 4,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 11, fontWeight: 800,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#78684C", cursor: "pointer",
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = "#211E1E"}
-            onMouseLeave={(e) => e.currentTarget.style.color = "#78684C"}
-          >Clear</button>
-        )}
-
-        {q && (
-          <span style={{
-            fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 700,
-            color: "#78684C", letterSpacing: "0.04em", textTransform: "uppercase",
-            marginLeft: "auto",
-          }}>{filteredScheduled.length} match{filteredScheduled.length === 1 ? "" : "es"}</span>
-        )}
-      </div>
-
-      {/* In-progress offboardings */}
-      <OfbSection title="Scheduled" count={filteredScheduled.length} kicker="Not yet offboarded">
-        {filteredScheduled.length === 0 ? (
-          <div style={{
-            padding: "20px 16px",
-            background: "#FFFFFF",
-            border: "1px dashed rgba(33,30,30,0.25)", borderRadius: 8,
-            textAlign: "center",
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 13, fontWeight: 700, color: "#78684C",
-          }}>
-            No scheduled offboardings match these filters.
-          </div>
-        ) : (
-          <div style={{ display: "grid", gap: 10 }}>
-            {filteredScheduled.map(({ ofb, slicer }) => (
-              <OfbInProgressRow key={ofb.id} ofb={ofb} slicer={slicer}
-                onOpen={() => setDetail({ ofb, slicer })} />
-            ))}
-          </div>
-        )}
-      </OfbSection>
-
-      {detail && <OfbDetailModal ofb={detail.ofb} slicer={detail.slicer} onClose={() => setDetail(null)} />}
-      {bulkOpen && <BulkOffboardModal
-        maxBulk={maxBulk}
-        onCancel={() => setBulkOpen(false)}
-        onConfirm={(count) => { setBulkOpen(false); onStartBulk(count); }}
-      />}
-      </div>
-    </div>
-  );
-}
-
-function OfbSection({ title, count, kicker, children }) {
-  return (
-    <div style={{ marginBottom: 32 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <h2 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em",
-          color: "#211E1E", margin: 0, lineHeight: 1,
-        }}>{title}</h2>
-        <div style={{
-          fontFamily: "'Archivo', monospace",
-          fontSize: 12, fontWeight: 800, lineHeight: 1,
-          minWidth: 22, height: 22,
-          padding: "0 7px",
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          background: "#FDC831", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 3,
-        }}>{count}</div>
-        <div style={{ flex: 1 }}/>
-        <div className="eyebrow" style={{ color: "#78684C", fontSize: 10 }}>{kicker}</div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function OfbInProgressRow({ ofb, slicer, onOpen }) {
-  const loc = ONB_LOCATIONS.find(l => l.id === slicer.location);
-  const reason = OFB_REASONS.find(r => r.id === ofb.reason);
-  const last = new Date(ofb.lastDate);
-  const daysUntil = Math.ceil((last - new Date()) / (1000 * 60 * 60 * 24));
-  const daysLabel = daysUntil <= 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `In ${daysUntil} days`;
-  return (
-    <button onClick={onOpen} className="onb-row-hover" style={{
-      textAlign: "left",
-      display: "grid",
-      gridTemplateColumns: "auto 1fr auto auto auto",
-      alignItems: "center", gap: 18,
-      padding: "14px 18px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 10,
-      boxShadow: "2px 2px 0 #211E1E",
-      cursor: "pointer",
-      transition: "transform .12s ease, box-shadow .12s ease",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = "translate(-1px,-1px)";
-      e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = "none";
-      e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-    }}>
-      <div className="onb-row-avatar" style={{
-        width: 40, height: 40, borderRadius: "50%",
-        background: "#211E1E", color: "#FDC831",
-        display: "grid", placeItems: "center",
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 13, fontWeight: 900,
-      }}>
-        {slicer.firstName[0]}{slicer.lastName[0]}
-      </div>
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 14.5, color: "#211E1E" }}>
-            {slicer.firstName} {slicer.lastName}
-          </div>
-          {loc && <CountryFlag country={loc.country} size={14} />}
-          {reason && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 4,
-              padding: "2px 6px",
-              background: "#FFF9E6",
-              border: `1.5px solid ${reason.tone}`,
-              borderRadius: 3,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 9.5, fontWeight: 800, color: reason.tone,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-            }}>{reason.label}</span>
-          )}
-        </div>
-        <div style={{ fontSize: 11.5, color: "#78684C", fontFamily: "'Archivo', sans-serif", fontWeight: 600, marginTop: 2 }}>
-          {slicer.title} · {slicer.department}
-        </div>
-      </div>
-      {/* Status — IT owns the actual work in the new ticketing system. */}
-      <div style={{
-        display: "inline-flex", alignItems: "center", gap: 8,
-        fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 800, color: "#211E1E",
-        letterSpacing: "-0.005em",
-      }}>
-        <div style={{
-          width: 22, height: 22, flexShrink: 0,
-          borderRadius: "50%",
-          background: "#0A8A3E", color: "#FFFFFF",
-          border: "1px solid #211E1E",
-          display: "grid", placeItems: "center",
-          boxShadow: "1px 1px 0 #211E1E",
-        }}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
-        </div>
-        Sent to IT
-      </div>
-      <div style={{ textAlign: "right" }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 12, fontWeight: 800, color: "#211E1E" }}>
-          {daysLabel}
-        </div>
-        <div style={{ fontFamily: "'Archivo', monospace", fontSize: 10.5, color: "#78684C", fontWeight: 600, marginTop: 1 }}>
-          {new Date(ofb.lastDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {ofb.lastTime}
-        </div>
-      </div>
-      <div style={{ color: "#78684C", fontSize: 18, fontWeight: 300 }}>›</div>
-    </button>
-  );
-}
-
-function ActiveSlicerCard({ slicer, onPick }) {
-  const loc = ONB_LOCATIONS.find(l => l.id === slicer.location);
-  return (
-    <button onClick={onPick} style={{
-      textAlign: "left",
-      padding: "14px 16px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 10,
-      cursor: "pointer",
-      display: "flex", flexDirection: "column", gap: 10,
-      transition: "transform .12s ease, box-shadow .12s ease, background .12s ease",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = "translate(-1px,-1px)";
-      e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-      e.currentTarget.style.background = "#FFF9E6";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = "none";
-      e.currentTarget.style.boxShadow = "none";
-      e.currentTarget.style.background = "#FFFFFF";
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: "50%",
-          background: "#211E1E", color: "#FDC831",
-          display: "grid", placeItems: "center",
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 12, fontWeight: 900,
-        }}>
-          {slicer.firstName[0]}{slicer.lastName[0]}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 13.5, color: "#211E1E", lineHeight: 1.2 }}>
-            {slicer.firstName} {slicer.lastName}
-          </div>
-          <div style={{ fontSize: 11, color: "#78684C", fontFamily: "'Archivo', monospace", marginTop: 1 }}>
-            {slicer.workEmail}
-          </div>
-        </div>
-        {loc && <CountryFlag country={loc.country} size={14} />}
-      </div>
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        paddingTop: 8, borderTop: "1px dashed rgba(33,30,30,0.2)",
-      }}>
-        <div style={{ fontSize: 11, color: "#4A3F2E", fontFamily: "'Archivo', sans-serif", fontWeight: 600 }}>
-          {slicer.title}
-        </div>
-        <div style={{
-          fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800, color: "#211E1E",
-          padding: "2px 5px", background: "#FDC831", borderRadius: 2,
-        }}>{slicer.apps.size} apps</div>
-      </div>
-    </button>
-  );
-}
-
-// ============================================================================
-// HISTORY — archive of every offboarding ever filed
-// ============================================================================
-function OffboardingHistory({ onBack }) {
-  const [q, setQ] = React.useState("");
-  const [reason, setReason] = React.useState("all");
-  const [detail, setDetail] = React.useState(null);
-
-  // Merge in-progress + completed into one chronological list, newest first.
-  const rows = React.useMemo(() => {
-    const inProg = MOCK_OFB_IN_PROGRESS.map(o => {
-      const s = MOCK_COMPLETED_SLICERS.find(x => x.id === o.slicerId);
-      if (!s) return null;
-      return {
-        id: o.id,
-        name: `${s.firstName} ${s.lastName}`,
-        title: s.title, department: s.department, location: s.location,
-        lastDate: o.lastDate, reason: o.reason,
-        status: "scheduled", stage: o.stage,
-        filedBy: "Alex Park",
-        slicer: s, ofb: o,
-      };
-    }).filter(Boolean);
-    const done = MOCK_OFB_COMPLETED.map(o => ({
-      id: o.id,
-      name: o.name, title: o.title, department: o.department, location: o.location,
-      lastDate: o.lastDate, reason: o.reason,
-      status: "completed",
-      filedBy: o.filedBy, daysToComplete: o.daysToComplete,
-    }));
-    return [...inProg, ...done].sort((a, b) => b.lastDate.localeCompare(a.lastDate));
-  }, []);
-
-  const filtered = rows.filter(r => {
-    if (reason !== "all" && r.reason !== reason) return false;
-    if (!q) return true;
-    const hay = `${r.name} ${r.title} ${r.department} ${r.filedBy}`.toLowerCase();
-    return hay.includes(q.toLowerCase());
-  });
-
-  // Group by month for a calendar-like archive feel.
-  const groups = React.useMemo(() => {
-    const by = new Map();
-    filtered.forEach(r => {
-      const d = new Date(r.lastDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-      const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-      if (!by.has(key)) by.set(key, { label, rows: [] });
-      by.get(key).rows.push(r);
-    });
-    return Array.from(by.values());
-  }, [filtered]);
-
-  const counts = {
-    all: rows.length,
-    ...OFB_REASONS.reduce((acc, r) => ({ ...acc, [r.id]: rows.filter(x => x.reason === r.id).length }), {}),
-  };
-
-  return (
-    <div data-screen-label="Offboarding History" className="page" style={{ minHeight: "100vh", background: "#FDC831" }}>
-      {/* Hero strip — full-bleed cream banner. */}
-      <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "28px 32px 32px",
-      }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-      {/* Top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <button onClick={onBack} style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "7px 12px 7px 10px",
-          background: "#FFFFFF", border: "1px solid #211E1E",
-          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
-          fontFamily: "'Archivo', sans-serif",
-          fontWeight: 800, fontSize: 11.5,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          color: "#211E1E", cursor: "pointer",
-        }}>
-          <IconArrowLeft size={13} stroke={2.5} />
-          Back to Dashboard
-        </button>
-      </div>
-
-      {/* Hero */}
-      <div>
-        <h1 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 40, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.02,
-          margin: 0, color: "#211E1E",
-        }}>Offboarding History</h1>
-      </div>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 80px" }}>
-
-      {/* Search + filter chips */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
-        <div style={{ position: "relative", maxWidth: 520 }}>
-          <div style={{
-            position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)",
-            color: "#78684C", fontSize: 16, pointerEvents: "none",
-          }}>⌕</div>
-          <input
-            value={q} onChange={e => setQ(e.target.value)}
-            placeholder="Search by name, role, team or HR lead…"
-            style={{
-              width: "100%", padding: "13px 16px 13px 42px",
-              background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 8,
-              fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 600, color: "#211E1E",
-              outline: "none", boxSizing: "border-box",
-            }}/>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <HistoryChip label="All" count={counts.all} active={reason === "all"} onClick={() => setReason("all")} />
-          {OFB_REASONS.map(r => (
-            <HistoryChip key={r.id} label={r.label} count={counts[r.id] || 0} tone={r.tone} icon={r.icon}
-              active={reason === r.id} onClick={() => setReason(r.id)} />
-          ))}
-        </div>
-      </div>
-
-      {/* Results summary */}
-      <div style={{
-        display: "flex", alignItems: "baseline", justifyContent: "space-between",
-        marginBottom: 14,
-        paddingBottom: 10, borderBottom: "1px solid #211E1E",
-      }}>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-          color: "#211E1E",
-        }}>
-          {filtered.length} {filtered.length === 1 ? "record" : "records"}
-        </div>
-        <div style={{
-          fontFamily: "'Archivo', monospace", fontSize: 10.5, fontWeight: 600, color: "#78684C",
-        }}>
-          Newest first
-        </div>
-      </div>
-
-      {/* Grouped list */}
-      {groups.length === 0 ? (
-        <div style={{
-          padding: "60px 24px", textAlign: "center",
-          background: "#FFF9E6",
-          border: "1px dashed #211E1E", borderRadius: 10,
-        }}>
-          <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: "#211E1E" }}>
-            No offboardings match this filter
-          </div>
-          <div style={{ fontSize: 13, color: "#78684C", marginTop: 6 }}>
-            Clear the search or pick a different reason.
-          </div>
-        </div>
-      ) : groups.map(g => (
-        <div key={g.label} style={{ marginBottom: 28 }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 12, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase",
-            color: "#78684C", marginBottom: 10,
-          }}>{g.label} · <span style={{ fontFamily: "'Archivo', monospace" }}>{g.rows.length}</span></div>
-          <div style={{ display: "grid", gap: 8 }}>
-            {g.rows.map(r => <OfbHistoryRow key={r.id} row={r} onOpen={() => {
-              if (r.slicer && r.ofb) setDetail({ ofb: r.ofb, slicer: r.slicer });
-            }} />)}
-          </div>
-        </div>
-      ))}
-
-      {detail && <OfbDetailModal ofb={detail.ofb} slicer={detail.slicer} onClose={() => setDetail(null)} />}
-      </div>
-    </div>
-  );
-}
-
-function HistoryChip({ label, count, active, onClick, tone, icon }) {
-  return (
-    <button onClick={onClick} style={{
-      display: "inline-flex", alignItems: "center", gap: 6,
-      padding: "7px 12px",
-      background: active ? "#211E1E" : "#FFFFFF",
-      color: active ? "#FDC831" : "#211E1E",
-      border: "1px solid #211E1E", borderRadius: 6,
-      fontFamily: "'Archivo', sans-serif",
-      fontSize: 11.5, fontWeight: 800, letterSpacing: "0.02em",
-      cursor: "pointer",
-      transition: "transform .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease",
-    }}>
-      {icon && <span style={{ color: active ? "#FDC831" : (tone || "#211E1E"), fontSize: 12 }}>{icon}</span>}
-      {label}
-      <span style={{
-        fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
-        padding: "1px 5px",
-        background: active ? "#FDC831" : "#FFF9E6",
-        color: "#211E1E",
-        borderRadius: 2,
-      }}>{count}</span>
-    </button>
-  );
-}
-
-function OfbHistoryRow({ row, onOpen }) {
-  const loc = ONB_LOCATIONS.find(l => l.id === row.location);
-  const reasonDef = OFB_REASONS.find(r => r.id === row.reason);
-  const initials = row.name.split(" ").map(p => p[0]).slice(0, 2).join("");
-  const d = new Date(row.lastDate);
-  const dateLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  return (
-    <button onClick={onOpen} className="onb-row-hover" style={{
-      textAlign: "left",
-      display: "grid",
-      gridTemplateColumns: "auto 1fr auto auto auto",
-      alignItems: "center", gap: 18,
-      padding: "12px 16px",
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 8,
-      cursor: "pointer",
-      transition: "transform .12s ease, box-shadow .12s ease",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = "translate(-1px,-1px)";
-      e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = "none";
-      e.currentTarget.style.boxShadow = "none";
-    }}>
-      <div className="onb-row-avatar" style={{
-        width: 36, height: 36, borderRadius: "50%",
-        background: row.status === "completed" ? "#FFF9E6" : "#211E1E",
-        color: row.status === "completed" ? "#211E1E" : "#FDC831",
-        border: row.status === "completed" ? "2px solid #211E1E" : "none",
-        display: "grid", placeItems: "center",
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 12, fontWeight: 900,
-      }}>{initials}</div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 14, color: "#211E1E",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>{row.name}</div>
-          {loc && <CountryFlag country={loc.country} size={13} />}
-        </div>
-        <div style={{ fontSize: 11.5, color: "#78684C", fontFamily: "'Archivo', sans-serif", fontWeight: 600, marginTop: 1 }}>
-          {row.title} · {row.department}
-        </div>
-      </div>
-      {reasonDef && (
-        <span style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          padding: "3px 7px",
-          background: "#FFF9E6",
-          border: `1.5px solid ${reasonDef.tone}`,
-          borderRadius: 3,
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10, fontWeight: 800, color: reasonDef.tone,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-        }}>{reasonDef.label}</span>
-      )}
-      <div style={{ textAlign: "right", minWidth: 120 }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 12, fontWeight: 800, color: "#211E1E" }}>
-          {dateLabel}
-        </div>
-        <div style={{ fontFamily: "'Archivo', monospace", fontSize: 10, color: "#78684C", fontWeight: 600, marginTop: 1 }}>
-          {row.status === "completed" ? `Completed in ${row.daysToComplete}d` : row.stage}
-        </div>
-      </div>
-      <div style={{
-        fontFamily: "'Archivo', monospace", fontSize: 9.5, fontWeight: 800,
-        padding: "2px 5px",
-        background: row.status === "completed" ? "#F0E9D6" : "#FDC831",
-        color: "#211E1E",
-        borderRadius: 2,
-        letterSpacing: "0.05em", textTransform: "uppercase",
-      }}>{row.status === "completed" ? "Done" : "Scheduled"}</div>
-    </button>
-  );
-}
-
-// ---------- BULK OFFBOARD MODAL ----------
-// Asks HR how many Slicers they're offboarding in this batch. Bulk
-// offboarding is a heavier action than bulk onboarding — the warning copy
-// reflects that. Unlike onboarding's BulkAddModal, NOTHING is shared across
-// the batch; HR will pick each Slicer + each last-day individually. This is
-// just "open N tabs", not "duplicate one across N".
-function BulkOffboardModal({ maxBulk = 30, onCancel, onConfirm }) {
-  const [count, setCount] = React.useState(2);
-  const clamp = (n) => Math.max(2, Math.min(maxBulk, n));
-
-  return (
-    <OnbModal title="Bulk offboard" kicker="Layoff / RIF event" onClose={onCancel} width={560}>
-      {/* Reality check — bulk offboarding is rarely the right tool. The copy
-          is direct: this is for layoffs, not "I have two unrelated departures
-          this week". */}
-      <div style={{
-        display: "flex", gap: 12,
-        padding: "12px 14px",
-        background: "#FFF0F0",
-        border: "1px solid #B92323", borderRadius: 8,
-        boxShadow: "2px 2px 0 #B92323",
-        marginBottom: 18,
-      }}>
-        <div style={{
-          width: 26, height: 26, borderRadius: "50%",
-          background: "#B92323", color: "#FFFFFF",
-          display: "grid", placeItems: "center", flexShrink: 0,
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 14, fontWeight: 900,
-        }}>!</div>
-        <div style={{ flex: 1, fontSize: 13, lineHeight: 1.5, color: "#211E1E" }}>
-          <strong style={{ fontFamily: "'Archivo', sans-serif" }}>Bulk offboarding is for layoff events.</strong>
-          <div style={{ marginTop: 4, color: "#4A3F2E" }}>
-            For a single resignation or termination, file one at a time.
-            Every field is per-Slicer — last day, reason, app revocation,
-            hardware return — so HR still has to fill each card. The bulk
-            view is just a left-rail of cards you can switch between.
-          </div>
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 18 }}>
-        <div style={onbLabelStyle}>How many Slicers are you offboarding?</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" }}>
-          {[2, 3, 5, 10, 20].filter(n => n <= maxBulk).map(n => (
-            <button key={n} onClick={() => setCount(n)}
-              style={{
-                padding: "10px 14px",
-                background: count === n ? "#FDC831" : "#FFFFFF",
-                border: "1px solid #211E1E", borderRadius: 6,
-                boxShadow: count === n ? "1px 1px 0 #211E1E" : "none",
-                fontFamily: "'Archivo', sans-serif",
-                fontWeight: 800, fontSize: 14,
-                color: "#211E1E", cursor: "pointer",
-                minWidth: 44,
-              }}>
-              {n}
-            </button>
-          ))}
-          <div style={{ width: 1, height: 28, background: "#211E1E", margin: "0 4px" }}/>
-          <input type="number" min="2" max={maxBulk}
-            value={count}
-            onChange={(e) => setCount(clamp(parseInt(e.target.value) || 2))}
-            style={{
-              width: 70, padding: "10px 10px",
-              background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 6,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 14, fontWeight: 800,
-              color: "#211E1E", textAlign: "center",
-              outline: "none",
-            }}/>
-          <div style={{ fontSize: 12, color: "#78684C", fontFamily: "'Archivo', sans-serif", fontWeight: 600 }}>
-            Slicers
-          </div>
-        </div>
-        <div style={{ fontSize: 11.5, color: "#78684C", marginTop: 8, fontFamily: "'Archivo', sans-serif" }}>
-          Cap is <strong style={{ color: "#211E1E" }}>{maxBulk}</strong> per batch. Larger events should go through HR ops.
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <button onClick={onCancel}
-          style={{
-            padding: "11px 18px",
-            background: "#FFFFFF", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 4,
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 12.5,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-          }}>Cancel</button>
-        <button onClick={() => onConfirm(count)}
-          style={{
-            padding: "11px 20px",
-            background: "#FDC831", color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 4,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 12.5,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: "pointer",
-          }}>Start with {count} cards</button>
-      </div>
-    </OnbModal>
-  );
-}
-
-// Expose to window for cross-file access
-Object.assign(window, {
-  Offboarding,
-  OffboardingHistory,
-  ofbTzFor, wallTimeInZoneToUTC, formatInZone, dedupeZones,
-  OFB_TZS, OFB_REASONS, MOCK_OFB_IN_PROGRESS, MOCK_OFB_COMPLETED, makeBlankOffboarding,
-});
-
 // ─── hub-pages (237ee3bb) ──────────────────────────────────
 // ====================================================================
 //  Slice IT Hub — Knowledge, Status pages
@@ -24651,7 +10978,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
   }, []);
 
   return (
-    <div className="page" data-hero-collapsed={collapsed ? "true" : "false"} style={{ background: "#FDC831" }}>
+    <div className="page" data-hero-collapsed={collapsed ? "true" : "false"} style={{ background: "var(--bg)" }}>
 
       {/* Mini search — portaled to body so position:fixed isn't trapped by an
           ancestor transform (animations on .page create one). */}
@@ -24684,18 +11011,14 @@ function KnowledgePage({ onBack, onOpenGuide }) {
 
       {/* Hero */}
       <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "44px 32px 32px",
+        background: "var(--bg)",
+        padding: "44px 32px 8px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-          <button onClick={onBack} className="kb-back-btn" style={{ marginBottom: 22 }}>
-            <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back
-          </button>
           <h1 style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 40, fontWeight: 900,
-            margin: 0, letterSpacing: "-0.025em",
+            fontFamily: "var(--font-head)",
+            fontSize: 40, fontWeight: 400,
+            margin: 0, letterSpacing: "-0.01em",
             color: "#211E1E", lineHeight: 1.02,
             maxWidth: 720,
             textTransform: "none",
@@ -24709,7 +11032,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
             background: "#FFFFFF",
             border: "1px solid #211E1E",
             borderRadius: 14,
-            boxShadow: "3px 3px 0 #211E1E",
+            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             padding: "8px 8px 8px 20px",
             display: "flex", alignItems: "center", gap: 14,
             maxWidth: 1120,
@@ -24747,12 +11070,12 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           </form>
           <style>{`
             .kb-search-form:hover {
-              transform: translate(-2px, -2px);
-              box-shadow: 4px 4px 0 #211E1E;
+              transform: translate(0, 0);
+              box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
             }
             .kb-search-form:focus-within {
-              transform: translate(-3px, -3px);
-              box-shadow: 5px 5px 0 #211E1E;
+              transform: translate(0, 0);
+              box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
               border-color: #211E1E;
             }
             .kb-search-form input::placeholder {
@@ -24856,10 +11179,10 @@ function KnowledgePage({ onBack, onOpenGuide }) {
               marginTop: 18,
               background: "#FFF9E6", color: "#211E1E",
               border: "1px solid #211E1E", borderRadius: 10,
-              boxShadow: "2px 2px 0 #211E1E",
+              boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               padding: "18px 20px",
             }}>
-              <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: "#8A6A14", marginBottom: 8 }}>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#8A6A14", marginBottom: 8 }}>
                 Nothing matches?
               </div>
               <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.5, marginBottom: 12, color: "#211E1E" }}>
@@ -24889,13 +11212,13 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
     <div>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 4 }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 4 }}>
             {results.length} result{results.length === 1 ? "" : "s"}{hasBoth ? " · filtered" : ""}
           </div>
           <h2 style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 26, fontWeight: 800, margin: 0,
-            color: "#211E1E", letterSpacing: "-0.02em",
+            fontFamily: "var(--font-head)",
+            fontSize: 26, fontWeight: 400, margin: 0,
+            color: "#211E1E", letterSpacing: "-0.01em",
           }}>
             {query ? `“${query}”` : categoryLabel}
           </h2>
@@ -24953,12 +11276,12 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
           <div style={{
             width: 64, height: 64, margin: "0 auto 14px",
             background: "#FDC831", border: "1px solid #211E1E", borderRadius: "50%",
-            boxShadow: "2px 2px 0 #211E1E",
+            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
             fontFamily: "'Archivo', sans-serif", fontSize: 36, fontWeight: 900, color: "#211E1E",
             lineHeight: 1,
           }}>?</div>
-          <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: "#211E1E", marginBottom: 6 }}>
+          <div style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 20, fontWeight: 400, color: "#211E1E", marginBottom: 6 }}>
             Nothing matched{query ? ` “${query}”` : ""}.
           </div>
           <div style={{ fontSize: 14, color: "#4A3F2E", marginBottom: 18 }}>
@@ -24970,7 +11293,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
         <div style={{
           background: "#FFFFFF",
           border: "1px solid #211E1E", borderRadius: 14,
-          boxShadow: "2px 2px 0 #211E1E",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           overflow: "hidden",
         }}>
           {results.map((r, i) => (
@@ -24991,7 +11314,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
                 <div style={{ fontSize: 12.5, color: "#4A3F2E", marginBottom: 4, lineHeight: 1.4 }}>
                   <HighlightMatch text={r.body} query={query} />
                 </div>
-                <div style={{ fontSize: 10.5, color: "#78684C", fontWeight: 700, fontFamily: "Archivo, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                <div style={{ fontSize: 10.5, color: "#78684C", fontWeight: 600, fontFamily: "var(--font-mono)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
                   {r.category}
                 </div>
               </div>
@@ -25025,7 +11348,7 @@ function ArticleList({ items, onOpen }) {
     <div style={{
       background: "#FFFFFF",
       border: "1px solid #211E1E", borderRadius: 14,
-      boxShadow: "2px 2px 0 #211E1E",
+      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       overflow: "hidden",
     }}>
       {items.map((p, i) => (
@@ -25060,7 +11383,7 @@ function HighlightMatch({ text, query }) {
         background: "#FDC831", color: "#211E1E",
         padding: "0 3px", borderRadius: 2,
         border: "1px solid #211E1E",
-        boxShadow: "1px 1px 0 #211E1E",
+        boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         {text.slice(idx, idx + query.length)}
       </mark>
@@ -25073,13 +11396,13 @@ function SectionTitle({ kicker, title, right }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
       <div>
-        <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 4 }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 4 }}>
           {kicker}
         </div>
         <h2 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 22, fontWeight: 800, margin: 0,
-          color: "#211E1E", letterSpacing: "-0.015em",
+          fontFamily: "var(--font-head)",
+          fontSize: 22, fontWeight: 400, margin: 0,
+          color: "#211E1E", letterSpacing: "-0.01em",
           lineHeight: 1.15,
         }}>{title}</h2>
       </div>
@@ -25093,18 +11416,18 @@ function FeaturedGuideCard({ guide, onClick }) {
     <div onClick={onClick} style={{
       background: "#FFFFFF",
       border: "1px solid #211E1E", borderRadius: 14,
-      boxShadow: "2px 2px 0 #211E1E",
+      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       padding: "22px 22px 20px",
       cursor: "pointer",
       transition: "transform .18s var(--ease), box-shadow .18s var(--ease)",
       display: "flex", flexDirection: "column", gap: 14,
       minHeight: 220,
     }}
-    onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-3px,-3px)"; e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E"; }}
-    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}>
+    onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(0, 0)"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"; }}
+    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"; }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{
-          fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 900,
+          fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
           letterSpacing: "0.04em", textTransform: "uppercase",
           background: "#FDC831", color: "#211E1E",
           border: "1px solid #211E1E", borderRadius: 3,
@@ -25149,20 +11472,20 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
         width: "min(540px, 100%)",
         background: "#F7F4EF",
         border: "1px solid #211E1E", borderRadius: 16,
-        boxShadow: "5px 5px 0 #211E1E",
+        boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         padding: 28,
       }}>
         {!sent ? (
           <form onSubmit={submit}>
-            <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 6 }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 6 }}>
               Help us write the missing guide
             </div>
-            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, margin: "0 0 18px", color: "#211E1E", letterSpacing: "-0.015em" }}>
+            <h2 style={{ fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 400, margin: "0 0 18px", color: "#211E1E", letterSpacing: "-0.01em" }}>
               Suggest an article
             </h2>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4A3F2E", marginBottom: 6, fontFamily: "Archivo, sans-serif", letterSpacing: "0.02em", textTransform: "uppercase" }}>What were you searching for?</label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", marginBottom: 6, fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What were you searching for?</label>
             <input value={searched} onChange={(e) => setSearched(e.target.value)} placeholder='e.g. "VPN on personal Mac"' style={inputStyle}/>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4A3F2E", margin: "14px 0 6px", fontFamily: "Archivo, sans-serif", letterSpacing: "0.02em", textTransform: "uppercase" }}>What problem are you trying to solve?</label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", margin: "14px 0 6px", fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What problem are you trying to solve?</label>
             <textarea value={what} onChange={(e) => setWhat(e.target.value)} rows={4} placeholder="Describe what you needed the article to cover…" style={{ ...inputStyle, resize: "vertical", minHeight: 88, fontFamily: "'Archivo', sans-serif" }}/>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
               <button type="button" onClick={onClose} className="btn btn-outline" style={{ padding: "10px 16px" }}>Cancel</button>
@@ -25174,11 +11497,11 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
             <div style={{
               width: 72, height: 72, margin: "0 auto 16px",
               background: "#0A8A3E", border: "1px solid #211E1E", borderRadius: "50%",
-              boxShadow: "2px 2px 0 #211E1E",
+              boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               display: "grid", placeItems: "center",
               color: "#FFFFFF", fontSize: 36, fontWeight: 900,
             }}>✓</div>
-            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, margin: "0 0 8px", color: "#211E1E" }}>
+            <h2 style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 400, margin: "0 0 8px", color: "#211E1E" }}>
               Thanks — we'll get on it.
             </h2>
             <p style={{ fontSize: 14, color: "#4A3F2E", margin: "0 0 22px" }}>
@@ -25361,25 +11684,21 @@ function StatusPage({ onBack }) {
 
   return (
     <div className="page" style={{
-      background: "#FDC831",
+      background: "var(--bg)",
       display: "flex", flexDirection: "column",
     }}>
       {/* Overall banner — cream bg always; tone expressed through icon + accent only */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "44px 32px 44px",
+        padding: "44px 32px 12px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-          <button onClick={onBack} className="kb-back-btn" style={{ marginBottom: 22 }}>
-            <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Back
-          </button>
           <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 24, alignItems: "center" }}>
           <div style={{
             width: 88, height: 88,
             background: toneAccent,
             border: "1px solid #211E1E", borderRadius: 18,
-            boxShadow: "2px 2px 0 #211E1E",
+            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
             color: "#FFFFFF",
             fontFamily: "Archivo, sans-serif", fontWeight: 900,
@@ -25392,16 +11711,16 @@ function StatusPage({ onBack }) {
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <span style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
-                fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#211E1E",
+                fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#211E1E",
               }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: toneAccent, animation: "livePulse 1.8s ease-in-out infinite" }}/>
                 Live
               </span>
             </div>
             <h1 style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 44, fontWeight: 900,
-              margin: 0, letterSpacing: "-0.03em",
+              fontFamily: "var(--font-head)",
+              fontSize: 44, fontWeight: 400,
+              margin: 0, letterSpacing: "-0.01em",
               color: "#211E1E", lineHeight: 1,
               textTransform: "none",
             }}>
@@ -25487,7 +11806,7 @@ function StatusPage({ onBack }) {
                 fontFamily: "'Archivo', sans-serif", fontSize: 13.5, fontWeight: 600,
                 color: "#211E1E", background: "#FFFFFF",
                 border: "1px solid #211E1E", borderRadius: 10,
-                boxShadow: "1px 1px 0 #211E1E", outline: "none",
+                boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)", outline: "none",
               }}
             />
           </div>
@@ -25506,7 +11825,7 @@ function StatusPage({ onBack }) {
         <div style={{
           background: "#FFFFFF",
           border: "1px solid #211E1E", borderRadius: 14,
-          boxShadow: "2px 2px 0 #211E1E",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           overflow: "hidden",
           marginBottom: 48,
         }}>
@@ -25517,7 +11836,7 @@ function StatusPage({ onBack }) {
             gap: 16,
             padding: "12px 22px",
             background: "#F7F4EF", borderBottom: "1px solid #211E1E",
-            fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900,
+            fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600,
             letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E",
           }}>
             <div/>
@@ -25580,7 +11899,7 @@ function FilterChip({ active, onClick, children }) {
         background: active ? "#211E1E" : "#FFFFFF",
         color: active ? "#FDC831" : "#211E1E",
         border: "1px solid #211E1E", borderRadius: 999,
-        boxShadow: active ? "none" : "1px 1px 0 #211E1E",
+        boxShadow: active ? "none" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 800,
         letterSpacing: "0.02em",
         cursor: "pointer",
@@ -25589,13 +11908,13 @@ function FilterChip({ active, onClick, children }) {
       }}
       onMouseEnter={(e) => {
         if (active) return;
-        e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+        e.currentTarget.style.transform = "translate(0, 0)";
+        e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
       }}
       onMouseLeave={(e) => {
         if (active) return;
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
       }}
     >{children}</button>
   );
@@ -25666,7 +11985,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
           background: "#FFFFFF",
           display: "grid", placeItems: "center",
           overflow: "hidden",
-          boxShadow: "1.5px 1.5px 0 #211E1E",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           flexShrink: 0,
         }}>
           {iconBroken ? (
@@ -25695,8 +12014,8 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
             background: stateTone.bg, color: stateTone.ink,
             border: `1.5px solid ${stateTone.ink}`,
             borderRadius: 3,
-            fontFamily: "Archivo, sans-serif",
-            fontSize: 10.5, fontWeight: 800,
+            fontFamily: "var(--font-mono)",
+            fontSize: 10.5, fontWeight: 600,
             letterSpacing: "0.04em", textTransform: "uppercase",
           }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: stateTone.ink }}/>
@@ -25745,11 +12064,11 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
                     display: "inline-flex", alignItems: "center", gap: 6,
                     padding: "5px 11px",
                     background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 999,
-                    boxShadow: "1px 1px 0 #211E1E",
+                    boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                     fontSize: 12, fontWeight: 700, color: "#211E1E", textDecoration: "none",
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E"; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(0, 0)"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"; }}
                 >
                   <span>{LINK_KIND_ICON[l.kind] || "🔗"}</span>
                   {l.label || l.url}
@@ -25786,7 +12105,7 @@ function MiniStat({ label, value }) {
       background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 8,
       padding: "10px 12px",
     }}>
-      <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase", color: "#78684C", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "#78684C", marginBottom: 4 }}>{label}</div>
       <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 18, fontWeight: 900, color: "#211E1E", lineHeight: 1 }}>{value}</div>
     </div>
   );
@@ -25813,12 +12132,12 @@ function IncidentCard({ incident, open }) {
     <div style={{
       background: "#FFFFFF",
       border: "1px solid #211E1E", borderRadius: 12,
-      boxShadow: "2px 2px 0 #211E1E",
+      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       overflow: "hidden",
       transition: "transform .15s var(--ease), box-shadow .15s var(--ease)",
     }}
-    onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = "3px 3px 0 #FDC831, 5px 5px 0 0 #211E1E"; }}
-    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+    onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(0, 0)"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 5px 5px 0 0 #211E1E"; }}
+    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"; }}
     >
       <div onClick={() => setExpanded(!expanded)} style={{
         padding: "18px 22px",
@@ -25836,13 +12155,13 @@ function IncidentCard({ incident, open }) {
             <span style={{
               background: sevTone.bg, color: sevTone.ink,
               border: `1.5px solid ${sevTone.ink}`, borderRadius: 3,
-              fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
+              fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
               padding: "2px 7px", letterSpacing: "0.04em", textTransform: "uppercase",
             }}>{sevTone.label}</span>
             <span style={{
               background: stateTone.bg, color: stateTone.ink,
               border: `1.5px solid ${stateTone.ink}`, borderRadius: 3,
-              fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
+              fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
               padding: "2px 7px", letterSpacing: "0.04em", textTransform: "uppercase",
             }}>{stateTone.label}</span>
             {incident.auto_created && (
@@ -25850,7 +12169,7 @@ function IncidentCard({ incident, open }) {
                 display: "inline-flex", alignItems: "center", gap: 4,
                 background: "#211E1E", color: "#FDC831",
                 borderRadius: 3, padding: "2px 7px",
-                fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
+                fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
                 letterSpacing: "0.04em", textTransform: "uppercase",
               }}>
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
@@ -25884,7 +12203,7 @@ function IncidentCard({ incident, open }) {
 
       {expanded && (
         <div style={{ padding: "0 22px 22px", borderTop: "1px solid #E7E1D4", marginTop: 4, paddingTop: 18 }}>
-          <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 12 }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 12 }}>
             Timeline
           </div>
           {(!incident.updates || incident.updates.length === 0) ? (
@@ -25905,7 +12224,7 @@ function IncidentCard({ incident, open }) {
                     }}>{clockHM(u.created_at)}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{
-                        fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
+                        fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
                         letterSpacing: "0.04em", textTransform: "uppercase",
                         color: tone, marginBottom: 3,
                       }}>{u.label}</div>
@@ -25924,582 +12243,6 @@ function IncidentCard({ incident, open }) {
 
 // Expose to window for app.jsx
 Object.assign(window, { KnowledgePage, StatusPage });
-
-// ─── misc (dd0d1053) ──────────────────────────────────
-// ============================================================================
-// ONBOARDING QUEUE
-// ----------------------------------------------------------------------------
-// Two clearly-separated sections:
-//
-//   1. AWAITING APPROVAL — manager hasn't responded (or has returned). These
-//      are the actionable items that require HR's attention right now: nudge
-//      the manager, fill on their behalf, or fix what they returned.
-//
-//   2. IN PREP — manager has approved; IT is now provisioning hardware,
-//      accounts, and accounts. Tabular, dense, scannable.
-//
-// Pulled apart on purpose. Mixing them was creating "is this on me or on the
-// manager?" confusion. Visual treatment is intentionally calm — no priority
-// rails, no color-coded banners. Urgency is conveyed through typography
-// (countdown chip turns black on <7d) and inline overdue badges only.
-// ============================================================================
-
-const OQ_STAGES = [
-  "Request filed", "Hardware shipped", "Accounts provisioning",
-  "Welcome packet", "Awaiting start date",
-];
-
-function oqTimeAgo(ts) {
-  const diff = Date.now() - ts;
-  const m = Math.floor(diff / 60000);
-  if (m < 60) return `${Math.max(1, m)}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
-
-function oqInitials(first, last) {
-  return ((first?.[0] || "?") + (last?.[0] || "")).toUpperCase();
-}
-
-// Days until start (ceil; today = 0). null if no startDate.
-function daysToStart(startDate) {
-  if (!startDate) return null;
-  return Math.ceil((new Date(startDate) - new Date()) / 86400000);
-}
-
-// ── SECTION HEADER ─────────────────────────────────────────────────────────
-// Aligns with the table edges (no inset padding). Title left, count + meta
-// on the right.
-function QueueSectionHeader({ title, kicker, count, action }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "baseline", justifyContent: "space-between",
-      gap: 12, marginBottom: 12,
-    }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-        <h2 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em",
-          margin: 0, color: "#211E1E",
-        }}>{title}</h2>
-        <span style={{
-          fontFamily: "'Archivo', monospace",
-          fontSize: 11, fontWeight: 800,
-          padding: "2px 8px",
-          background: "#211E1E", color: "#FDC831",
-          borderRadius: 3,
-        }}>{count}</span>
-        {kicker && (
-          <span style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 11, fontWeight: 700,
-            color: "#78684C",
-            letterSpacing: "0.02em",
-          }}>{kicker}</span>
-        )}
-      </div>
-      {action}
-    </div>
-  );
-}
-
-// ── AWAITING APPROVAL — top section ────────────────────────────────────────
-// Card-style rows because each one carries enough context (manager name,
-// return note, multiple hires) that a single table row would be cramped.
-function AwaitingApprovalSection({ approvals, onOpenApproval, onNudge }) {
-  const rows = React.useMemo(() => {
-    return approvals
-      .filter(r => r.status === "pending" || r.status === "returned")
-      .map(req => {
-        const primary = req.hires[0] || {};
-        const overdue = (Date.now() - req.sentAt) > 1000 * 60 * 60 * 48;
-        const returned = req.status === "returned";
-        return {
-          req, primary, overdue, returned,
-          daysUntilStart: daysToStart(primary.startDate),
-          sortKey: returned ? 0 : (overdue ? 1 : 2),
-          age: Date.now() - req.sentAt,
-        };
-      })
-      .sort((a, b) => {
-        if (a.sortKey !== b.sortKey) return a.sortKey - b.sortKey;
-        return b.age - a.age; // older first within bucket
-      });
-  }, [approvals]);
-
-  return (
-    <section data-screen-label="Awaiting Approval" style={{ marginBottom: 36 }}>
-      <QueueSectionHeader
-        title="Awaiting manager approval"
-        kicker={rows.length === 0 ? "All caught up" : "Needs a manager's response"}
-        count={rows.length}
-      />
-      {rows.length === 0 ? (
-        <div style={{
-          padding: "20px 18px",
-          background: "#FFFFFF",
-          border: "1px dashed rgba(33,30,30,0.2)", borderRadius: 8,
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 12.5, fontWeight: 600, color: "#78684C",
-        }}>
-          No requests waiting on managers right now.
-        </div>
-      ) : (
-        <div style={{ display: "grid", gap: 10 }}>
-          {rows.map(r => (
-            <ApprovalCard key={r.req.id} row={r}
-              onOpen={() => onOpenApproval(r.req.id)}
-              onNudge={() => onNudge(r.req.id)} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function ApprovalCard({ row, onOpen, onNudge }) {
-  const { req, primary, overdue, returned, daysUntilStart } = row;
-  const ONB_LOCATIONS = window.ONB_LOCATIONS || [];
-  const loc = ONB_LOCATIONS.find(l => l.id === primary.location);
-  const nudged = !!req.nudgedAt;
-  const totalHires = req.hires.length;
-  const isBatch = totalHires > 1;
-  const extraCount = totalHires - 1;
-  // Show up to 3 stacked avatars; if more, the 3rd becomes a "+N" marker.
-  const stackHires = req.hires.slice(0, Math.min(3, totalHires));
-  const overflowCount = totalHires - stackHires.length;
-
-  return (
-    <div role="button" tabIndex={0} onClick={onOpen} className="onb-row-hover"
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-      }}
-      style={{
-        display: "grid",
-        gridTemplateColumns: "auto 1fr auto",
-        gap: 12, alignItems: "center",
-        padding: "10px 12px",
-        background: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 6,
-        boxShadow: "2px 2px 0 #211E1E",
-        cursor: "pointer", textAlign: "left",
-        fontFamily: "'Archivo', sans-serif",
-        transition: "transform .12s ease, box-shadow .12s ease",
-      }}>
-      {/* Avatar(s) — single circle for solo hires, stacked for batches */}
-      {isBatch ? (
-        <div style={{
-          display: "flex", alignItems: "center",
-          flexShrink: 0,
-          // Total visual width compensates for negative margins on stacked items.
-          paddingRight: 4,
-        }}>
-          {stackHires.map((h, i) => {
-            const isLast = i === stackHires.length - 1;
-            const showOverflow = isLast && overflowCount > 0;
-            return (
-              <div key={i} className="onb-row-avatar" style={{
-                width: 30, height: 30, borderRadius: "50%",
-                background: showOverflow ? "#211E1E" : "#FDC831",
-                color: showOverflow ? "#FDC831" : "#211E1E",
-                display: "grid", placeItems: "center",
-                border: "1px solid #211E1E",
-                fontSize: showOverflow ? 10 : 11,
-                fontWeight: 900,
-                marginLeft: i === 0 ? 0 : -10,
-                position: "relative", zIndex: stackHires.length - i,
-                fontFamily: "'Archivo', sans-serif",
-              }}>
-                {showOverflow ? `+${overflowCount}` : oqInitials(h.firstName, h.lastName)}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="onb-row-avatar" style={{
-          width: 30, height: 30, borderRadius: "50%",
-          background: "#FDC831", color: "#211E1E",
-          display: "grid", placeItems: "center",
-          border: "1px solid #211E1E",
-          fontSize: 11, fontWeight: 900,
-          flexShrink: 0,
-        }}>{oqInitials(primary.firstName, primary.lastName)}</div>
-      )}
-
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-          <span style={{ fontWeight: 800, fontSize: 13, color: "#211E1E", letterSpacing: "-0.005em" }}>
-            {primary.firstName} {primary.lastName}
-            {isBatch && (
-              <span style={{ color: "#78684C", fontWeight: 700 }}>
-                {" + "}{extraCount} other{extraCount > 1 ? "s" : ""}
-              </span>
-            )}
-          </span>
-          {loc && window.CountryFlag && <window.CountryFlag country={loc.country} size={12} />}
-          {isBatch && (
-            <span style={{
-              padding: "2px 7px",
-              background: "#211E1E", color: "#FDC831",
-              border: "1px solid #211E1E", borderRadius: 3,
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 9, fontWeight: 800,
-              letterSpacing: "0.08em", textTransform: "uppercase",
-              display: "inline-flex", alignItems: "center", gap: 4,
-            }}>
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/>
-                <path d="M3 19a6 6 0 0 1 12 0"/><path d="M15 19a4 4 0 0 1 7 0"/>
-              </svg>
-              Batch · {totalHires} hires
-            </span>
-          )}
-          {returned && (
-            <span style={{
-              padding: "1px 6px",
-              background: "#B92323", color: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 3,
-              fontSize: 9, fontWeight: 800,
-              letterSpacing: "0.06em", textTransform: "uppercase",
-            }}>Returned</span>
-          )}
-          {overdue && !returned && (
-            <span style={{
-              padding: "1px 6px",
-              background: "#FFFFFF", color: "#B92323",
-              border: "1px solid #B92323", borderRadius: 3,
-              fontSize: 9, fontWeight: 800,
-              letterSpacing: "0.06em", textTransform: "uppercase",
-            }}>Overdue</span>
-          )}
-        </div>
-        <div style={{
-          fontSize: 11, color: "#78684C", fontWeight: 600, marginTop: 2,
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        }}>
-          <span style={{ color: "#211E1E", fontWeight: 700 }}>
-            {isBatch
-              ? req.hires.map(h => h.title).filter((t, i, a) => a.indexOf(t) === i).slice(0, 2).join(" · ")
-              : primary.title}
-          </span>
-          {" · sent to "}<span style={{ color: "#211E1E", fontWeight: 700 }}>{req.manager}</span>
-          {" · "}{oqTimeAgo(req.sentAt)}
-        </div>
-        {returned && req.returnNote && (
-          <div style={{
-            marginTop: 5,
-            padding: "5px 8px",
-            background: "#FFE8E8",
-            border: "1px solid rgba(185,35,35,0.3)", borderRadius: 3,
-            fontSize: 11, fontWeight: 600, color: "#7A1818",
-            fontStyle: "italic",
-          }}>
-            “{req.returnNote}”
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <CountdownChip days={daysUntilStart} compact />
-        <button onClick={(e) => { e.stopPropagation(); onNudge(); }}
-          disabled={nudged || returned}
-          title={nudged ? `Nudged ${oqTimeAgo(req.nudgedAt)}` : "Ping the manager in Slack"}
-          style={{
-            padding: "6px 10px",
-            background: nudged ? "#FFFFFF" : "#211E1E",
-            color: nudged ? "#78684C" : "#FDC831",
-            border: "1px solid #211E1E", borderRadius: 3,
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 10, fontWeight: 800,
-            letterSpacing: "0.04em", textTransform: "uppercase",
-            cursor: nudged || returned ? "default" : "pointer",
-            opacity: returned ? 0.4 : 1,
-            whiteSpace: "nowrap",
-          }}>
-          {nudged ? "Nudged ✓" : "Nudge"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── COUNTDOWN CHIP — used in both sections ─────────────────────────────────
-function CountdownChip({ days }) {
-  if (days === null || days === undefined) {
-    return <OQChip muted>—</OQChip>;
-  }
-  const urgent = days <= 7;
-  return (
-    <div style={{
-      padding: "5px 10px",
-      background: urgent ? "#211E1E" : "#FFF9E6",
-      color: urgent ? "#FDC831" : "#211E1E",
-      border: "1px solid #211E1E", borderRadius: 4,
-      fontFamily: "'Archivo', sans-serif",
-      textAlign: "center", minWidth: 64,
-    }}>
-      <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1 }}>
-        {days > 0 ? days : days === 0 ? "Today" : "—"}
-      </div>
-      {days > 0 && (
-        <div style={{
-          fontSize: 8.5, fontWeight: 800,
-          letterSpacing: "0.08em", textTransform: "uppercase",
-          marginTop: 1, opacity: 0.85,
-        }}>{days === 1 ? "Day" : "Days"}</div>
-      )}
-    </div>
-  );
-}
-function OQChip({ children, muted }) {
-  return <span style={{
-    padding: "3px 8px",
-    background: muted ? "transparent" : "#FFF9E6",
-    color: muted ? "#78684C" : "#211E1E",
-    border: muted ? "1.5px dashed rgba(33,30,30,0.2)" : "1.5px solid #211E1E",
-    borderRadius: 3,
-    fontFamily: "'Archivo', monospace",
-    fontSize: 11, fontWeight: 800,
-  }}>{children}</span>;
-}
-
-// ── IN PREP — bottom table ─────────────────────────────────────────────────
-// Sortable, dense, no fluff. Each row is one approved hire.
-function InPrepTable({ inProgress, onOpen, onSort, sortBy, sortDir }) {
-  const ONB_LOCATIONS = window.ONB_LOCATIONS || [];
-  const cols = [
-    { id: "name",    label: "Hire",          flex: "1.6fr", align: "left",   sortable: true  },
-    { id: "role",    label: "Role",          flex: "1.5fr", align: "left",   sortable: false },
-    { id: "manager", label: "Manager",       flex: "1.2fr", align: "left",   sortable: true  },
-    { id: "status",  label: "Status",        flex: "150px", align: "left",   sortable: false },
-    { id: "start",   label: "Starts",        flex: "100px", align: "right",  sortable: true  },
-  ];
-  const gridTemplate = cols.map(c => c.flex).join(" ");
-
-  const sorted = React.useMemo(() => {
-    const rows = inProgress.map(p => {
-      const days = daysToStart(p.startDate);
-      return { hire: p, days };
-    });
-    rows.sort((a, b) => {
-      const dir = sortDir === "asc" ? 1 : -1;
-      if (sortBy === "name") return dir * `${a.hire.firstName} ${a.hire.lastName}`.localeCompare(`${b.hire.firstName} ${b.hire.lastName}`);
-      if (sortBy === "manager") return dir * (a.hire.manager || "").localeCompare(b.hire.manager || "");
-      // start
-      const ad = a.days ?? Infinity, bd = b.days ?? Infinity;
-      return dir * (ad - bd);
-    });
-    return rows;
-  }, [inProgress, sortBy, sortDir]);
-
-  return (
-    <div style={{
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 8,
-      boxShadow: "2px 2px 0 #211E1E",
-      overflow: "hidden",
-    }}>
-      {/* Header row */}
-      <div role="row" style={{
-        display: "grid",
-        gridTemplateColumns: gridTemplate,
-        gap: 16, alignItems: "center",
-        padding: "10px 18px",
-        background: "#FFF9E6",
-        borderBottom: "1px solid #211E1E",
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 9.5, fontWeight: 900,
-        letterSpacing: "0.1em", textTransform: "uppercase",
-        color: "#78684C",
-      }}>
-        {cols.map(c => (
-          <div key={c.id} role="columnheader"
-            onClick={c.sortable ? () => onSort(c.id) : undefined}
-            style={{
-              textAlign: c.align,
-              cursor: c.sortable ? "pointer" : "default",
-              userSelect: "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start",
-              gap: 4,
-              color: sortBy === c.id ? "#211E1E" : "#78684C",
-            }}>
-            {c.label}
-            {c.sortable && sortBy === c.id && (
-              <span style={{ fontSize: 8, opacity: 0.9 }}>{sortDir === "asc" ? "▲" : "▼"}</span>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Body */}
-      {sorted.length === 0 ? (
-        <div style={{
-          padding: "32px 18px",
-          textAlign: "center",
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 12.5, fontWeight: 600, color: "#78684C",
-        }}>
-          No hires currently in IT prep.
-        </div>
-      ) : sorted.map((r, idx) => {
-        const { hire, days } = r;
-        const loc = ONB_LOCATIONS.find(l => l.id === hire.location);
-        return (
-          <div role="row" key={hire.id} tabIndex={0}
-            onClick={() => onOpen(hire)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onOpen(hire); } }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#FFF9E6"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = idx % 2 ? "#FFFDF7" : "#FFFFFF"; }}
-            style={{
-              display: "grid",
-              gridTemplateColumns: gridTemplate,
-              gap: 16, alignItems: "center",
-              padding: "12px 18px",
-              background: idx % 2 ? "#FFFDF7" : "#FFFFFF",
-              borderBottom: idx === sorted.length - 1 ? "none" : "1px solid rgba(33,30,30,0.08)",
-              cursor: "pointer",
-              fontFamily: "'Archivo', sans-serif",
-              transition: "background .1s ease",
-            }}>
-            {/* Hire (avatar + name + flag) */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-              <div className="onb-row-avatar" style={{
-                width: 30, height: 30, borderRadius: "50%",
-                background: "#FDC831", color: "#211E1E",
-                display: "grid", placeItems: "center",
-                border: "1px solid #211E1E",
-                fontSize: 11, fontWeight: 900,
-                flexShrink: 0,
-                position: "relative",
-                zIndex: 1,
-                transition: "transform .15s cubic-bezier(.34,1.56,.64,1), box-shadow .15s ease",
-              }}>{oqInitials(hire.firstName, hire.lastName)}</div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  fontWeight: 800, fontSize: 13, color: "#211E1E",
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {hire.firstName} {hire.lastName}
-                  </span>
-                  {loc && window.CountryFlag && <window.CountryFlag country={loc.country} size={12} />}
-                </div>
-              </div>
-            </div>
-
-            {/* Role */}
-            <div style={{
-              fontSize: 12, color: "#4A3F2E", fontWeight: 600,
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}>
-              {hire.title}
-              <div style={{ fontSize: 10.5, color: "#78684C", marginTop: 1 }}>
-                {hire.topDept || hire.department}
-              </div>
-            </div>
-
-            {/* Manager */}
-            <div style={{
-              fontSize: 12, color: "#4A3F2E", fontWeight: 600,
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}>
-              {hire.manager || "—"}
-            </div>
-
-            {/* Status — once HR files the request it's a ticket on IT's side.
-                One simple checkmark + label; the new ticketing system owns
-                the actual work state. */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-              <div style={{
-                width: 22, height: 22, flexShrink: 0,
-                borderRadius: "50%",
-                background: "#0A8A3E", color: "#FFFFFF",
-                border: "1px solid #211E1E",
-                display: "grid", placeItems: "center",
-                boxShadow: "1px 1px 0 #211E1E",
-              }}>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              </div>
-              <span style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 11.5, fontWeight: 800, color: "#211E1E",
-                letterSpacing: "-0.005em",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>Sent to IT</span>
-            </div>
-
-            {/* Start countdown */}
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <CountdownChip days={days} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── MAIN ───────────────────────────────────────────────────────────────────
-function UnifiedOnboardingQueue({
-  approvals = [],
-  inProgress = [],
-  onOpenApproval,
-  onOpenHire,
-  onNudge,
-}) {
-  const [sortBy, setSortBy] = React.useState("start");
-  const [sortDir, setSortDir] = React.useState("asc");
-  const handleSort = (col) => {
-    if (col === sortBy) {
-      setSortDir(d => d === "asc" ? "desc" : "asc");
-    } else {
-      setSortBy(col);
-      setSortDir(col === "start" ? "asc" : "asc");
-    }
-  };
-
-  return (
-    <>
-      <AwaitingApprovalSection
-        approvals={approvals}
-        onOpenApproval={onOpenApproval}
-        onNudge={onNudge}
-      />
-
-      <section data-screen-label="In Prep">
-        <QueueSectionHeader
-          title="In prep"
-          kicker={inProgress.length === 0 ? "Nothing in prep" : "Manager approved · IT provisioning"}
-          count={inProgress.length}
-        />
-        <InPrepTable
-          inProgress={inProgress}
-          onOpen={onOpenHire}
-          onSort={handleSort}
-          sortBy={sortBy}
-          sortDir={sortDir}
-        />
-      </section>
-    </>
-  );
-}
-
-Object.assign(window, {
-  UnifiedOnboardingQueue,
-});
 
 // ─── misc (c0c64165) ──────────────────────────────────
 // ====================================================================
@@ -26677,8 +12420,8 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           50% { box-shadow: 0 0 0 8px rgba(253,200,49,0); }
         }
         .ss-action-btn { transition: transform .15s, box-shadow .15s; }
-        .ss-action-btn:hover { transform: translate(-2px,-2px); box-shadow: 3px 3px 0 #211E1E; }
-        .ss-action-btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #211E1E; }
+        .ss-action-btn:hover { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
+        .ss-action-btn:active { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
       `}</style>
 
       <div
@@ -26688,7 +12431,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           background: "#FFF9E6",
           border: "1px solid #211E1E",
           borderRadius: 14,
-          boxShadow: "4px 4px 0 #211E1E",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           padding: 0,
           animation: "ssPanelIn .35s var(--ease) both",
           overflow: "hidden",
@@ -26712,15 +12455,15 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
             }}>📷</div>
             <div>
               <div style={{
-                fontFamily: "Archivo, sans-serif",
-                fontSize: 10.5, fontWeight: 900,
+                fontFamily: "var(--font-mono)",
+                fontSize: 10.5, fontWeight: 600,
                 letterSpacing: "0.08em", textTransform: "uppercase",
                 color: "#4A3F2E",
               }}>Show, don't type</div>
               <div style={{
-                fontFamily: "Archivo, sans-serif",
-                fontSize: 19, fontWeight: 800, color: "#211E1E",
-                letterSpacing: "-0.018em",
+                fontFamily: "var(--font-head)",
+                fontSize: 19, fontWeight: 400, color: "#211E1E",
+                letterSpacing: "-0.01em",
               }}>
                 Add a screenshot — we'll take a look
               </div>
@@ -26730,7 +12473,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
             width: 32, height: 32,
             background: "#FFFFFF",
             border: "1px solid #211E1E", borderRadius: 4,
-            boxShadow: "1px 1px 0 #211E1E",
+            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
             color: "#211E1E", cursor: "pointer",
             fontFamily: "Archivo, sans-serif",
@@ -26781,9 +12524,9 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                         padding: "6px 10px",
                         background: "#FFFFFF",
                         border: "1px solid #211E1E", borderRadius: 4,
-                        boxShadow: "1px 1px 0 #211E1E",
-                        fontFamily: "Archivo, sans-serif",
-                        fontSize: 11, fontWeight: 800,
+                        boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 11, fontWeight: 600,
                         letterSpacing: "0.04em", textTransform: "uppercase",
                         color: "#211E1E", cursor: "pointer",
                       }}
@@ -26843,8 +12586,8 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               <div style={{ marginTop: 18 }}>
                 <label style={{
                   display: "block",
-                  fontFamily: "Archivo, sans-serif",
-                  fontSize: 10.5, fontWeight: 800,
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10.5, fontWeight: 600,
                   letterSpacing: "0.06em", textTransform: "uppercase",
                   color: "#4A3F2E", marginBottom: 6,
                 }}>
@@ -26889,9 +12632,9 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                     color: file ? "#FDC831" : "#78684C",
                     border: `2px solid ${file ? "#211E1E" : "#C9C2B0"}`,
                     borderRadius: 4,
-                    boxShadow: file ? "2px 2px 0 #FDC831" : "none",
-                    fontFamily: "Archivo, sans-serif",
-                    fontWeight: 800, fontSize: 13,
+                    boxShadow: file ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
+                    fontFamily: "var(--font-mono)",
+                    fontWeight: 600, fontSize: 13,
                     letterSpacing: "0.04em", textTransform: "uppercase",
                     cursor: file ? "pointer" : "not-allowed",
                     display: "inline-flex", alignItems: "center", gap: 8,
@@ -27093,12 +12836,12 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "3px 10px",
-            background: isHardware ? "#DA3327" : confColor,
+            background: isHardware ? "#211E1E" : confColor,
             color: "#FFFFFF",
-            border: `1.5px solid ${isHardware ? "#DA3327" : confColor}`,
+            border: `1.5px solid ${isHardware ? "#211E1E" : confColor}`,
             borderRadius: 999,
-            fontFamily: "Archivo, sans-serif",
-            fontSize: 10, fontWeight: 800,
+            fontFamily: "var(--font-mono)",
+            fontSize: 10, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
             marginBottom: 8,
           }}>
@@ -27106,15 +12849,15 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
             {isHardware ? "Hardware issue" : `${confPct}% confident`}
           </div>
           <div style={{
-            fontFamily: "Archivo, sans-serif",
-            fontSize: 10.5, fontWeight: 900,
+            fontFamily: "var(--font-mono)",
+            fontSize: 10.5, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
             color: "#4A3F2E", marginBottom: 4,
           }}>What we see</div>
           <h3 style={{
-            fontFamily: "Archivo, sans-serif",
-            fontSize: 22, fontWeight: 800,
-            letterSpacing: "-0.02em", lineHeight: 1.15,
+            fontFamily: "var(--font-head)",
+            fontSize: 22, fontWeight: 400,
+            letterSpacing: "-0.01em", lineHeight: 1.15,
             margin: 0, color: "#211E1E",
           }}>
             {result.diagnosis}
@@ -27130,13 +12873,13 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           background: "#FFE8E5",
           border: "1px solid #DA3327",
           borderRadius: 10,
-          boxShadow: "2px 2px 0 #DA3327",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           padding: "16px 18px",
           marginBottom: 18,
         }}>
           <div style={{
-            fontFamily: "Archivo, sans-serif",
-            fontSize: 10.5, fontWeight: 900,
+            fontFamily: "var(--font-mono)",
+            fontSize: 10.5, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
             color: "#7A1A14", marginBottom: 6,
           }}>Hardware repair — IT Team only</div>
@@ -27166,8 +12909,8 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
               marginBottom: 18,
             }}>
               <div style={{
-                fontFamily: "Archivo, sans-serif",
-                fontSize: 10.5, fontWeight: 800,
+                fontFamily: "var(--font-mono)",
+                fontSize: 10.5, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
                 color: "#4A3F2E", marginBottom: 8,
               }}>What gave it away</div>
@@ -27181,8 +12924,8 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           {suggestions.length > 0 && (
             <div style={{ marginBottom: 18 }}>
               <div style={{
-                fontFamily: "Archivo, sans-serif",
-                fontSize: 10.5, fontWeight: 800,
+                fontFamily: "var(--font-mono)",
+                fontSize: 10.5, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
                 color: "#4A3F2E", marginBottom: 10,
               }}>{suggestions.length === 1 ? "Recommended guide" : "Recommended guides"}</div>
@@ -27196,7 +12939,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                       background: i === 0 ? "#FDC831" : "#FFFFFF",
                       border: "1px solid #211E1E",
                       borderRadius: 10,
-                      boxShadow: "2px 2px 0 #211E1E",
+                      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                       padding: "12px 16px",
                       cursor: "pointer",
                       display: "flex", alignItems: "center", gap: 14,
@@ -27233,8 +12976,8 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           {steps.length > 0 && (
             <div style={{ marginBottom: 22 }}>
               <div style={{
-                fontFamily: "Archivo, sans-serif",
-                fontSize: 10.5, fontWeight: 800,
+                fontFamily: "var(--font-mono)",
+                fontSize: 10.5, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
                 color: "#4A3F2E", marginBottom: 10,
               }}>Try this in order</div>
@@ -27277,8 +13020,8 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
             padding: "10px 16px",
             background: "transparent",
             border: "1px solid #211E1E", borderRadius: 4,
-            fontFamily: "Archivo, sans-serif",
-            fontWeight: 800, fontSize: 12,
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E", cursor: "pointer",
           }}
@@ -27294,9 +13037,9 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
               background: isHardware ? "#211E1E" : "#FFFFFF",
               color: isHardware ? "#FDC831" : "#211E1E",
               border: "1px solid #211E1E", borderRadius: 4,
-              boxShadow: isHardware ? "2px 2px 0 #FDC831" : "2px 2px 0 #211E1E",
-              fontFamily: "Archivo, sans-serif",
-              fontWeight: 800, fontSize: 12.5,
+              boxShadow: isHardware ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+              fontFamily: "var(--font-mono)",
+              fontWeight: 600, fontSize: 12.5,
               letterSpacing: "0.04em", textTransform: "uppercase",
               cursor: "pointer",
             }}
@@ -27312,9 +13055,9 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                 background: "#211E1E",
                 color: "#FDC831",
                 border: "1px solid #211E1E", borderRadius: 4,
-                boxShadow: "2px 2px 0 #FDC831",
-                fontFamily: "Archivo, sans-serif",
-                fontWeight: 800, fontSize: 12.5,
+                boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+                fontFamily: "var(--font-mono)",
+                fontWeight: 600, fontSize: 12.5,
                 letterSpacing: "0.04em", textTransform: "uppercase",
                 cursor: "pointer",
                 display: "inline-flex", alignItems: "center", gap: 6,
@@ -27346,7 +13089,7 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
         background: "#FFFFFF",
         border: "1px dashed #211E1E",
         borderRadius: 12,
-        boxShadow: "2px 2px 0 #211E1E",
+        boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         cursor: "pointer",
         textAlign: "left",
         fontFamily: "inherit",
@@ -27375,8 +13118,8 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
         </div>
       </div>
       <div style={{
-        fontFamily: "Archivo, sans-serif",
-        fontSize: 11, fontWeight: 800,
+        fontFamily: "var(--font-mono)",
+        fontSize: 11, fontWeight: 600,
         letterSpacing: "0.06em", textTransform: "uppercase",
         color: "#4A3F2E",
         display: "inline-flex", alignItems: "center", gap: 6,
@@ -27612,16 +13355,28 @@ function renderMarkdown(md, opts = {}) {
       // them — Claude often writes `1.\n\n1.\n\n1.` and we want it to render
       // as ONE list (auto-renumbered 1, 2, 3…), not three lists each starting
       // at 1.
+      // Indented lines under an item (`   - Username: …`) belong to that item
+      // as sub-bullets or continuation text. Without this they fell out as a
+      // stray paragraph and the steps after them restarted at 1.
       const items = [];
+      const start = parseInt(line, 10) || 1;
       while (i < lines.length) {
         const cur = lines[i];
         if (cur.match(/^\d+\.\s+/)) {
-          items.push(cur.replace(/^\d+\.\s+/, ''));
+          items.push({ text: cur.replace(/^\d+\.\s+/, ''), subs: [] });
+          i++;
+        } else if (items.length && /^(\s{2,}|\t)\S/.test(cur)) {
+          const t = cur.trim();
+          const b = t.match(/^[-*]\s+(.*)/);
+          const last = items[items.length - 1];
+          if (b) last.subs.push(b[1]);
+          else if (last.subs.length) last.subs[last.subs.length - 1] += ' ' + t;
+          else last.text += ' ' + t;
           i++;
         } else if (cur.trim() === '') {
           let k = i + 1;
           while (k < lines.length && lines[k].trim() === '') k++;
-          if (k < lines.length && lines[k].match(/^\d+\.\s+/)) {
+          if (k < lines.length && (lines[k].match(/^\d+\.\s+/) || /^(\s{2,}|\t)\S/.test(lines[k]))) {
             i = k; // jump past the blank gap, keep the list going
           } else {
             break;
@@ -27630,6 +13385,11 @@ function renderMarkdown(md, opts = {}) {
           break;
         }
       }
+      const subList = (subs) => subs.length > 0 && (
+        <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+          {subs.map((sb, m) => <li key={m} style={{ marginBottom: 3 }}>{inline(sb)}</li>)}
+        </ul>
+      );
       if (stepStyle === 'cards') {
         // Compact card-style steps for chat answers.
         out.push(<ol key={key++} style={{ listStyle: 'none', padding: 0, margin: '0 0 14px', display: 'block' }}>
@@ -27644,7 +13404,7 @@ function renderMarkdown(md, opts = {}) {
               background: '#FFFFFF',
               border: '1px solid #211E1E',
               borderRadius: 8,
-              boxShadow: '1px 1px 0 #211E1E',
+              boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
               width: '100%',
               boxSizing: 'border-box',
             }}>
@@ -27657,16 +13417,17 @@ function renderMarkdown(md, opts = {}) {
                 fontSize: 11, fontWeight: 800,
                 flexShrink: 0,
                 marginTop: 1,
-              }}>{k + 1}</div>
+              }}>{k + start}</div>
               <div style={{ fontSize: 14, lineHeight: 1.5, color: '#211E1E', minWidth: 0, wordBreak: 'break-word' }}>
-                {inline(it)}
+                {inline(it.text)}
+                {subList(it.subs)}
               </div>
             </li>
           ))}
         </ol>);
       } else {
-        out.push(<ol key={key++} style={{ margin: '0 0 18px', paddingLeft: 24 }}>
-          {items.map((it, k) => <li key={k} style={{ marginBottom: 6 }}>{inline(it)}</li>)}
+        out.push(<ol key={key++} start={start} style={{ margin: '0 0 18px', paddingLeft: 24 }}>
+          {items.map((it, k) => <li key={k} style={{ marginBottom: 6 }}>{inline(it.text)}{subList(it.subs)}</li>)}
         </ol>);
       }
       continue;
@@ -27973,7 +13734,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     fontFamily: "'Archivo', sans-serif",
     fontSize: 14,
     cursor: 'pointer',
-    boxShadow: active ? '1px 1px 0 #FDC831' : '1px 1px 0 #211E1E',
+    boxShadow: active ? '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' : '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
   });
 
   // Square icon button shared by the sticky top-right tools (pin / share /
@@ -27984,14 +13745,16 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: active ? '#211E1E' : '#FFFFFF',
     color: active ? '#FDC831' : '#211E1E',
-    border: '1px solid #211E1E', borderRadius: 8,
-    boxShadow: '1px 1px 0 #211E1E', cursor: 'pointer', boxSizing: 'border-box',
+    border: '1px solid ' + (active ? '#211E1E' : 'rgba(33,30,30,.22)'), borderRadius: 10,
+    cursor: 'pointer', boxSizing: 'border-box',
   });
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      background: '#FDC831',
+    <div className="guide-reader" style={{
+      // Sits under the portal's top bar (z 50) so the nav stays visible and
+      // usable while reading; the 64px top padding clears it.
+      position: 'fixed', inset: 0, zIndex: 46, paddingTop: 64, boxSizing: 'border-box',
+      background: 'var(--bg)',
       overflowY: 'auto',
       animation: 'fadeIn .25s var(--ease) both',
       display: 'flex', flexDirection: 'column',
@@ -28007,14 +13770,14 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         .back-to-hub-btn:hover,
         .share-guide-btn:hover,
         .feedback-btn:not(:disabled):hover {
-          transform: translate(-2px, -2px);
-          box-shadow: 2px 2px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .back-to-hub-btn:active,
         .share-guide-btn:active,
         .feedback-btn:not(:disabled):active {
-          transform: translate(1px, 1px);
-          box-shadow: 1px 1px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .back-to-hub-arrow {
           display: inline-block;
@@ -28034,9 +13797,9 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                       background .16s ease, color .16s ease;
         }
         .guide-tool:hover, .guide-tool:focus-visible, .guide-tool[aria-expanded="true"] {
-          box-shadow: 2px 2px 0 #211E1E; transform: translate(-1px, -1px); z-index: 2;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); transform: translate(0, 0); z-index: 2;
         }
-        .guide-tool:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #211E1E; }
+        .guide-tool:active { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .guide-tool-label {
           display: inline-block; max-width: 0; opacity: 0; margin-left: 0;
           overflow: hidden; white-space: nowrap;
@@ -28052,8 +13815,8 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         }
         .guide-menu-item { transition: background .12s ease; }
         .guide-menu-item:hover, .guide-menu-item:focus-visible { background: #FDF3D3; }
-        .guide-back:hover { transform: scale(1.10); box-shadow: 2px 2px 0 #211E1E; }
-        .guide-back:active { transform: scale(0.92); box-shadow: 1px 1px 0 #211E1E; }
+        .guide-back:hover { transform: scale(1.10); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
+        .guide-back:active { transform: scale(0.92); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .guide-back-arrow {
           display: inline-block;
           transition: transform .18s var(--ease, cubic-bezier(.22,.61,.36,1));
@@ -28096,7 +13859,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           background: '#FFFFFF',
           border: '1px solid #211E1E',
           borderRadius: 14,
-          boxShadow: '3px 3px 0 #211E1E',
+          boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
           padding: '16px 64px 40px',
           fontSize: 15, lineHeight: 1.65, color: '#211E1E',
           fontFamily: "'Archivo', sans-serif",
@@ -28141,7 +13904,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             display: 'flex', alignItems: 'center',
             border: '1px solid #211E1E', borderRadius: 8,
             background: '#FFFFFF', boxSizing: 'border-box',
-            boxShadow: '1px 1px 0 #211E1E',
+            boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
             width: searchOpen ? 'clamp(150px, calc(100vw - 470px), 340px)' : 34,
             transition: 'width .22s cubic-bezier(.22,.61,.36,1)',
             overflow: 'hidden', cursor: searchOpen ? 'text' : 'pointer',
@@ -28174,7 +13937,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             <div style={{
               position: 'absolute', top: '115%', right: 0, width: 'clamp(220px, calc(100vw - 470px), 340px)',
               background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
-              boxShadow: '3px 3px 0 rgba(33,30,30,0.9)', overflow: 'hidden',
+              boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', overflow: 'hidden',
               maxHeight: 280, overflowY: 'auto', zIndex: 120,
             }}>
               {searchHits.length === 0 ? (
@@ -28251,7 +14014,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               <div style={{
                 position: 'absolute', right: 0, top: '115%', minWidth: 160,
                 background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
-                boxShadow: '3px 3px 0 rgba(33,30,30,0.9)', overflow: 'hidden', zIndex: 120,
+                boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', overflow: 'hidden', zIndex: 120,
               }}>
                 {[['pdf', 'PDF document'], ['md', 'Markdown (.md)'], ['html', 'HTML file']].map(([f, l]) => (
                   <button key={f} className="guide-menu-item" onClick={() => exportGuide(f)}
@@ -28319,8 +14082,8 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               position: 'sticky', top: STICKY_TOP,
               zIndex: 4, background: '#FFFFFF',
             }}>
-              <span style={{
-                display: 'block', fontSize: 32, fontWeight: 900, letterSpacing: '-0.015em',
+              <span style={{ fontFamily: "var(--font-head)",
+                display: 'block', fontSize: 32, fontWeight: 400, letterSpacing: "-0.01em",
                 lineHeight: 1.2, paddingBottom: 14,
                 // Kept visible while pinned: it is the only thing separating
                 // the header from the body scrolling underneath.
@@ -28423,7 +14186,7 @@ function ImageLightbox({ images, index, onClose }) {
     width: 48, height: 48, borderRadius: '50%',
     background: '#FFFFFF', color: '#211E1E',
     border: '1px solid #211E1E',
-    boxShadow: '2px 2px 0 rgba(0,0,0,0.45)',
+    boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
     cursor: disabled ? 'not-allowed' : 'pointer',
     display: 'grid', placeItems: 'center',
     fontSize: 22, fontWeight: 800,
@@ -28479,7 +14242,7 @@ function ImageLightbox({ images, index, onClose }) {
           width: 40, height: 40, borderRadius: '50%',
           background: '#FFFFFF', color: '#211E1E',
           border: '1px solid #211E1E',
-          boxShadow: '2px 2px 0 rgba(0,0,0,0.4)',
+          boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
           cursor: 'pointer',
           display: 'grid', placeItems: 'center',
           fontSize: 16, fontWeight: 800,
@@ -28570,7 +14333,7 @@ function FeedbackPanel({
       background: "#FFFFFF",
       border: "1px solid #211E1E",
       borderRadius: 14,
-      boxShadow: "2px 2px 0 #211E1E, 0 4px 14px rgba(33,30,30,0.06)",
+      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 14px rgba(33,30,30,0.06)",
     }}>
       <style>{`
         .fb-btn {
@@ -28578,24 +14341,24 @@ function FeedbackPanel({
           padding: 10px 18px;
           background: #FFFFFF; color: #211E1E;
           border: 1px solid #211E1E; border-radius: 8px;
-          box-shadow: 1px 1px 0 #211E1E, 0 2px 6px rgba(33,30,30,0.05);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 2px 6px rgba(33,30,30,0.05);
           font-family: 'Archivo', sans-serif;
           font-weight: 800; font-size: 13.5px;
           cursor: pointer;
           transition: transform .2s cubic-bezier(.34, 1.56, .64, 1), box-shadow .2s ease, background .18s ease;
         }
-        .fb-btn:disabled { cursor: default; box-shadow: 1px 1px 0 #211E1E; opacity: 0.85; }
+        .fb-btn:disabled { cursor: default; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); opacity: 0.85; }
         /* Default hover only applies to NON-active buttons. The active states
            have their own hover rules below so their text doesn't go white-on-
            white when the user re-hovers their selection. */
         .fb-btn:not(:disabled):not(.is-yes-on):not(.is-no-on):hover {
-          transform: translate(-2px,-2px);
+          transform: translate(0, 0);
           background: #FFF9E6;
-          box-shadow: 2px 2px 0 #211E1E, 0 8px 18px rgba(33,30,30,0.12);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.12);
         }
         .fb-btn:not(:disabled):active {
-          transform: translate(1px,1px);
-          box-shadow: 1px 1px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           transition-duration: .08s;
         }
         .fb-btn .fb-emoji {
@@ -28607,36 +14370,36 @@ function FeedbackPanel({
 
         /* Active states — both have explicit hover rules so the dark fill +
            bright text combination stays intact when re-hovered. */
-        .fb-btn.is-yes-on { background: #211E1E; color: #FDC831; box-shadow: 1px 1px 0 #FDC831; opacity: 1; }
+        .fb-btn.is-yes-on { background: #211E1E; color: #FDC831; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); opacity: 1; }
         .fb-btn.is-yes-on:not(:disabled):hover {
           background: #000000; color: #FDC831;
-          transform: translate(-2px,-2px);
-          box-shadow: 2px 2px 0 #FDC831, 0 8px 18px rgba(33,30,30,0.18);
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.18);
         }
-        .fb-btn.is-no-on  { background: #B92323; color: #FFFFFF; box-shadow: 1px 1px 0 #211E1E; opacity: 1; }
+        .fb-btn.is-no-on  { background: #211E1E; color: #FFFFFF; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); opacity: 1; }
         .fb-btn.is-no-on:not(:disabled):hover {
-          background: #D32D2D; color: #FFFFFF;
-          transform: translate(-2px,-2px);
-          box-shadow: 2px 2px 0 #211E1E, 0 8px 18px rgba(185,35,35,0.22);
+          background: #211E1E; color: #FFFFFF;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.22);
         }
 
         .fb-reason {
           padding: 6px 12px;
           background: #FFFFFF; color: #211E1E;
           border: 1px solid #211E1E; border-radius: 999px;
-          box-shadow: 1px 1px 0 #211E1E;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
           font-size: 12px; font-weight: 700;
           cursor: pointer;
           transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .18s ease, color .18s ease;
         }
         .fb-reason:hover {
-          transform: translate(-1.5px,-1.5px);
+          transform: translate(0, 0);
           background: #FFF9E6;
-          box-shadow: 3.5px 3.5px 0 #211E1E;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
-        .fb-reason.is-on { background: #211E1E; color: #FDC831; box-shadow: 1px 1px 0 #FDC831; }
-        .fb-reason.is-on:hover { box-shadow: 3.5px 3.5px 0 #FDC831; }
+        .fb-reason.is-on { background: #211E1E; color: #FDC831; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
+        .fb-reason.is-on:hover { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .fb-textarea {
           width: 100%;
           padding: 10px 12px;
@@ -28646,45 +14409,45 @@ function FeedbackPanel({
           font-family: 'Archivo', sans-serif;
           font-size: 13.5px; color: #211E1E;
           resize: vertical; min-height: 64px;
-          box-shadow: 1px 1px 0 #211E1E;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           outline: none; box-sizing: border-box;
           transition: box-shadow .15s ease;
         }
-        .fb-textarea:focus { box-shadow: 2px 2px 0 #FDC831, 0 0 0 3px rgba(253,200,49,0.25); }
+        .fb-textarea:focus { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 0 0 3px rgba(253,200,49,0.25); }
         .fb-submit {
           padding: 10px 22px;
           background: #211E1E; color: #FFFFFF;
           border: 1px solid #211E1E; border-radius: 8px;
-          box-shadow: 2px 2px 0 #FDC831, 0 4px 10px rgba(33,30,30,0.10);
-          font-family: 'Archivo', sans-serif;
-          font-weight: 800; font-size: 13.5px;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.10);
+          font-family:var(--font-mono);
+          font-weight:600; font-size: 13.5px;
           letter-spacing: 0.04em; text-transform: uppercase;
           cursor: pointer;
           transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .18s ease;
         }
         .fb-submit:hover {
-          transform: translate(-2px,-2px);
+          transform: translate(0, 0);
           background: #000;
-          box-shadow: 3px 3px 0 #FDC831, 0 10px 20px rgba(33,30,30,0.16);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 10px 20px rgba(33,30,30,0.16);
         }
-        .fb-submit:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #FDC831; transition-duration: .08s; }
+        .fb-submit:active { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); transition-duration: .08s; }
         .fb-ticket {
           padding: 10px 22px;
-          background: #B92323; color: #FFFFFF;
+          background: #211E1E; color: #FDC831;
           border: 1px solid #211E1E; border-radius: 8px;
-          box-shadow: 2px 2px 0 #211E1E, 0 4px 10px rgba(185,35,35,0.16);
-          font-family: 'Archivo', sans-serif;
-          font-weight: 800; font-size: 13.5px;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.16);
+          font-family:var(--font-mono);
+          font-weight:600; font-size: 13.5px;
           letter-spacing: 0.04em; text-transform: uppercase;
           cursor: pointer;
           transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .18s ease;
         }
         .fb-ticket:hover {
-          transform: translate(-2px,-2px);
-          background: #D32D2D;
-          box-shadow: 3px 3px 0 #211E1E, 0 10px 20px rgba(185,35,35,0.22);
+          transform: translate(0, 0);
+          background: #211E1E;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 10px 20px rgba(33,30,30,0.22);
         }
-        .fb-ticket:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #211E1E; transition-duration: .08s; }
+        .fb-ticket:active { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); transition-duration: .08s; }
         @keyframes fbSlide {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0);    }
@@ -28697,7 +14460,7 @@ function FeedbackPanel({
           padding: 8px 14px;
           background: #FFF9E6; color: #211E1E;
           border: 1px solid #211E1E; border-radius: 999px;
-          box-shadow: 1px 1px 0 #211E1E;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
           font-size: 12.5px; font-weight: 700;
           cursor: pointer;
@@ -28708,13 +14471,13 @@ function FeedbackPanel({
           transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .18s ease;
         }
         .fb-related:hover {
-          transform: translate(-2px,-2px);
+          transform: translate(0, 0);
           background: #FDC831;
-          box-shadow: 2px 2px 0 #211E1E;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-related:active {
-          transform: translate(1px,1px);
-          box-shadow: 1px 1px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           transition-duration: .08s;
         }
       `}</style>
@@ -28754,8 +14517,8 @@ function FeedbackPanel({
           {relatedGuides && relatedGuides.length > 0 && onOpenGuide && (
             <div style={{ marginBottom: 16 }}>
               <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em",
+                fontFamily: "var(--font-mono)",
+                fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
                 textTransform: "uppercase", color: "#78684C", marginBottom: 8,
               }}>Try one of these instead</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -28786,8 +14549,8 @@ function FeedbackPanel({
 
           <div style={{ marginBottom: 14 }}>
             <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em",
+              fontFamily: "var(--font-mono)",
+              fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
               textTransform: "uppercase", color: "#78684C", marginBottom: 8,
             }}>What was off? <span style={{ fontWeight: 600, opacity: 0.7 }}>(optional · multi-select)</span></div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -28803,8 +14566,8 @@ function FeedbackPanel({
 
           <div style={{ marginBottom: 16 }}>
             <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em",
+              fontFamily: "var(--font-mono)",
+              fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
               textTransform: "uppercase", color: "#78684C", marginBottom: 8,
             }}>Anything else? <span style={{ fontWeight: 600, opacity: 0.7 }}>(optional)</span></div>
             <textarea className="fb-textarea" value={note} onChange={(e) => setNote(e.target.value)}
@@ -28904,8 +14667,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                       box-shadow .15s var(--ease, cubic-bezier(.22,.61,.36,1));
         }
         .search-back-btn:hover {
-          transform: translate(-2px, -2px);
-          box-shadow: 2px 2px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .search-back-btn:hover .search-back-arrow { transform: translateX(-4px); }
         .search-back-arrow {
@@ -28913,12 +14676,12 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           transition: transform .18s var(--ease, cubic-bezier(.22,.61,.36,1));
         }
         .search-card:hover {
-          transform: translate(-2px, -2px);
-          box-shadow: 4px 4px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .search-card:active {
-          transform: translate(1px, 1px);
-          box-shadow: 2px 2px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .search-card .card-arrow {
           transition: transform .2s var(--ease, cubic-bezier(.22,.61,.36,1)), opacity .2s;
@@ -28935,24 +14698,24 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           transform: rotate(-3deg) scale(1.05);
         }
         .search-fb-btn:not(:disabled):hover {
-          transform: translate(-2px, -2px);
-          box-shadow: 2px 2px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .search-fb-btn:not(:disabled):active {
-          transform: translate(1px, 1px);
-          box-shadow: 1px 1px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .search-ticket-btn {
           transition: transform .15s var(--ease, cubic-bezier(.22,.61,.36,1)),
                       box-shadow .15s var(--ease, cubic-bezier(.22,.61,.36,1));
         }
         .search-ticket-btn:hover {
-          transform: translate(-2px, -2px);
-          box-shadow: 5px 5px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .search-ticket-btn:active {
-          transform: translate(1px, 1px);
-          box-shadow: 2px 2px 0 #211E1E;
+          transform: translate(0, 0);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .search-ticket-btn svg {
           transition: transform .2s var(--ease, cubic-bezier(.22,.61,.36,1));
@@ -28973,7 +14736,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         color: '#211E1E',
         cursor: 'pointer',
         display: 'inline-flex', alignItems: 'center', gap: 8,
-        boxShadow: '1px 1px 0 #211E1E',
+        boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
       }}>
         <span className="search-back-arrow">←</span>
         Back to hub
@@ -28985,15 +14748,15 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         flex: '1 0 auto', display: 'flex', flexDirection: 'column',
       }}>
         <div style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 11, fontWeight: 900, letterSpacing: '0.08em',
+          fontFamily: "var(--font-mono)",
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
           textTransform: 'uppercase', color: '#4A3F2E', marginBottom: 8,
         }}>
           Results for
         </div>
         <h1 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 40, fontWeight: 900, letterSpacing: '-0.025em',
+          fontFamily: "var(--font-head)",
+          fontSize: 40, fontWeight: 400, letterSpacing: "-0.01em",
           margin: '0 0 32px', color: '#211E1E', lineHeight: 1.1,
         }}>
           "{query}"
@@ -29003,7 +14766,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           <div>
             <div style={{
               background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
-              padding: '24px 28px', boxShadow: '2px 2px 0 #211E1E',
+              padding: '24px 28px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
               display: 'flex', alignItems: 'center', gap: 14,
             }}>
               <div style={{
@@ -29040,7 +14803,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           return (
             <div style={{
               background: '#FFF9E6', border: '1px solid #211E1E', borderRadius: 14,
-              padding: '22px 26px', boxShadow: '2px 2px 0 #211E1E', marginBottom: 28,
+              padding: '22px 26px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 28,
             }}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
@@ -29054,8 +14817,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                   flexShrink: 0,
                 }}>S</div>
                 <div style={{
-                  fontFamily: "'Archivo', sans-serif",
-                  fontSize: 11, fontWeight: 900, letterSpacing: '0.08em',
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
                   textTransform: 'uppercase', color: '#4A3F2E',
                 }}>Slice IT · here's what to try</div>
               </div>
@@ -29082,7 +14845,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     padding: '11px 20px',
                     background: '#211E1E', color: '#FDC831',
                     border: '1px solid #211E1E', borderRadius: 8,
-                    boxShadow: '3px 3px 0 #211E1E', cursor: 'pointer',
+                    boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', cursor: 'pointer',
                     fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 13.5,
                     letterSpacing: '0.02em',
                   }}>
@@ -29096,8 +14859,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         {!loading && citations.length > 0 && (
           <>
             <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 11, fontWeight: 900, letterSpacing: '0.08em',
+              fontFamily: "var(--font-mono)",
+              fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
               textTransform: 'uppercase', color: '#4A3F2E', marginBottom: 12,
             }}>Top matching guides</div>
             <div style={{ display: 'grid', gap: 14, marginBottom: 28 }}>
@@ -29114,7 +14877,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                       border: '1px solid #211E1E',
                       borderRadius: 14,
                       padding: '20px 22px',
-                      boxShadow: '3px 3px 0 #211E1E',
+                      boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
                       cursor: 'pointer',
                       fontFamily: "'Archivo', sans-serif",
                       color: '#211E1E',
@@ -29134,8 +14897,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     </div>
                     <div style={{ minWidth: 0 }}>
                       {c.category && (
-                        <div style={{
-                          fontSize: 10.5, fontWeight: 800, letterSpacing: '0.08em',
+                        <div style={{ fontFamily: "var(--font-mono)",
+                          fontSize: 10.5, fontWeight: 600, letterSpacing: '0.08em',
                           textTransform: 'uppercase', color: '#78684C', marginBottom: 4,
                         }}>{c.category}</div>
                       )}
@@ -29172,11 +14935,11 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         {!loading && suggestions && suggestions.length > 0 && (
           <div style={{
             background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
-            padding: '20px 22px', boxShadow: '2px 2px 0 #211E1E', marginBottom: 28,
+            padding: '20px 22px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 28,
           }}>
             <div style={{
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 11, fontWeight: 900,
+              fontFamily: "var(--font-mono)",
+              fontSize: 11, fontWeight: 600,
               letterSpacing: '0.08em', textTransform: 'uppercase',
               color: '#4A3F2E', marginBottom: 8,
             }}>
@@ -29219,7 +14982,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         {!loading && citations.length === 0 && (!suggestions || suggestions.length === 0) && (
           <div style={{
             background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
-            padding: '24px 28px', boxShadow: '2px 2px 0 #211E1E', marginBottom: 28,
+            padding: '24px 28px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 28,
           }}>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>No matching guides yet.</div>
             <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 14 }}>
@@ -29265,8 +15028,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         <div style={{
           marginTop: 'auto', paddingTop: 56, textAlign: 'center',
           fontSize: 10.5, color: '#4A3F2E',
-          fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
-          fontFamily: "'Archivo', sans-serif",
+          fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase',
+          fontFamily: "var(--font-mono)",
         }}>Built by the Slice IT Team</div>
       </div>
     </div>
@@ -29318,7 +15081,7 @@ function useCatalogItems() { return useCatalogSlice(_allCatalog, []); }
 
 const ASK_STOP = new Set(('a an and are as at be but by can could do does for from get got has have how i if in into is it its me my no not of on or our please ' +
   'should so that the their them then there this to too up us was we what when where which who why will with would you your hi hello hey thanks ' +
-  'need want help cant cannot dont doesnt wont isnt im ive keep keeps working work works issue problem still anymore just really').split(' '));
+  'need want help cant cannot dont doesnt wont isnt im ive keep keeps working work works issue problem still anymore just really new').split(' '));
 function askTerms(text) {
   return String(text || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9\s]+/g, ' ').split(/\s+/).filter((w) => w.length >= 2 && !ASK_STOP.has(w));
