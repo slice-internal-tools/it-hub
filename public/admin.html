@@ -1122,110 +1122,6 @@
       .list-toolbar .chips { overflow-x: auto; }
     }
 
-    /* ============== INSIGHTS — 14-day stacked daily chart ============== */
-    /* Pure CSS bars, one column per day. */
-    .chart-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r-lg);
-      box-shadow: var(--shadow-sm);
-      margin-bottom: 18px;
-      overflow: hidden;
-    }
-    .chart-head {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex; gap: 12px; align-items: flex-start; justify-content: space-between;
-      flex-wrap: wrap;
-    }
-    .chart-head .legend {
-      display: inline-flex; gap: 12px; flex-wrap: wrap;
-      font-size: 11.5px; color: var(--ink-3); font-weight: 600;
-    }
-    .chart-head .legend .lg-key { display: inline-flex; align-items: center; gap: 6px; }
-    .chart-head .legend .lg-sw {
-      display: inline-block; width: 10px; height: 10px; border-radius: 2px;
-    }
-    .chart-stack { padding: 14px 20px 8px; }
-    .chart-bars {
-      display: grid;
-      grid-template-columns: repeat(var(--n, 14), minmax(0, 1fr));
-      gap: 6px;
-      height: 140px;
-      align-items: flex-end;
-    }
-    .chart-bar {
-      height: 100%;
-      display: flex; flex-direction: column; justify-content: flex-end;
-      border-radius: 3px;
-      overflow: hidden;
-      cursor: default;
-      background: var(--hover);
-      transition: filter 0.15s;
-    }
-    .chart-bar:hover { filter: brightness(1.06); }
-    .chart-bar .seg { width: 100%; min-height: 0; }
-    .chart-bar .seg.helpful     { background: var(--pos); }
-    .chart-bar .seg.unhelpful   { background: var(--neg); }
-    .chart-bar .seg.no_feedback { background: var(--border-2); }
-    .chart-bar .seg.no_match    { background: var(--ink-3); }
-    .chart-axis {
-      display: grid;
-      grid-template-columns: repeat(var(--n, 14), minmax(0, 1fr));
-      gap: 6px;
-      padding: 8px 20px 14px;
-      font-size: 10.5px; color: var(--ink-3); font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-    .chart-axis .ax { text-align: center; min-width: 0; white-space: nowrap; opacity: 0.85; }
-
-    /* Underperforming-guide row (Insights) — same row pattern as the others
-       but with a per-row helpful% pill on the right. */
-    .un-row {
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 14px; border-bottom: 1px solid var(--border);
-      cursor: pointer;
-    }
-    .un-row:hover { background: var(--hover); }
-    .un-row .info { min-width: 0; flex: 1; }
-    .un-row .info .ttl { font-weight: 600; color: var(--ink); font-size: 13.5px;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .un-row .info .meta { font-size: 12px; color: var(--ink-3); }
-    .un-row .pct {
-      display: inline-flex; align-items: center;
-      padding: 3px 9px; border-radius: 999px;
-      font-size: 11.5px; font-weight: 800;
-      font-variant-numeric: tabular-nums;
-      background: var(--neg-bg); color: var(--neg);
-      flex-shrink: 0;
-    }
-
-    /* Theme-cloud split (Insights) — two side-by-side word clouds. */
-    .theme-split {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0;
-    }
-    .theme-split > .theme-pane {
-      padding: 14px 18px;
-    }
-    .theme-split > .theme-pane:first-child {
-      border-right: 1px solid var(--border);
-    }
-    .theme-pane .theme-head {
-      font-size: 11px; font-weight: 800; letter-spacing: 0.04em;
-      text-transform: uppercase; color: var(--ink-3);
-      margin-bottom: 10px;
-    }
-    .theme-pane .theme-words {
-      display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
-      line-height: 1.6;
-    }
-    @media (max-width: 720px) {
-      .theme-split { grid-template-columns: 1fr; }
-      .theme-split > .theme-pane:first-child { border-right: none; border-bottom: 1px solid var(--border); }
-    }
-
     /* ============== TOAST ============== */
     .toast-stack { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 200; pointer-events: none; }
     .toast { background: var(--ink); color: #fff; padding: 10px 14px; border-radius: 8px; box-shadow: var(--shadow-lg); font-size: 13px; min-width: 240px; max-width: 380px; animation: toast-in 0.2s ease-out; pointer-events: auto; display: flex; gap: 10px; align-items: flex-start; }
@@ -2042,7 +1938,7 @@
     body.editor-dark .row-title { color: var(--ink); }
     body.editor-dark .row-meta { color: var(--ink-3); }
 
-    /* "between" rows used in cards (Insights, System) need divider lines
+    /* "between" rows used in cards (System) need divider lines
        overridden — they use var(--border) which already adapts, but the
        label/strong text needs explicit colors. */
     body.editor-dark .between strong { color: var(--ink); }
@@ -2100,19 +1996,6 @@
     body.editor-dark .icon-btn { background: var(--canvas); border-color: var(--border-2); color: var(--ink-3); }
     body.editor-dark .icon-btn:hover { background: var(--hover); color: var(--ink); border-color: var(--ink-3); }
     body.editor-dark .icon-btn .count-badge { box-shadow: 0 0 0 2px var(--canvas); }
-
-    /* Insights — chart + underperforming rows in dark mode */
-    body.editor-dark .chart-card { background: var(--canvas); border-color: var(--border); }
-    body.editor-dark .chart-head { border-bottom-color: var(--border); }
-    body.editor-dark .chart-bar { background: var(--hover); }
-    body.editor-dark .chart-bar .seg.no_feedback { background: #3A3E47; }
-    body.editor-dark .chart-bar .seg.no_match    { background: #6B7280; }
-    body.editor-dark .un-row { border-bottom-color: var(--border); }
-    body.editor-dark .un-row .info .ttl { color: var(--ink); }
-    body.editor-dark .un-row .info .meta { color: var(--ink-3); }
-    body.editor-dark .un-row .pct { background: rgba(220, 38, 38, 0.18); color: #FCA5A5; }
-    body.editor-dark .theme-split > .theme-pane:first-child { border-right-color: var(--border); }
-    body.editor-dark .theme-pane .theme-head { color: var(--ink-3); }
 
     /* Chats — outcome dot + top-citation cell */
     .chat-dot {
@@ -2350,10 +2233,6 @@
     <div class="nav-link" data-section="test">
       <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2h6v6l4 6v8H5v-8l4-6V2Z"/></svg></span>
       Test the bot
-    </div>
-    <div class="nav-link" data-section="insights">
-      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 6-6"/></svg></span>
-      Insights
     </div>
     <div class="nav-link" data-section="status">
       <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
@@ -3126,7 +3005,6 @@ function pageMeta(section) {
     guides:   { ttl: 'Guides',   sub: `${state.guides.length} total · click any row to edit · re-indexes automatically` },
     chats:    { ttl: 'Chats',    sub: 'Every question users have asked. Click for full retrieval detail.' },
     test:     { ttl: 'Test the bot', sub: 'Pretend you\'re a user — see exactly what they\'d get' },
-    insights: { ttl: 'Insights', sub: 'What users are asking about. Use this to decide which guides to write next.' },
     status:   { ttl: 'Status apps', sub: 'Manage the services shown on /status. Pick a data source per app — vendor status API, RSS/Atom feed, inbound webhook, HTTP probe, page scan, or manual — wire up Slack alerts, and ship to users instantly.' },
     system:   { ttl: 'System',   sub: 'Service health, models, and configuration' },
     trash:    { ttl: 'Trash',    sub: 'Deleted guides. Restore to bring them back, or delete forever to purge.' },
@@ -3165,7 +3043,7 @@ function navigate(section) {
   render();
   // Scroll to top on every section change — without this, opening a
   // new section while half-way down the previous one strands the user
-  // mid-page (Insights → Guides etc).
+  // mid-page (Chats → Guides etc).
   try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch { window.scrollTo(0, 0); }
   $('main')?.scrollTo?.({ top: 0, behavior: 'auto' });
 }
@@ -3176,7 +3054,6 @@ function render() {
   if (state.section === 'guides') return renderGuides(root);
   if (state.section === 'chats') return renderChats(root);
   if (state.section === 'test') return renderTest(root);
-  if (state.section === 'insights') return renderInsights(root);
   if (state.section === 'status') return renderStatus(root);
   if (state.section === 'system') return renderSystem(root);
   if (state.section === 'trash') return renderTrash(root);
@@ -4166,319 +4043,6 @@ async function sendTestFeedback(id, rating) {
     toast('Feedback recorded', 'ok');
     await loadData();
   } catch (e) { $('thumbStatus').textContent = 'Failed'; toast('Feedback failed', 'err'); }
-}
-
-// =========== INSIGHTS ===========
-async function renderInsights(root) {
-  root.innerHTML = `
-    <div class="page-header" style="margin-bottom:18px;">
-      <div>${pageTitleHTML('insights')}</div>
-    </div>
-    <div id="insightsTopics" style="margin-bottom:18px;"></div>
-    <div id="insightsBody"><div class="empty sub">Loading…</div></div>`;
-  try {
-    const data = await fetch('/api/admin/insights').then((r) => r.json());
-    renderInsightsBody(data);
-  } catch (e) {
-    $('insightsBody').innerHTML = `<div class="empty sub">Failed to load: ${esc(e.message)}</div>`;
-  }
-  // Topics load async — they take a Claude round-trip so we don't block
-  // the rest of the page on them.
-  loadAndRenderTopics();
-}
-
-async function loadAndRenderTopics() {
-  const host = $('insightsTopics');
-  if (!host) return;
-  host.innerHTML = `
-    <div class="card" style="padding:16px 18px;">
-      <div class="card-head" style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">
-        <h2 class="card-title" style="margin:0;">✨ What should I write next?</h2>
-        <span class="badge neutral">AI</span>
-      </div>
-      <div class="text-3" style="font-size:12.5px;color:var(--ink-3);margin-bottom:14px;">
-        Claude clusters the last 60 days of user questions into topics, flags which
-        already have a guide, and proposes titles for the gaps.
-      </div>
-      <div id="topicsList"><div class="empty sub" style="padding:14px 0;">Analyzing recent questions…</div></div>
-    </div>`;
-  try {
-    const r = await fetch('/api/admin/insights/topics');
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">${esc(j.detail || j.error || `HTTP ${r.status}`)}</div>`;
-      return;
-    }
-    const data = await r.json();
-    if (data.note) {
-      $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">${esc(data.note)}</div>`;
-      return;
-    }
-    const topics = Array.isArray(data.topics) ? data.topics : [];
-    if (topics.length === 0) {
-      $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">No clear topics emerged from recent chats.</div>`;
-      return;
-    }
-    // The endpoint already excludes covered topics, but filter defensively
-    // in case Claude slips one through.
-    const gaps = topics.filter((t) => !t.covered);
-    if (gaps.length === 0) {
-      $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">Every recent topic is already covered — nice work.</div>`;
-      return;
-    }
-    $('topicsList').innerHTML = gaps.map((t) => {
-      const samples = (t.sample_questions || []).slice(0, 2)
-        .map((q) => `<span style="font-size:11.5px;color:var(--ink-3);font-style:italic;">"${esc(q)}"</span>`)
-        .join(' · ');
-      const thumbsDown = Number(t.thumbs_down) || 0;
-      const noMatch = Number(t.no_match) || 0;
-      const count = Number(t.count) || 0;
-      // Priority chips: thumbs-down + no-match are stronger signals than
-      // raw question count, so they get coloured badges. Asked-count gets
-      // the neutral chip.
-      const chips = [
-        `<span class="badge neutral" style="font-size:10px;">${count}× asked</span>`,
-        thumbsDown > 0 ? `<span class="badge neg" style="font-size:10px;" title="Users marked an existing answer unhelpful">${thumbsDown}× 👎</span>` : '',
-        noMatch > 0 ? `<span class="badge stale" style="font-size:10px;" title="Chatbot found no matching guide">${noMatch}× no match</span>` : '',
-      ].filter(Boolean).join(' ');
-      const reason = t.why_gap
-        ? `<div style="margin-top:6px;font-size:12.5px;color:var(--ink-3);">${esc(t.why_gap)}</div>`
-        : '';
-      return `
-        <div class="between" style="padding:12px 0;border-bottom:1px solid var(--border);gap:14px;align-items:flex-start;">
-          <div style="min-width:0;flex:1;">
-            <div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              ${esc(t.topic)}
-              ${chips}
-            </div>
-            ${samples ? `<div style="margin-top:4px;line-height:1.4;">${samples}</div>` : ''}
-            ${reason}
-            ${t.suggested_guide_title ? `<div style="margin-top:6px;font-size:12.5px;color:var(--ink-2);">Suggested title: <strong>${esc(t.suggested_guide_title)}</strong></div>` : ''}
-          </div>
-          <button class="btn primary sm" data-write="${esc(t.suggested_guide_title || t.topic)}" style="white-space:nowrap;">Write a guide</button>
-        </div>
-      `;
-    }).join('');
-    $('topicsList').querySelectorAll('button[data-write]').forEach((b) => {
-      b.onclick = () => {
-        // Pre-fill the editor with the suggested title and jump there.
-        state.editing = { mode: 'new', id: null, snapshot: { title: b.dataset.write, category: '', source_type: 'guide', tags: [], body: '' } };
-        navigate('editor');
-      };
-    });
-  } catch (e) {
-    $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">Couldn't reach the AI service — ${esc(e.message)}</div>`;
-  }
-}
-
-function renderInsightsBody(data) {
-  const body = $('insightsBody');
-  const renderRow = (q, meta, action, extras = '') => `
-    <div class="between" style="padding:10px 14px;border-bottom:1px solid var(--border);gap:12px;">
-      <div style="min-width:0;flex:1;">
-        <div class="row-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(q)}</div>
-        <div class="row-meta">${meta}</div>
-        ${extras}
-      </div>
-      ${action}
-    </div>
-  `;
-
-  // Normalize the daily timeseries (used by the chart below).
-  const daily = (data.daily || []).map((d) => ({
-    day: d.day,
-    helpful:     Number(d.helpful) || 0,
-    unhelpful:   Number(d.unhelpful) || 0,
-    no_feedback: Number(d.no_feedback) || 0,
-    no_match:    Number(d.no_match) || 0,
-  }));
-
-  // ---- 14-day stacked daily chart (CSS bars, scales to container).
-  const chartHtml = (() => {
-    if (daily.length === 0) {
-      return `<div class="empty sub" style="padding:24px;">No chat data yet — once users start asking, this chart will fill in.</div>`;
-    }
-    const totals = daily.map((d) => d.helpful + d.unhelpful + d.no_feedback + d.no_match);
-    const maxTotal = Math.max(1, ...totals);
-    const fmtDay = (s) => new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
-    const fmtAxis = (s) => new Date(s).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', timeZone: 'UTC' });
-    const bars = daily.map((d, i) => {
-      const total = totals[i];
-      const pct = (v) => total === 0 ? 0 : (v / maxTotal) * 100;
-      const stackPct = (v) => total === 0 ? 0 : (v / total) * pct(total);
-      const dateLabel = fmtDay(d.day);
-      const tt = `${dateLabel} — ${total} ${total === 1 ? 'chat' : 'chats'}\n${d.helpful} helpful · ${d.unhelpful} unhelpful · ${d.no_feedback} no feedback · ${d.no_match} no match`;
-      // Stack from bottom: helpful, unhelpful, no_feedback, no_match.
-      const segs = ['helpful', 'unhelpful', 'no_feedback', 'no_match']
-        .map((k) => d[k] > 0
-          ? `<div class="seg ${k}" style="flex: ${d[k]} 0 0;"></div>`
-          : '')
-        .filter(Boolean)
-        .join('');
-      const fillScale = total / maxTotal;
-      const innerStyle = `display:flex;flex-direction:column-reverse;height:${(fillScale * 100).toFixed(2)}%;width:100%;`;
-      return `<div class="chart-bar" title="${esc(tt)}"><div style="${innerStyle}">${segs}</div></div>`;
-    }).join('');
-    const axisN = daily.length;
-    const axis = daily.map((d, i) => {
-      const isFirst = i === 0;
-      const isLast = i === daily.length - 1;
-      const isMid = i === Math.floor(daily.length / 2);
-      const show = isFirst || isLast || isMid || (i % 3 === 0 && !isFirst && !isLast);
-      const lbl = show ? fmtAxis(d.day) : '';
-      return `<div class="ax">${lbl}</div>`;
-    }).join('');
-    return `
-      <div class="chart-stack"><div class="chart-bars" style="--n:${axisN};">${bars}</div></div>
-      <div class="chart-axis" style="--n:${axisN};">${axis}</div>
-    `;
-  })();
-
-  // ---- Knowledge gaps, downvoted, most-asked rows.
-  const noMatchHtml = data.no_match.length === 0
-    ? `<div class="empty"><div class="ttl">All clear</div><div class="sub">Every question users have asked has matched at least one guide. Keep it up.</div></div>`
-    : data.no_match.map((r) => renderRow(
-        r.q,
-        `Asked <strong>${r.n}×</strong> · last seen ${new Date(r.last_seen).toLocaleString()}`,
-        `<button class="btn primary sm" data-write="${esc(r.q)}">+ Write guide</button>`,
-      )).join('');
-
-  const downvotedHtml = data.downvoted.length === 0
-    ? `<div class="empty"><div class="ttl">No 👎 yet</div><div class="sub">Either nobody is rating, or your guides are great. Make sure the feedback UI is visible.</div></div>`
-    : data.downvoted.map((r) => renderRow(
-        r.q,
-        `Marked unhelpful <strong>${r.n_neg}×</strong> · last seen ${new Date(r.last_seen).toLocaleString()}`,
-        `<button class="btn ghost sm" data-write="${esc(r.q)}">Improve guide</button>`,
-      )).join('');
-
-  const askedHtml = data.most_asked.length === 0
-    ? `<div class="empty sub">No chats yet.</div>`
-    : data.most_asked.map((r) => renderRow(
-        r.q,
-        `${r.n}× total · last seen ${new Date(r.last_seen).toLocaleString()}`,
-        `<button class="btn ghost sm" data-test="${esc(r.q)}">Test</button>`,
-      )).join('');
-
-  // ---- Underperforming guides — direct rewrite worklist.
-  const underHtml = (data.underperforming || []).length === 0
-    ? `<div class="empty"><div class="ttl">No underperformers</div><div class="sub">Every guide with 5+ ratings is over the 60% helpful bar. Nice.</div></div>`
-    : data.underperforming.map((g) => `
-        <div class="un-row" data-edit-guide="${g.id}" title="Open in editor">
-          <div class="info">
-            <div class="ttl">${esc(g.title)}</div>
-            <div class="meta">${g.helpful_count} helpful · ${g.unhelpful_count} unhelpful · ${g.total_ratings} ratings total</div>
-          </div>
-          <span class="pct">${g.helpful_pct}%</span>
-        </div>
-      `).join('');
-
-  // ---- Theme cloud split: "Users ask about" + "Corpus is missing".
-  const cloudFor = (words) => {
-    if (!words || words.length === 0) return `<div class="empty sub">Not enough data yet.</div>`;
-    const max = Math.max(...words.map((w) => w.docs));
-    const min = Math.min(...words.map((w) => w.docs));
-    return `<div class="theme-words">
-      ${words.map((w) => {
-        const ratio = max === min ? 0.5 : (w.docs - min) / (max - min);
-        const size = (12 + ratio * 12).toFixed(0);
-        const weight = ratio > 0.66 ? 800 : ratio > 0.33 ? 700 : 600;
-        const opacity = (0.55 + ratio * 0.45).toFixed(2);
-        return `<button class="cmdk-row" data-word="${esc(w.word)}" style="display:inline-flex;width:auto;padding:4px 10px;background:transparent;border:1px solid var(--border);border-radius:999px;font-size:${size}px;font-weight:${weight};color:var(--ink);opacity:${opacity};cursor:pointer;font-family:inherit;">
-          ${esc(w.word)}<span class="text-3" style="margin-left:6px;font-size:11px;font-weight:500;">${w.docs}</span>
-        </button>`;
-      }).join('')}
-    </div>`;
-  };
-
-  body.innerHTML = `
-    <div class="chart-card">
-      <div class="chart-head">
-        <div>
-          <h2 class="card-title">Last 14 days · daily volume by outcome</h2>
-          <p class="card-subtitle">Hover any bar for the breakdown. Watch the gray + dark-gray segments — those are unrated and no-match chats, the ones that need attention.</p>
-        </div>
-        <div class="legend">
-          <span class="lg-key"><span class="lg-sw" style="background:var(--pos);"></span> Helpful</span>
-          <span class="lg-key"><span class="lg-sw" style="background:var(--neg);"></span> Unhelpful</span>
-          <span class="lg-key"><span class="lg-sw" style="background:var(--border-2);"></span> No feedback</span>
-          <span class="lg-key"><span class="lg-sw" style="background:var(--ink-3);"></span> No match</span>
-        </div>
-      </div>
-      ${chartHtml}
-    </div>
-
-    <div class="row-grid">
-      <div class="card" style="grid-column: span 2; padding: 0;">
-        <div class="card-head" style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
-          <div>
-            <h2 class="card-title">Knowledge gaps</h2>
-            <p class="card-subtitle">Questions that returned <strong>zero</strong> matching guides. Each one is a user the bot couldn't help — write the guide.</p>
-          </div>
-          <span class="badge ${data.no_match.length === 0 ? 'pos' : 'neg'}">${data.no_match.length}</span>
-        </div>
-        ${noMatchHtml}
-      </div>
-
-      <div class="card" style="grid-column: span 2; padding: 0;">
-        <div class="card-head" style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
-          <div>
-            <h2 class="card-title">Underperforming guides</h2>
-            <p class="card-subtitle">Guides with 5+ ratings where most users said "no, didn't help." Highest-leverage rewrites — the bot is finding them, but they aren't solving the problem.</p>
-          </div>
-          <span class="badge ${(data.underperforming || []).length === 0 ? 'pos' : 'neg'}">${(data.underperforming || []).length}</span>
-        </div>
-        ${underHtml}
-      </div>
-
-      <div class="card" style="padding: 0;">
-        <div class="card-head" style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
-          <div>
-            <h2 class="card-title">Marked unhelpful</h2>
-            <p class="card-subtitle">A guide matched, but the user said "no, didn't help."</p>
-          </div>
-          <span class="badge ${data.downvoted.length === 0 ? 'pos' : 'neg'}">${data.downvoted.length}</span>
-        </div>
-        ${downvotedHtml}
-      </div>
-
-      <div class="card" style="padding: 0;">
-        <div class="card-head" style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
-          <h2 class="card-title">Most asked</h2>
-          <p class="card-subtitle">Top questions by frequency. Use this to prioritize which guides to keep evergreen.</p>
-        </div>
-        ${askedHtml}
-      </div>
-
-      <div class="card" style="grid-column: span 2; padding: 0;">
-        <div class="card-head" style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
-          <h2 class="card-title">Themes</h2>
-          <p class="card-subtitle">Click any word to test it on the bot. The right pane is gold — those words came from questions where retrieval failed entirely.</p>
-        </div>
-        <div class="theme-split">
-          <div class="theme-pane">
-            <div class="theme-head">Users ask about · all queries</div>
-            ${cloudFor(data.trending_words)}
-          </div>
-          <div class="theme-pane">
-            <div class="theme-head">Corpus is missing · no-match queries</div>
-            ${cloudFor(data.gap_words)}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  body.querySelectorAll('[data-write]').forEach((b) => b.onclick = () => startGuideFromQuery(b.dataset.write));
-  body.querySelectorAll('[data-test]').forEach((b) => b.onclick = () => {
-    state.section = 'test';
-    navigate('test');
-    setTimeout(() => { $('testQuery').value = b.dataset.test; testChat(); }, 50);
-  });
-  body.querySelectorAll('[data-word]').forEach((b) => b.onclick = () => {
-    navigate('test');
-    setTimeout(() => { $('testQuery').value = b.dataset.word; testChat(); }, 50);
-  });
-  body.querySelectorAll('[data-edit-guide]').forEach((b) => b.onclick = () => startEditGuide(b.dataset.editGuide));
 }
 
 // =========== STATUS PLATFORM ===========
@@ -6617,7 +6181,6 @@ const cmdkActions = [
   { type: 'page', label: 'Guides', icon: '📄', go: () => navigate('guides') },
   { type: 'page', label: 'Chats', icon: '💬', go: () => navigate('chats') },
   { type: 'page', label: 'Test the bot', icon: '🧪', go: () => navigate('test') },
-  { type: 'page', label: 'Insights', icon: '📊', go: () => navigate('insights') },
   { type: 'page', label: 'Status apps', icon: '◉', go: () => navigate('status') },
   { type: 'page', label: 'System', icon: '⚙', go: () => navigate('system') },
   { type: 'action', label: 'New guide', icon: '+', go: () => startNewGuide() },
