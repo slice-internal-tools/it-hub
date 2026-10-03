@@ -6769,7 +6769,7 @@ function AppIcon({ name, iconUrl, size = 30, className }) {
     // App-icon corners scale with size (~24%, like iOS) so the frame nests
     // the logo's own rounded square; a faint hairline instead of a cream
     // border keeps dark logos crisp and white ones separated.
-    return <img className={className} src={iconUrl} alt="" width={size} height={size} style={{ borderRadius: Math.round(size * 0.24), objectFit: 'cover', flexShrink: 0, border: 'none', background: '#fff', boxShadow: '0 0 0 1px rgba(33,30,30,.08)' }} />;
+    return <img className={className} src={iconUrl} alt="" width={size} height={size} style={{ borderRadius: Math.round(size * 0.24), objectFit: 'contain', flexShrink: 0, border: 'none', background: '#fff', boxShadow: '0 0 0 1px rgba(33,30,30,.08)' }} />;
   }
   return (
     <span className={className} style={{

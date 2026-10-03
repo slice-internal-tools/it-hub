@@ -3230,3 +3230,10 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 /* Ticket title: icon centred against the title + meta block. */
 .tkd-head { align-items: center !important; }
 .tkd-head > img, .tkd-head > span:first-child { margin-top: 0 !important; }
+
+/* Real catalog logos aren't all full-bleed squares (wordmarks like
+   Salesforce, tiles like Slice). In the round logo chips, fit the whole
+   logo inside with a little padding instead of scaling it to fill —
+   nothing gets cropped. */
+.hc-tab-app img, .tkt-start-chip img, .tkt-action-chip img, .hero-request-cta-chip img {
+  object-fit: contain !important; transform: none !important; padding: 3px; box-sizing: border-box; background: #FFFFFF; }
