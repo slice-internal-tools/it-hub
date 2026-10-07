@@ -1102,47 +1102,38 @@
   .notif-empty-title { font: 800 14px 'Archivo', sans-serif; color: #211E1E; }
   .notif-empty-body { font-size: 12px; color: #78684C; margin-top: 4px; line-height: 1.45; }
 
-  /* Account */
-  .account-pop { width: 296px; }
-  .account-head {
-    display: flex; align-items: center; gap: 12px; padding: 14px;
-    background: linear-gradient(135deg, #FDC831 0%, #FFD95C 100%); border-bottom: 1px solid #211E1E;
-  }
+  /* Account — same white shell + hairline head as the notifications pop.
+     Single-line rows, bare icons that darken on hover; the avatar matches
+     the one on the bar. */
+  .account-pop { width: 260px; }
+  .account-head { display: flex; align-items: center; gap: 12px; padding: 14px 14px 13px; border-bottom: 1px solid #EFE8DA; }
   .account-avatar {
-    position: relative; width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center;
-    background: #211E1E; color: #FDC831; border: 1px solid #211E1E; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
-    font: 900 15px/1 'Archivo', sans-serif; letter-spacing: .02em;
+    position: relative; width: 38px; height: 38px; flex: none; border-radius: 50%; display: grid; place-items: center;
+    background: #FDC831; color: #211E1E; font: 700 13px/1 'Archivo', sans-serif; letter-spacing: .02em;
   }
-  .account-avatar .nav-presence { width: 12px; height: 12px; border-color: #FDC831; }
-  .account-name { font-size: 14px; font-weight: 800; color: #211E1E; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .account-email { font-size: 11.5px; color: #3A2F10; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .account-avatar .nav-presence { width: 11px; height: 11px; right: -1px; bottom: -1px; border-color: #FFFFFF; }
+  .account-name { font-size: 14px; font-weight: 700; color: #211E1E; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .account-email { font-size: 12px; color: #78684C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
   .account-items { padding: 6px; }
   .account-item {
-    display: flex; align-items: center; gap: 11px; width: 100%;
-    padding: 8px 9px; border: none; border-radius: 10px; background: transparent; cursor: pointer;
+    display: flex; align-items: center; gap: 11px; width: 100%; height: 36px;
+    padding: 0 10px; border: none; border-radius: 8px; background: transparent; cursor: pointer;
     text-align: left; font-family: inherit; color: #211E1E;
-    transition: background-color .14s var(--ease);
+    transition: background-color .14s ease, color .14s ease;
   }
-  .account-item:hover, .account-item:focus-visible { background: #FBF6E9; outline: none; }
-  .account-icon {
-    width: 32px; height: 32px; flex: none; border-radius: 9px; display: grid; place-items: center;
-    background: #F4EEE0; border: 1px solid #211E1E; color: #211E1E;
-    transition: background-color .15s var(--ease), color .15s var(--ease), transform .25s cubic-bezier(.34,1.56,.64,1);
-  }
-  .account-item:hover .account-icon, .account-item:focus-visible .account-icon { background: #211E1E; color: #FDC831; transform: scale(1.06); }
-  .account-label { display: block; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
-  .account-hint { display: block; font-size: 11px; color: #78684C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .account-item:hover { background: #F6F1E6; }
+  .account-item:focus-visible { background: #F6F1E6; outline: 2px solid #211E1E; outline-offset: -2px; }
+  .account-icon { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: #9A8E78; transition: color .14s ease; }
+  .account-icon svg { width: 16px; height: 16px; }
+  .account-item:hover .account-icon, .account-item:focus-visible .account-icon { color: #211E1E; }
+  .account-label { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .account-badge {
-    min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; flex: none;
-    display: grid; place-items: center; background: #DA3327; color: #FFFFFF; font: 800 10.5px/1 'Archivo', sans-serif;
+    min-width: 20px; height: 18px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; flex: none;
+    display: grid; place-items: center; background: #F1EADB; color: #211E1E; font: 600 11px/1 var(--font-mono);
   }
-  .account-go { font-size: 12px; color: #9A8E78; opacity: 0; transform: translateX(-4px); transition: opacity .15s var(--ease), transform .2s var(--ease); }
-  .account-item:hover .account-go, .account-item:focus-visible .account-go { opacity: 1; transform: none; }
-  .account-sep { height: 1px; background: #EFE8DA; margin: 0 12px; }
-  .account-signout { color: #B92323; }
-  .account-signout .account-icon { background: #FFF1EF; border-color: #B92323; color: #B92323; }
-  .account-signout:hover, .account-signout:focus-visible { background: #FFF1EF; }
-  .account-signout:hover .account-icon, .account-signout:focus-visible .account-icon { background: #211E1E; color: #FFFFFF; }
+  .account-sep { height: 1px; background: #EFE8DA; margin: 0 6px; }
+  .account-signout:hover, .account-signout:focus-visible { color: #B92323; background: #FFF1EF; }
+  .account-signout:hover .account-icon, .account-signout:focus-visible .account-icon { color: #B92323; }
 
   @media (prefers-reduced-motion: reduce) {
     .nav-pop, .nav-pop.is-closing, .nav-pop-item, .nav-bell-swing, .nav-bell-count, .notif-empty-mark { animation: none; }
@@ -3241,3 +3232,31 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
    nothing gets cropped. */
 .hc-tab-app img, .tkt-start-chip img, .tkt-action-chip img, .hero-request-cta-chip img {
   object-fit: contain !important; transform: none !important; padding: 3px; box-sizing: border-box; background: #FFFFFF; }
+
+/* Status page: the affected services under the headline. */
+.status-hit { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 13px 0 11px;
+  border: 1px solid rgba(33,30,30,.16); border-radius: 999px; background: #FFFFFF; cursor: pointer;
+  font: 600 13px/1 'Archivo', sans-serif; color: #211E1E; letter-spacing: -0.005em;
+  transition: border-color .15s ease, background-color .15s ease; }
+.status-hit:hover { border-color: #211E1E; }
+.status-hit:focus-visible { outline: 2px solid #211E1E; outline-offset: 2px; }
+.status-hit-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.status-hit.is-more { color: #4A3F2E; padding: 0 13px; background: transparent; }
+
+/* Segmented switch (tkt-seg): track + sliding white pill (SlideIndicator).
+   Shared by My tickets (Open/Closed, Mine/For others) and the Status filter. */
+.tkt-seg { position:relative; display:inline-flex; gap:2px; padding:3px; background:#ECE6D9; border-radius:11px; }
+.tkt-seg .tab-slider { background:#FFFFFF !important; box-shadow:0 1px 2px rgba(33,30,30,.12), 0 0 0 1px rgba(33,30,30,.08) !important; }
+.tkt-seg-btn { position:relative; z-index:1; display:inline-flex; align-items:center; gap:7px;
+  height:34px; padding:0 14px; border-radius:8px; cursor:pointer; border:none; background:transparent;
+  color:#78684C; font-family:'Archivo',sans-serif; font-weight:600; font-size:13.5px;
+  transition: color .16s ease; }
+.tkt-seg-btn:hover { color:#211E1E; }
+.tkt-seg-btn.is-active { color:#211E1E; }
+.tkt-seg-n { display:inline-flex; align-items:center; justify-content:center;
+  min-width:20px; height:18px; padding:0 6px; box-sizing:border-box; border-radius:999px;
+  font:500 11px/1 var(--font-mono); background:rgba(33,30,30,.07); color:#78684C; }
+.tkt-seg-btn.is-active .tkt-seg-n { background:#211E1E; color:#FDC831; }
+/* Unread activity in a view: a small cheese dot, not a red alarm. */
+.tkt-seg-dot { position:absolute; top:6px; right:5px; width:6px; height:6px;
+  border-radius:999px; background:#E0A800; }
