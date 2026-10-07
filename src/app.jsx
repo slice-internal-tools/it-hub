@@ -4396,17 +4396,17 @@ function UserMenu({ onOpenNotifications, onOpenTickets, onOpenApprovals }) {
   const _displayName = _userName || 'Loading…';
 
   const items = [
-    { label: 'Notifications', hint: 'Updates & alerts', action: 'notifications', badge: unreadCount || null, icon: (
+    { label: 'Notifications', action: 'notifications', badge: unreadCount || null, icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
     )},
-    { label: 'My tickets', hint: 'Issues & requests you raised', action: 'tickets', icon: (
+    { label: 'My tickets', action: 'tickets', icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2V10a2 2 0 0 0 0 4v1.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5Z"/><path d="M14 7v10" strokeDasharray="1.5 2.5"/></svg>
     )},
-    { label: 'Approvals', hint: 'Requests awaiting your sign-off', action: 'approvals', icon: (
+    { label: 'Approvals', action: 'approvals', icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
     )},
-    ...(_isSuperAdmin ? [{ label: 'Admin', hint: 'Manage guides & content', action: 'admin', icon: (
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+    ...(_isSuperAdmin ? [{ label: 'Admin', action: 'admin', icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>
     )}] : []),
   ];
 
@@ -4453,19 +4453,14 @@ function UserMenu({ onOpenNotifications, onOpenTickets, onOpenApprovals }) {
               <button key={it.label} role="menuitem" type="button" className="account-item nav-pop-item"
                 style={{ '--i': i }} onClick={() => run(it.action)}>
                 <span className="account-icon">{it.icon}</span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span className="account-label">{it.label}</span>
-                  <span className="account-hint">{it.hint}</span>
-                </span>
-                {it.badge != null
-                  ? <span className="account-badge">{it.badge > 9 ? '9+' : it.badge}</span>
-                  : <span className="account-go" aria-hidden="true">→</span>}
+                <span className="account-label">{it.label}</span>
+                {it.badge != null && <span className="account-badge" aria-label={`${it.badge} unread`}>{it.badge > 9 ? '9+' : it.badge}</span>}
               </button>
             ))}
           </div>
 
           <div className="account-sep" />
-          <div style={{ padding: '6px' }}>
+          <div className="account-items">
             <button role="menuitem" type="button" className="account-item account-signout nav-pop-item" style={{ '--i': items.length }}
               onClick={async () => { pop.close(false); try { await fetch('/auth/logout', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } }); } catch (e) {} window.location.href = '/login'; }}>
               <span className="account-icon">
@@ -7785,23 +7780,6 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           have on-behalf tickets). Counts reflect the current search + facet, so
           they also flag matches sitting in the other view. */}
       <style>{`
-        /* Same track-and-pill language as the page's My tickets/Approvals switch,
-           one size down — the two controls read as siblings. */
-        .tkt-seg { position:relative; display:inline-flex; gap:2px; padding:3px; background:#ECE6D9; border-radius:11px; }
-        .tkt-seg .tab-slider { background:#FFFFFF !important; box-shadow:0 1px 2px rgba(33,30,30,.12), 0 0 0 1px rgba(33,30,30,.08) !important; }
-        .tkt-seg-btn { position:relative; z-index:1; display:inline-flex; align-items:center; gap:7px;
-          height:34px; padding:0 14px; border-radius:8px; cursor:pointer; border:none; background:transparent;
-          color:#78684C; font-family:'Archivo',sans-serif; font-weight:600; font-size:13.5px;
-          transition: color .16s ease; }
-        .tkt-seg-btn:hover { color:#211E1E; }
-        .tkt-seg-btn.is-active { color:#211E1E; }
-        .tkt-seg-n { display:inline-flex; align-items:center; justify-content:center;
-          min-width:20px; height:18px; padding:0 6px; box-sizing:border-box; border-radius:999px;
-          font:500 11px/1 var(--font-mono); background:rgba(33,30,30,.07); color:#78684C; }
-        .tkt-seg-btn.is-active .tkt-seg-n { background:#211E1E; color:#FDC831; }
-        /* Unread activity in a view: a small cheese dot, not a red alarm. */
-        .tkt-seg-dot { position:absolute; top:6px; right:5px; width:6px; height:6px;
-          border-radius:999px; background:#E0A800; }
         .tkt-forothers { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; padding:12px 14px 12px 16px;
           background:#FFF6D6; color:#211E1E; border:1px solid rgba(33,30,30,.14); border-radius:12px;
           animation: tktForOthersIn .28s cubic-bezier(.22,.61,.36,1) both; }
@@ -11778,60 +11756,63 @@ function StatusPage({ onBack }) {
       background: "var(--bg)",
       display: "flex", flexDirection: "column",
     }}>
-      {/* Overall banner — cream bg always; tone expressed through icon + accent only */}
-      <div style={{
-        background: "#F7F4EF",
-        padding: "44px 32px 12px",
-      }}>
+      {/* Overall banner — one plain headline that states the situation, the
+          affected services right under it (click one to jump to its row), and
+          a single live/freshness line. Tone shows through the dot and chips. */}
+      <div style={{ background: "#F7F4EF", padding: "44px 32px 12px" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 24, alignItems: "center" }}>
           <div style={{
-            width: 88, height: 88,
-            background: toneAccent,
-            border: "1px solid #211E1E", borderRadius: 18,
-            boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-            display: "grid", placeItems: "center",
-            color: "#FFFFFF",
-            fontFamily: "Archivo, sans-serif", fontWeight: 900,
-            fontSize: 38, lineHeight: 1,
-            flexShrink: 0,
+            display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+            fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "#4A3F2E",
           }}>
-            {overallTone === "green" ? "✓" : overallTone === "amber" ? "!" : "×"}
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: payload ? toneAccent : "#C9BFA9", animation: payload ? "livePulse 1.8s ease-in-out infinite" : "none" }}/>
+            <span style={{ color: "#211E1E" }}>Live</span>
+            <span style={{ opacity: 0.45 }}>·</span>
+            <span>Checked {agoLabel}</span>
+            {loadError && (<><span style={{ opacity: 0.45 }}>·</span><span style={{ color: "#B92323" }}>Sync error</span></>)}
           </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#211E1E",
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: toneAccent, animation: "livePulse 1.8s ease-in-out infinite" }}/>
-                Live
-              </span>
+          <h1 title={loadError || undefined} style={{
+            fontFamily: "var(--font-head)", fontSize: 44, fontWeight: 400,
+            margin: "12px 0 0", letterSpacing: "-0.01em", color: "#211E1E", lineHeight: 1.05, textTransform: "none",
+          }}>
+            {!payload ? "Checking services…"
+              : down.length ? `${down.length} service${down.length === 1 ? "" : "s"} down.`
+              : degraded.length ? `${degraded.length} service${degraded.length === 1 ? "" : "s"} degraded.`
+              : "All systems operational."}
+          </h1>
+          {payload && (down.length + degraded.length === 0 ? (
+            <div style={{ fontSize: 14.5, color: "#4A3F2E", marginTop: 12 }}>
+              All {totalServices} services are responding normally.
             </div>
-            <h1 style={{
-              fontFamily: "var(--font-head)",
-              fontSize: 44, fontWeight: 400,
-              margin: 0, letterSpacing: "-0.01em",
-              color: "#211E1E", lineHeight: 1,
-              textTransform: "none",
-            }}>
-              {overallTone === "green" && "What's up?"}
-              {overallTone === "amber" && `${degraded.length} thing${degraded.length > 1 ? "s" : ""} acting up.`}
-              {overallTone === "red" && `${down.length} thing${down.length > 1 ? "s" : ""} down.`}
-            </h1>
-            <div style={{ fontSize: 14, color: "#4A3F2E", marginTop: 10, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span>Last checked <b style={{ color: "#211E1E" }}>{agoLabel}</b></span>
-              <span style={{ opacity: 0.5 }}>·</span>
-              <span>Auto-refreshes every 30 seconds</span>
-              {loadError && (
-                <>
-                  <span style={{ opacity: 0.5 }}>·</span>
-                  <span style={{ color: "#DA3327" }}>Sync error: {loadError}</span>
-                </>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
+              {[...down, ...degraded].slice(0, 6).map((svc, i) => (
+                <React.Fragment key={svc.id}>
+                  {i === down.length && down.length > 0 && (
+                    <span style={{ fontSize: 13.5, color: "#4A3F2E", margin: "0 2px 0 6px" }}>
+                      {`and ${degraded.length} degraded`}
+                    </span>
+                  )}
+                  <button type="button" className="status-hit"
+                    onClick={() => {
+                      setQuery(""); setFilter("issues"); setExpandedSvc(svc.id);
+                      requestAnimationFrame(() => {
+                        const row = document.querySelector(`[data-svc="${svc.id}"]`);
+                        if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+                      });
+                    }}>
+                    <span aria-hidden="true" className="status-hit-dot" style={{ background: svc.state === "down" ? "#DA3327" : "#E0A100" }}/>
+                    {svc.name}
+                  </button>
+                </React.Fragment>
+              ))}
+              {down.length + degraded.length > 6 && (
+                <button type="button" className="status-hit is-more" onClick={() => { setQuery(""); setFilter("issues"); }}>
+                  +{down.length + degraded.length - 6} more
+                </button>
               )}
             </div>
-          </div>
-          </div>
+          ))}
         </div>
       </div>
 
@@ -11841,30 +11822,6 @@ function StatusPage({ onBack }) {
         width: "100%",
         flex: "1 0 auto", display: "flex", flexDirection: "column",
       }}>
-        {/* Active incidents */}
-        {openIncidentList.length > 0 && (
-          <React.Fragment>
-            <SectionTitle kicker="Active right now" title="Open incidents" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 48 }}>
-              {openIncidentList.map((inc) => (
-                <IncidentCard key={inc.id} incident={inc} open />
-              ))}
-            </div>
-          </React.Fragment>
-        )}
-
-        {/* Recently resolved — shown for one hour after the fix, then auto-hidden */}
-        {recentlyResolved.length > 0 && (
-          <React.Fragment>
-            <SectionTitle kicker="Just fixed" title="Recently resolved" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 48 }}>
-              {recentlyResolved.map((inc) => (
-                <IncidentCard key={inc.id} incident={inc} />
-              ))}
-            </div>
-          </React.Fragment>
-        )}
-
         {/* Services — top-level axis, grouped tables */}
         <SectionTitle
           kicker="All services"
@@ -11872,44 +11829,24 @@ function StatusPage({ onBack }) {
           right={<StatusLegend />}
         />
 
-        {/* Search + filter bar */}
-        <div style={{
-          display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center",
-          marginBottom: 14,
-        }}>
-          <div style={{
-            position: "relative",
-            flex: "1 1 280px", minWidth: 220,
-          }}>
-            <span style={{
-              position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
-              color: "#78684C", display: "inline-flex",
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            </span>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search services, vendors, domains…"
-              style={{
-                width: "100%", boxSizing: "border-box",
-                padding: "11px 14px 11px 38px",
-                fontFamily: "'Archivo', sans-serif", fontSize: 13.5, fontWeight: 600,
-                color: "#211E1E", background: "#FFFFFF",
-                border: "1px solid #211E1E", borderRadius: 10,
-                boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)", outline: "none",
-              }}
-            />
+        {/* Search + filter bar — same search box and segmented switch as My tickets */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 14 }}>
+          <div style={{ flex: "1 1 280px", minWidth: 220 }}>
+            <TicketSearchBox value={query} onChange={setQuery} placeholder="Search services, vendors, domains…" />
           </div>
-          <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
-            All <span style={pillCountStyle(filter === "all")}>{totalServices}</span>
-          </FilterChip>
-          <FilterChip active={filter === "issues"} onClick={() => setFilter("issues")}>
-            Issues <span style={pillCountStyle(filter === "issues")}>{degraded.length + down.length}</span>
-          </FilterChip>
-          <FilterChip active={filter === "operational"} onClick={() => setFilter("operational")}>
-            Operational <span style={pillCountStyle(filter === "operational")}>{operationalCount}</span>
-          </FilterChip>
+          <div className="tkt-seg has-slider" role="tablist" aria-label="Filter services">
+            <SlideIndicator activeKey={filter} radius={8} />
+            {[["all", "All", totalServices], ["issues", "Issues", degraded.length + down.length], ["operational", "Operational", operationalCount]].map(([key, label, n]) => {
+              const active = filter === key;
+              return (
+                <button key={key} type="button" role="tab" aria-selected={active} onClick={() => setFilter(key)}
+                  className={"tkt-seg-btn" + (active ? " is-active" : "")}>
+                  {label}
+                  <span className="tkt-seg-n">{n}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Service list */}
@@ -11969,6 +11906,30 @@ function StatusPage({ onBack }) {
           ))}
         </div>
 
+        {/* Active incidents — under the service list, which is the page's main read */}
+        {openIncidentList.length > 0 && (
+          <React.Fragment>
+            <SectionTitle kicker="Active right now" title="Open incidents" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 48 }}>
+              {openIncidentList.map((inc) => (
+                <IncidentCard key={inc.id} incident={inc} open />
+              ))}
+            </div>
+          </React.Fragment>
+        )}
+
+        {/* Recently resolved — shown for one hour after the fix, then auto-hidden */}
+        {recentlyResolved.length > 0 && (
+          <React.Fragment>
+            <SectionTitle kicker="Just fixed" title="Recently resolved" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 48 }}>
+              {recentlyResolved.map((inc) => (
+                <IncidentCard key={inc.id} incident={inc} />
+              ))}
+            </div>
+          </React.Fragment>
+        )}
+
       </div>
 
       <style>{`
@@ -11979,47 +11940,6 @@ function StatusPage({ onBack }) {
       `}</style>
     </div>
   );
-}
-
-function FilterChip({ active, onClick, children }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "9px 14px",
-        background: active ? "#211E1E" : "#FFFFFF",
-        color: active ? "#FDC831" : "#211E1E",
-        border: "1px solid #211E1E", borderRadius: 999,
-        boxShadow: active ? "none" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-        fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 800,
-        letterSpacing: "0.02em",
-        cursor: "pointer",
-        transition: "transform .12s var(--ease), box-shadow .12s var(--ease), background .12s, color .12s",
-        display: "inline-flex", alignItems: "center", gap: 8,
-      }}
-      onMouseEnter={(e) => {
-        if (active) return;
-        e.currentTarget.style.transform = "translate(0, 0)";
-        e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-      }}
-      onMouseLeave={(e) => {
-        if (active) return;
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-      }}
-    >{children}</button>
-  );
-}
-
-function pillCountStyle(active) {
-  return {
-    fontSize: 11, fontWeight: 900,
-    padding: "1px 7px", borderRadius: 999,
-    background: active ? "#FDC831" : "#F7F4EF",
-    color: active ? "#211E1E" : "#4A3F2E",
-    border: "1px solid currentColor",
-    letterSpacing: "0",
-  };
 }
 
 function StatusLegend() {
@@ -12068,6 +11988,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
           cursor: "pointer",
         }}
         onClick={onToggle}
+        data-svc={service.id}
       >
         {/* App icon */}
         <div style={{
