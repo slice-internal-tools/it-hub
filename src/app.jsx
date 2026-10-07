@@ -948,12 +948,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                   ) : (
                     <button type="button" onClick={() => fileInputRef.current?.click()} className="hc-ghost"
                       title="Attach a screenshot — we'll diagnose what's on screen">
-                      {/* Camera — clearer than a paperclip for "share what's on your screen". */}
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M3 8h3l2-3h8l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/>
-                        <circle cx="12" cy="13" r="3.2"/>
-                      </svg>
+                      <IconScreenshot size={15} stroke={2} aria-hidden="true" />
                       Add a screenshot
                     </button>
                   )}
@@ -3900,8 +3895,102 @@ function useNotifications() {
 }
 
 const IconLifebuoy = (p) => <IconBase {...p}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="m5.6 5.6 3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9"/></IconBase>;
+// Screen-capture frame with a plus: "add what's on your screen". Reads as a
+// screenshot rather than a photo, unlike the camera it replaced.
+const IconScreenshot = (p) => <IconBase {...p}><path d="M3 8V6.5A3.5 3.5 0 0 1 6.5 3H8M16 3h1.5A3.5 3.5 0 0 1 21 6.5V8M21 16v1.5a3.5 3.5 0 0 1-3.5 3.5H16M8 21H6.5A3.5 3.5 0 0 1 3 17.5V16"/><path d="M12 9v6M9 12h6"/></IconBase>;
 const IconPulse = (p) => <IconBase {...p}><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></IconBase>;
 const NAV_ICONS = { Help: IconLifebuoy, Knowledge: IconBook, Status: IconPulse, "My Tickets": IconTicket };
+
+// Selected-section outline pill for the top bar. Not SlideIndicator: the pill
+// glides to the tab you pick, stretching a little in flight (its leading edge
+// runs ahead of the trailing one), then swells as it lands and bumps the tabs
+// on either side outward before everything settles. The picked tab itself
+// never moves: nothing changes layout, the push is transforms on the other
+// tabs, driven from this same frame loop so pill and push stay in lockstep.
+const PILL_MS = 420;
+const PILL_TRAVEL = 0.65;   // share of PILL_MS spent gliding
+const PILL_SWELL_AT = 0.4;  // when the landing swell starts
+const PILL_SWELL_PX = 6;    // how far the neighbours get pushed
+const PILL_INTRO_DELAY_MS = 350; // first load: beat before the ring selects the section
+const pillEase = (t) => 1 - Math.pow(1 - t, 4);
+function TopnavPill({ activeKey }) {
+  const ref = React.useRef(null);
+  const painted = React.useRef(null); // { l, r } last drawn
+  const introPlayed = React.useRef(false);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    const track = el && el.parentElement;
+    if (!track) return undefined;
+    const tabs = [...track.querySelectorAll('[role="tab"]')];
+    const at = tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true');
+    const target = () => {
+      const t = tabs[at];
+      if (!t || !t.isConnected) return null;
+      // Sub-pixel rects, not offset*, so the ring sits exactly on the tab.
+      const o = track.getBoundingClientRect(), b = t.getBoundingClientRect();
+      const x = b.left - o.left - track.clientLeft;
+      return { l: x, r: x + b.width, y: b.top - o.top - track.clientTop, h: b.height };
+    };
+    const push = (s) => tabs.forEach((t, i) => {
+      t.style.transform = s && i !== at ? `translateX(${i < at ? -s : s}px)` : '';
+    });
+    const paint = (b, y, h) => {
+      painted.current = b;
+      el.style.opacity = b ? '1' : '0';
+      if (!b) return;
+      el.style.width = `${b.r - b.l}px`;
+      el.style.height = `${h}px`;
+      el.style.transform = `translate(${b.l}px, ${y}px)`;
+    };
+    const snap = () => { push(0); const to = target(); paint(to, to && to.y, to && to.h); };
+
+    const from = painted.current;
+    const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let raf = 0, timer = 0;
+    // intro: the ring grows out of the tab's centre and fades in (no travel
+    // direction, so both edges ease alike).
+    const run = (start, intro) => {
+      const t0 = performance.now();
+      const step = (now) => {
+        const p = Math.min(1, (now - t0) / PILL_MS);
+        const to = target();
+        if (!to) { raf = 0; push(0); paint(null); return; }
+        const g = Math.min(1, p / PILL_TRAVEL);
+        const lead = pillEase(Math.min(1, g * 1.35)), trail = pillEase(g);
+        const right = to.l >= start.l;
+        const edgeL = intro ? trail : (right ? trail : lead), edgeR = intro ? trail : (right ? lead : trail);
+        const q = Math.max(0, (p - PILL_SWELL_AT) / (1 - PILL_SWELL_AT));
+        const s = PILL_SWELL_PX * Math.pow(Math.sin(Math.PI * q), 2);
+        push(s);
+        paint({ l: start.l + (to.l - start.l) * edgeL - s, r: start.r + (to.r - start.r) * edgeR + s }, to.y, to.h);
+        if (intro) el.style.opacity = String(Math.min(1, p / 0.3));
+        if (p < 1) raf = requestAnimationFrame(step);
+        else { raf = 0; snap(); }
+      };
+      raf = requestAnimationFrame(step);
+    };
+    if (still) snap();
+    else if (from) run(from, false);
+    else if (introPlayed.current) snap();
+    else {
+      // First arrival: once the page has settled, "select" the current
+      // section in front of the user so the bar reads as pages, not labels.
+      timer = setTimeout(() => {
+        timer = 0;
+        introPlayed.current = true;
+        const to = target();
+        if (!to) return;
+        const c = (to.l + to.r) / 2, half = (to.r - to.l) * 0.15;
+        run({ l: c - half, r: c + half }, true);
+      }, PILL_INTRO_DELAY_MS);
+    }
+    // Once settled, stay glued through resizes and the bar's scroll compaction.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { if (!raf && !timer) snap(); }) : null;
+    if (ro) [track, ...tabs].forEach((c) => ro.observe(c));
+    return () => { cancelAnimationFrame(raf); clearTimeout(timer); if (ro) ro.disconnect(); };
+  }, [activeKey]);
+  return <span ref={ref} aria-hidden="true" className="topnav-pill" style={{ opacity: 0 }} />;
+}
 
 function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOpenTickets, onOpenApprovals }) {
   const [activeLocal, setActiveLocal] = React.useState("Help");
@@ -3937,6 +4026,9 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
   // at, instead of each link lighting up on its own.
   const trackRef = React.useRef(null);
   const [glide, setGlide] = React.useState(null); // { x, w } | null
+  // Bumped on every pick (logo included) so the pill replays its landing
+  // even when the section was already selected — e.g. the logo from a guide.
+  const [pick, setPick] = React.useState(0);
   const pointAt = (e) => {
     const b = e.currentTarget;
     setGlide({ x: b.offsetLeft, w: b.offsetWidth, h: b.offsetHeight, y: b.offsetTop });
@@ -3944,7 +4036,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
 
   return (
     <nav className={"topnav" + (scrolled ? " is-scrolled" : "")} aria-label="IT Hub">
-      <button onClick={onHome} className="topnav-brand" aria-label="IT Hub home">
+      <button onClick={() => { setPick((n) => n + 1); onHome && onHome(); }} className="topnav-brand" aria-label="IT Hub home">
         <img src={withBase("/assets/slice-wordmark-yellow.svg")} alt="Slice" width="48" height="35" />
         <span>IT Hub</span>
       </button>
@@ -3953,7 +4045,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
         onMouseLeave={() => setGlide(null)}>
         <span aria-hidden="true" className={"topnav-glide" + (glide ? " is-on" : "")}
           style={glide ? { width: glide.w, height: glide.h, transform: `translate(${glide.x}px, ${glide.y}px)` } : undefined} />
-        <SlideIndicator activeKey={active + (scrolled ? ':s' : '')} radius={0} />
+        <TopnavPill activeKey={`${active}:${pick}`} />
         {links.map((l) => {
           const isActive = active === l;
           const Icon = NAV_ICONS[l] || IconSpark;
@@ -3962,8 +4054,8 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
             <button key={l} type="button" role="tab" aria-selected={isActive} aria-current={isActive ? "page" : undefined}
               title={l} aria-label={n > 0 ? `${l} (${n} with unread updates)` : l}
               className={"topnav-link" + (isActive ? " is-active" : "")}
-              onMouseEnter={pointAt} onFocus={pointAt}
-              onClick={() => { setActiveLocal(l); onNavigate && onNavigate(l); }}>
+              onMouseEnter={isActive ? () => setGlide(null) : pointAt} onFocus={isActive ? undefined : pointAt}
+              onClick={() => { setGlide(null); setPick((n) => n + 1); setActiveLocal(l); onNavigate && onNavigate(l); }}>
               <Icon size={15} stroke={2} />
               <span className="topnav-lbl">{l}</span>
               {n > 0 && <span className="topnav-badge">{n > 9 ? "9+" : n}</span>}
@@ -15788,7 +15880,7 @@ function AskPage({ query, onBack, onOpenGuide, onRequestItem, onBrowseCatalog, o
             placeholder={turns.length ? 'Ask a follow-up, or add a detail…' : 'Ask anything…'}
             aria-label="Ask a follow-up" />
           <button type="button" className="ask-icon-btn" title="Add a screenshot" aria-label="Add a screenshot" onClick={() => onScreenshot(draft.trim() || query)}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z" /><circle cx="12" cy="13" r="3.2" /></svg>
+            <IconScreenshot size={17} stroke={2} aria-hidden="true" />
           </button>
           <button type="button" className="ask-btn is-primary" onClick={send} disabled={!draft.trim() || (last && last.state === 'loading')}>Send <IconArrow size={14} stroke={2.4} /></button>
         </div>}

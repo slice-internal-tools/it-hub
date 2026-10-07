@@ -255,23 +255,28 @@
   .topnav-brand:hover span { letter-spacing: .09em; color: #FDC831; }
   .topnav-tools { justify-self: end; display: flex; align-items: center; gap: 12px; }
 
-  /* Section tabs: full-height text tabs in JetBrains Mono caps (the brand's
-     "mini-nav" exception), no pill track. The page you're on gets a Cheese
-     underline that slides between tabs (SlideIndicator); hovering previews
-     a faint one (topnav-glide). Icons only appear once labels collapse. */
-  .topnav-links { align-self: stretch; display: inline-flex; align-items: stretch; gap: 4px; padding: 0; background: none; box-shadow: none; }
-  .topnav-links .tab-slider { background: transparent; box-shadow: inset 0 -3px 0 #FDC831; }
-  .topnav-glide { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; opacity: 0;
-    background: transparent; box-shadow: inset 0 -3px 0 rgba(255,255,255,.22);
-    transition: transform .26s var(--ease), width .26s var(--ease), opacity .18s ease; }
+  /* Section tabs: JetBrains Mono caps (the brand's "mini-nav" exception).
+     The page you're on gets a round Cheese outline (TopnavPill in app.jsx)
+     that glides between tabs and, as it lands, bumps the neighbours outward
+     (JS-driven transforms) — the tab you picked never moves. Hovering
+     previews a faint outline (topnav-glide). Icons only appear once labels
+     collapse. */
+  .topnav { --pill-ease: cubic-bezier(.25, 1, .5, 1); }
+  .topnav-links { align-self: center; display: inline-flex; align-items: center; gap: 2px; padding: 0; background: none; box-shadow: none; }
+  .topnav-pill { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; border-radius: 999px;
+    background: transparent; box-shadow: inset 0 0 0 1.5px #FDC831; will-change: transform, width; }
+  .topnav-glide { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; opacity: 0; border-radius: 999px;
+    background: transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,.22);
+    transition: transform .26s var(--pill-ease), width .26s var(--pill-ease), opacity .18s ease; }
   .topnav-glide.is-on { opacity: 1; }
-  .topnav-link { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; height: auto; padding: 0 14px;
-    border: 0; border-radius: 0; background: transparent; color: rgba(255,255,255,.62); cursor: pointer; white-space: nowrap;
+  .topnav-link { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px;
+    border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,.62); cursor: pointer; white-space: nowrap;
     font: 500 12.5px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
-    transition: color .18s ease; }
+    transition: color .18s ease, height .28s var(--ease); }
+  .topnav.is-scrolled .topnav-link { height: 32px; }
   .topnav-link:hover { color: #FFFFFF; }
   .topnav-link.is-active, .topnav-link.is-active:hover { color: #FFFFFF; }
-  .topnav-link:focus-visible { outline: 2px solid #FDC831; outline-offset: -6px; }
+  .topnav-link:focus-visible { outline: 2px solid #FDC831; outline-offset: 2px; }
   .topnav-link svg { display: none; flex: none; }
   .topnav-badge { min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; display: grid; place-items: center;
     background: #DA3327; color: #FFFFFF; border-radius: 999px; font-size: 10.5px; font-weight: 900; line-height: 1;
@@ -310,7 +315,7 @@
     .back-to-slicedesk .bts-label { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .topnav, .topnav-brand img, .topnav-glide, .topnav-link, .topnav-link svg { transition: none; }
+    .topnav, .topnav-brand img, .topnav-glide, .topnav-link { transition: none; }
   }
 
   .tab-slider {
@@ -2801,7 +2806,6 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 .tkt-row:first-child { border-top:none; }
 .tkt-row:hover { background:#FBF8F2; }
 .tkt-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
-.tkt-row.is-unseen::before { content:""; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:0 3px 3px 0; background:#FDC831; }
 /* The issue tiles' red "!" corner is noise in a list; the row says "Issue". */
 .tkt-row .tkt-app-icon > span[aria-hidden="true"] { display:none !important; }
 .tkt-row-title { display:flex; align-items:center; gap:8px; min-width:0; font-size:15px; font-weight:650; color:#211E1E; letter-spacing:-0.01em; }
