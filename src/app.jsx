@@ -8989,7 +8989,10 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                         toolbar only appears while you're writing. */}
                     <div className="tkd-reply-row">
                     <span className="tkd-reply-av" aria-hidden="true">{ticketInitials(me || 'You')}</span>
-                    <div className="tkd-reply-box">
+                    {/* Collapsed to one line (text · attach · send) until you
+                        click in; stays open while there's text, a file, or the
+                        reopen confirmation showing. */}
+                    <div className={'tkd-reply-box' + ((!htmlIsEmpty(reply) || replyFiles.length > 0 || (reopenOnReply && confirmReopen)) ? ' is-open' : '')}>
                     <RichReply
                       value={reply}
                       onChange={setReply}
@@ -9535,6 +9538,14 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
       : String(cur ?? '') === String(f.show_if.value);
   };
   const visibleFields = fields.filter((f) => fieldVisible(f, responses));
+  // An item question that asks the same thing as the built-in "Why do you
+  // need it?" ("What do you need it for?", "Business reason", "Purpose"…).
+  // Showing both asked people the same question twice, so it's folded into the
+  // one box: hidden from the form, and given the justification's text on
+  // submit so the ticket still carries the item's own field.
+  const reasonField = visibleFields.find(isReasonField) || null;
+  const formFields = reasonField ? visibleFields.filter((f) => f !== reasonField) : visibleFields;
+  const justificationRequired = catalogNeedsJustification(item) || !!(reasonField && reasonField.required);
 
   // Fan-out: create one request per chosen recipient (or a single self-request
   // when none were picked). makeOne(target) posts one request for `target` — a
@@ -9672,11 +9683,13 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
       if (isPersonField(f)) { const s = formatPersonValue(v); if (s) out[f.key] = s; continue; }
       out[f.key] = typeof v === 'string' ? v.trim() : v;
     }
+    // The folded-in reason question gets the "Why do you need it?" answer.
+    if (reasonField && justification.trim()) out[reasonField.key] = justification.trim();
     return out;
   };
 
   // ── Checks, run at Submit ──
-  const submittableFields = () => visibleFields.filter((f) => String(f.type || '').toLowerCase() !== 'static_text');
+  const submittableFields = () => formFields.filter((f) => String(f.type || '').toLowerCase() !== 'static_text');
   const checkWho = () => {
     if (!recipientMissing) return true;
     setErr('Choose who this request is for, or switch it back to yourself.');
@@ -9685,7 +9698,9 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const checkDetails = () => {
     const errs = validateFields(submittableFields());
     // Justification is mandatory only when the catalog item asks for it.
-    if (item && item.justify_required && !justification.trim()) errs.__justification = 'Tell IT why you need this.';
+    if (justificationRequired && !justification.trim()) {
+      errs.__justification = catalogNeedsApproval(item) ? 'Tell your approver why you need this.' : 'Tell IT why you need this.';
+    }
     setFieldErrs(errs);
     const nErr = Object.keys(errs).length;
     if (!nErr) return true;
@@ -9991,6 +10006,22 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     </div>
   );
   const nPeople = recipients.length;
+  // What's ticked in the item's multi-select fields, for the "Selected" card
+  // under Submit — a long list means you can't see your picks while scrolling.
+  const selectedGroups = view === 'form'
+    ? visibleFields
+        .filter((f) => String(f.type || '').toLowerCase() === 'multiselect' && Array.isArray(responses[f.key]) && responses[f.key].length)
+        .map((f) => {
+          const opts = (f.options || []).map((o) => ({
+            v: typeof o === 'string' ? o : (o.value != null ? o.value : o.label),
+            l: typeof o === 'string' ? o : (o.label != null ? o.label : o.value),
+          }));
+          return {
+            key: f.key, label: cleanFieldLabel(f.label || f.key),
+            items: responses[f.key].map((v) => opts.find((o) => o.v === v) || { v, l: String(v) }),
+          };
+        })
+    : [];
   // The side panel. `approval` is the ApprovalRoute (catalog items only).
   const sidePanel = ({ approval }) => (
     <aside className="rqx-side" aria-label="Summary">
@@ -10022,6 +10053,32 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           <button className="rqx-cancel" onClick={onClose} disabled={busy}>Cancel</button>
         </div>
       </div>
+      {selectedGroups.length > 0 && (
+        <div className="rqx-card rqx-sel" aria-label="Your selections">
+          <div className="rqx-sel-head">
+            <span className="rqx-k">Selected</span>
+            <span className="rqx-sel-n">{selectedGroups.reduce((n, g) => n + g.items.length, 0)}</span>
+          </div>
+          <div className="rqx-sel-body">
+            {selectedGroups.map((g) => (
+              <div key={g.key} className="rqx-sel-group">
+                {selectedGroups.length > 1 && <span className="rqx-sel-label">{g.label}</span>}
+                <ul className="rqx-sel-list">
+                  {g.items.map((it) => (
+                    <li key={String(it.v)} className="rqx-sel-item">
+                      <span className="rqx-sel-text">{it.l}</span>
+                      <button type="button" className="rqx-sel-x" aria-label={'Remove ' + it.l}
+                        onClick={() => setResp(g.key, (responses[g.key] || []).filter((x) => x !== it.v))}>
+                        <RqIcon name="close" size={14} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </aside>
   );
 
@@ -10060,7 +10117,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
       const label = cleanFieldLabel(f.label || f.key);
       const person = isPersonField(f);
       const help = f.help_text || f.help || f.hint || f.description
-        || (person && isCloneField(f) ? (nPeople > 1 ? 'Whose access should be copied. Answer once, or separately for each person.' : 'Whose access should be copied.') : '');
+        || '';
       const canSplit = person && nPeople > 1;
       const split = canSplit && !!personSplit[f.key];
       const err = fieldErrs[f.key];
@@ -10081,7 +10138,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
                       <span className="cf-split-name">For <b>{who}</b></span>
                     </span>
                     <PersonField value={(personSplit[f.key] || {})[pk]} onChange={(v) => setSplitResp(f.key, pk, v)} invalid={!!e}
-                      exclude={(u) => String(u.id) === (t ? String(t.id) : String(self.id))} />
+                      exclude={(u) => String(u.id) === (t ? String(t.id) : String(self.id)) && (t && String(t.id) !== String(self.id) ? 'This one is for them' : 'This one is for you')} />
                     {e && <p className="cf-err" role="alert"><RqIcon name="alert" size={13} />{e}</p>}
                   </div>
                 );
@@ -10089,7 +10146,11 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             </div>
           ) : person ? (
             <PersonField id={id} value={responses[f.key]} onChange={(v) => setResp(f.key, v)} invalid={!!err}
-              exclude={(u) => recipients.some((t) => String(u.id) === (t ? String(t.id) : String(self.id)))} />
+              exclude={(u) => {
+                const t = recipients.find((r) => String(u.id) === (r ? String(r.id) : String(self.id)));
+                if (t === undefined) return false;
+                return (!t || String(t.id) === String(self.id)) ? 'This request is for you' : 'This request is for them';
+              }} />
           ) : (
             <CatalogField field={f} value={responses[f.key]} onChange={(v) => setResp(f.key, v)} invalid={!!err} id={id}
               beneficiary={(requestedFor && requestedFor[0]) || self} />
@@ -10103,8 +10164,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         <div className={'rqx' + (asPage ? '' : ' is-stacked')}>
           <div className="rqx-main">
             {whoBody}
-            {visibleFields.map(renderField)}
-            <FieldBlock k="__justification" label="Why do you need it?" required={!!item.justify_required} err={fieldErrs.__justification} htmlFor="cf-justification">
+            {formFields.map(renderField)}
+            <FieldBlock k="__justification" label="Why do you need it?" required={justificationRequired} err={fieldErrs.__justification} htmlFor="cf-justification">
               <ComposerField id="cf-justification" invalid={!!fieldErrs.__justification} minHeight={76}
                 value={justification} placeholder="A sentence is plenty"
                 onChange={(v) => { setJustification(v); if (fieldErrs.__justification) clearErr('__justification'); }}
@@ -10347,6 +10408,11 @@ function CatalogField({ field, value, onChange, beneficiary, invalid, id }) {
     // selected values; the server rejects an empty array on a required field.
     const sel = Array.isArray(value) ? value : [];
     const toggle = (v) => onChange(sel.includes(v) ? sel.filter((x) => x !== v) : [...sel, v]);
+    // A long list (Freshservice items carry 70+ groups) as tiles is screens of
+    // scrolling; past a handful it becomes a searchable, fixed-height list.
+    if ((field.options || []).length > MULTI_TILE_MAX) {
+      return <MultiSelectList id={id} options={optsOf()} value={sel} onChange={onChange} invalid={invalid} />;
+    }
     return (
       <div className="cf-chips" role="group" id={id}>
         {optsOf().map((o) => {
@@ -10354,7 +10420,7 @@ function CatalogField({ field, value, onChange, beneficiary, invalid, id }) {
           return (
             <button key={String(o.v)} type="button" role="checkbox" aria-checked={on} onClick={() => toggle(o.v)} className={'cf-chip' + (on ? ' is-on' : '')}>
               <span className="cf-chip-box" aria-hidden="true">{on && <RqIcon name="tick" size={12} />}</span>
-              {o.l}
+              <span className="cf-chip-label">{o.l}</span>
             </button>
           );
         })}
@@ -10375,6 +10441,54 @@ function CatalogField({ field, value, onChange, beneficiary, invalid, id }) {
   }
   const inputType = type === 'datetime' ? 'datetime-local' : type === 'date' ? 'date' : type === 'number' ? 'number' : type === 'email' ? 'email' : 'text';
   return <input type={inputType} className={cls} {...aria} value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || (type === 'email' ? 'name@slice.com' : '')} maxLength={inputType === 'text' || inputType === 'email' ? 500 : undefined} />;
+}
+
+// More options than this and a multi-select renders as a searchable list.
+const MULTI_TILE_MAX = 8;
+
+// Searchable multi-select for long option lists: a filter box, the count and a
+// Clear, then a fixed-height checklist that scrolls inside itself (the page
+// doesn't). `options` is [{ v, l }]; `value` the selected values.
+function MultiSelectList({ id, options, value, onChange, invalid }) {
+  const [q, setQ] = React.useState('');
+  const sel = value || [];
+  const tokens = searchTokens(q);
+  const term = q.trim().toLowerCase();
+  const shown = term ? options.filter((o) => String(o.l).toLowerCase().includes(term)) : options;
+  const toggle = (v) => onChange(sel.includes(v) ? sel.filter((x) => x !== v) : [...sel, v]);
+  return (
+    <div className={'msl' + (invalid ? ' is-invalid' : '')} id={id}>
+      <div className="msl-head">
+        <div className="ps-field msl-search">
+          <RqIcon name="search" size={15} className="ps-icon" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${options.length} options…`}
+            aria-label="Search options" autoComplete="off" spellCheck={false}
+            onKeyDown={(e) => { if (e.key === 'Escape' && q) { e.preventDefault(); e.stopPropagation(); setQ(''); } }} />
+          {q && (
+            <button type="button" className="msl-clear-q" onClick={() => setQ('')} aria-label="Clear search">
+              <RqIcon name="close" size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="msl-meta">
+        <span><b>{sel.length}</b> of {options.length} selected{term ? ` · ${shown.length} match` + (shown.length === 1 ? '' : 'es') : ''}</span>
+        {sel.length > 0 && <button type="button" className="msl-clear" onClick={() => onChange([])}>Clear</button>}
+      </div>
+      <div className="msl-list" role="group" aria-label="Options">
+        {shown.map((o) => {
+          const on = sel.includes(o.v);
+          return (
+            <button key={String(o.v)} type="button" role="checkbox" aria-checked={on} onClick={() => toggle(o.v)} className={'msl-row' + (on ? ' is-on' : '')}>
+              <span className="cf-chip-box" aria-hidden="true">{on && <RqIcon name="tick" size={12} />}</span>
+              <span className="msl-label"><Hl text={String(o.l)} tokens={tokens} /></span>
+            </button>
+          );
+        })}
+        {shown.length === 0 && <div className="msl-empty">Nothing matches “{q.trim()}”.</div>}
+      </div>
+    </div>
+  );
 }
 
 // `office_location` — a dropdown of active offices (GET /api/locations),
@@ -10492,40 +10606,72 @@ function changeBtn(label, onClick, { quiet = false } = {}) {
 // "Change approver". Focuses itself, searches as you type (debounced),
 // drops the results open with a short animation, highlights what you typed,
 // and is fully keyboard-driven: ↑ ↓ to move, Enter to pick, Esc to back out.
-function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoFocus = true }) {
+function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoFocus = true, browse = false, onPickText }) {
+  // browse: show the directory as soon as the field is focused (scrollable),
+  //   instead of an empty box until two letters are typed.
+  // onPickText: offer "Use “…”" as the last row, for someone who isn't in the
+  //   directory (or can't be found) — the typed text is passed back as is.
+  // exclude(u): true hides the person; a string shows them greyed out with
+  //   that reason. Hiding someone who IS in the directory read as "No one
+  //   matches" — e.g. searching your own name in a field that can't be you.
   const [q, setQ] = React.useState('');
   const [results, setResults] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState('');
   const [active, setActive] = React.useState(0);
+  const [focused, setFocused] = React.useState(false);
   const inputRef = React.useRef(null);
+  const listRef = React.useRef(null);
   const listId = React.useId ? React.useId() : 'people-list';
+  const term = q.trim();
+  const browsing = browse && focused && term.length < 2;
 
   React.useEffect(() => { if (autoFocus) { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 40); return () => clearTimeout(id); } return undefined; }, [autoFocus]);
   React.useEffect(() => {
-    const term = q.trim();
-    if (term.length < 2) { setResults([]); setLoading(false); setErr(''); return undefined; }
+    if (term.length < 2 && !browsing) { setResults([]); setLoading(false); setErr(''); return undefined; }
     let off = false; setLoading(true); setErr('');
     const h = setTimeout(() => {
-      ticketsApiJson('GET', '/api/users?q=' + encodeURIComponent(term))
-        .then((j) => { if (!off) { setResults(Array.isArray(j.users) ? j.users : []); setActive(0); } })
+      ticketsApiJson('GET', '/api/users' + (term.length >= 2 ? '?q=' + encodeURIComponent(term) : ''))
+        .then((j) => { if (!off) setResults(Array.isArray(j.users) ? j.users : []); })
         .catch((e) => { if (!off) { setResults([]); setErr(e.message || 'Couldn’t search people.'); } })
         .finally(() => { if (!off) setLoading(false); });
-    }, 220);
+    }, term.length >= 2 ? 220 : 0);
     return () => { off = true; clearTimeout(h); };
-  }, [q]);
+  }, [term, browsing]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shown = results.filter((u) => !(exclude && exclude(u))).slice(0, limit);
-  const open = q.trim().length >= 2;
+  const people = results
+    .map((u) => ({ u, why: exclude ? exclude(u) : false }))
+    .filter((r) => r.why !== true)
+    .slice(0, browsing ? 20 : limit)
+    .map((r) => (typeof r.why === 'string' && r.why ? { ...r.u, __blocked: r.why } : r.u));
+  // The free-text row, after the matches.
+  const textRow = onPickText && term.length >= 2 ? { __text: term } : null;
+  const rows = textRow ? [...people, textRow] : people;
+  const open = term.length >= 2 || browsing;
   const tokens = searchTokens(q);
-  const pick = (u) => { if (!u) return; onPick(u); setQ(''); setResults([]); };
+  const reset = () => { setQ(''); setResults([]); };
+  const pick = (r) => {
+    if (!r || r.__blocked) return;
+    if (r.__text) onPickText(r.__text); else onPick(r);
+    reset();
+  };
+  // Start the highlight on the first person who can actually be picked, so
+  // Enter never lands on a greyed-out row.
+  React.useEffect(() => {
+    const first = rows.findIndex((r) => !r.__blocked);
+    setActive(first < 0 ? 0 : first);
+  }, [results]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    const el = listRef.current && listRef.current.querySelector('.ps-row.is-active');
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+  }, [active]);
   const onKey = (e) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, Math.max(shown.length - 1, 0))); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, Math.max(rows.length - 1, 0))); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
-    else if (e.key === 'Enter') { if (open && shown[active]) { e.preventDefault(); pick(shown[active]); } }
+    else if (e.key === 'Enter') { if (open && rows[active]) { e.preventDefault(); pick(rows[active]); } }
     else if (e.key === 'Escape') {
       e.preventDefault(); e.stopPropagation();
-      if (q) { setQ(''); setResults([]); } else if (onEscape) onEscape();
+      if (q) reset(); else if (browsing) { setFocused(false); inputRef.current && inputRef.current.blur(); } else if (onEscape) onEscape();
     }
   };
 
@@ -10534,13 +10680,15 @@ function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoF
       <div className={'ps-field' + (open ? ' is-open' : '')}>
         <RqIcon name="search" size={15} className="ps-icon" />
         <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} placeholder={placeholder}
+          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
           role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
-          aria-activedescendant={open && shown[active] ? `${listId}-${active}` : undefined} autoComplete="off" spellCheck={false} />
+          aria-activedescendant={open && rows[active] ? `${listId}-${active}` : undefined} autoComplete="off" spellCheck={false} />
         {loading && <span className="tkt-life-spin ps-spin" aria-hidden="true" />}
       </div>
       {open && (
-        <div className="ps-drop" id={listId} role="listbox">
-          {loading && shown.length === 0 && (
+        <div className={'ps-drop' + (browsing ? ' is-browse' : '')} id={listId} role="listbox" ref={listRef}>
+          {browsing && <div className="ps-browse-head">People in the directory · type to search</div>}
+          {loading && people.length === 0 && (
             <>{[0, 1, 2].map((i) => (
               <div key={i} className="ps-row is-skel" style={{ animationDelay: `${i * 50}ms` }}>
                 <span className="tkt-skel" style={{ width: 28, height: 28, borderRadius: '50%' }} />
@@ -10551,19 +10699,35 @@ function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoF
               </div>
             ))}</>
           )}
-          {shown.map((u, i) => (
+          {people.map((u, i) => (
             <button key={u.id} id={`${listId}-${i}`} type="button" role="option" aria-selected={i === active}
-              className={'ps-row' + (i === active ? ' is-active' : '')} style={{ animationDelay: `${i * 30}ms` }}
+              aria-disabled={u.__blocked ? true : undefined}
+              className={'ps-row' + (i === active ? ' is-active' : '') + (u.__blocked ? ' is-blocked' : '')} style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}
               onMouseEnter={() => setActive(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(u)}>
               <PersonAvatar name={u.name || u.email} size={30} />
               <span className="ps-text">
                 <span className="ps-name"><Hl text={u.name || u.email || u.id} tokens={tokens} /></span>
-                {(u.email || u.title) && <span className="ps-meta"><Hl text={[u.title, u.email].filter(Boolean).join(' · ')} tokens={tokens} /></span>}
+                {u.__blocked
+                  ? <span className="ps-meta ps-why">{u.__blocked}</span>
+                  : (u.email || u.title) && <span className="ps-meta"><Hl text={[u.title, u.email].filter(Boolean).join(' · ')} tokens={tokens} /></span>}
+              </span>
+              {!u.__blocked && <span className="ps-enter" aria-hidden="true">↵</span>}
+            </button>
+          ))}
+          {!loading && people.length === 0 && !err && !textRow && <div className="ps-empty">{term ? <>No one matches “{term}”.</> : 'No one to show.'}</div>}
+          {!loading && people.length === 0 && !err && textRow && <div className="ps-empty">No one in the directory matches “{term}”.</div>}
+          {textRow && (
+            <button id={`${listId}-${people.length}`} type="button" role="option" aria-selected={active === people.length}
+              className={'ps-row ps-row-text' + (active === people.length ? ' is-active' : '')}
+              onMouseEnter={() => setActive(people.length)} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(textRow)}>
+              <span className="ps-avatar ps-avatar-text" aria-hidden="true"><RqIcon name="pencil" size={13} /></span>
+              <span className="ps-text">
+                <span className="ps-name">Use “{term}”</span>
+                <span className="ps-meta">Not in the list? IT will match it up.</span>
               </span>
               <span className="ps-enter" aria-hidden="true">↵</span>
             </button>
-          ))}
-          {!loading && shown.length === 0 && !err && <div className="ps-empty">No one matches “{q.trim()}”.</div>}
+          )}
           {err && <div className="ps-empty is-err">{err}</div>}
         </div>
       )}
@@ -10673,8 +10837,11 @@ function ApprovalRoute({ itemId, targets, self, overrides, onOverridesChange, on
   };
   // The nominee can't be the submitter or anyone in the group (the module
   // rejects the beneficiary; the hub server rejects the submitter).
-  const excludeFor = (g) => (u) => String(u.id) === selfId
-    || g.people.some((p) => String(u.id) === (p ? String(p.id) : selfId));
+  const excludeFor = (g) => (u) => (String(u.id) === selfId
+    ? 'That’s you — you can’t approve your own request'
+    : g.people.some((p) => String(u.id) === (p ? String(p.id) : selfId))
+      ? 'This request is for them — they can’t approve it'
+      : false);
   const multiPeople = people.length > 1;
   const chainFor = (g, heading) => (
     <ApprovalChain key={g.sig} preview={g.preview} heading={heading}
@@ -10954,6 +11121,15 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
 
 // ── Request form building blocks ─────────────────────────────────────────────
 
+// Does this catalog item go for approval? The ticket module sends
+// `requires_approval`; older/dev data used `approval_required`. Reading only
+// the latter made every real item say "No approval needed".
+const catalogNeedsApproval = (item) => !!(item && (item.requires_approval ?? item.approval_required));
+// Is "Why do you need it?" required? When the item says so — and always when
+// it goes for approval, because the approver decides on that reason. (The
+// module only enforces the item's own flag, so this is stricter, never looser.)
+const catalogNeedsJustification = (item) => !!(item && (item.justify_required || catalogNeedsApproval(item)));
+
 // Fan-out entries and approver nominations are keyed by person; `null` (the
 // wire format's "for me") is the signed-in user.
 const personKeyOf = (t) => (t && t.id != null ? String(t.id) : 'self');
@@ -10968,6 +11144,16 @@ function isCloneField(f) {
   return /\b(user|person|employee|colleague|member)s?\s+to\s+(clone|copy|mirror)\b/.test(s)
     || /\bclone\s+(from|of|user|access)\b/.test(s)
     || /\bsame access as\b/.test(s);
+}
+// A free-text item question that is really "why do you need this?".
+function isReasonField(f) {
+  if (!f) return false;
+  const type = String(f.type || 'text').toLowerCase();
+  if (type !== 'text' && type !== 'textarea') return false;
+  if (isPersonField(f)) return false;
+  const s = (String(f.label || '') + ' ' + String(f.key || '')).toLowerCase().replace(/[_-]+/g, ' ');
+  return /\b(what|why)\b[^?]{0,24}\b(need|use|want)\b[^?]{0,16}\bfor\b/.test(s)
+    || /\b(use case|purpose|reason|justification|justify|business (need|case|reason))\b/.test(s);
 }
 function isPersonField(f) {
   if (!f) return false;
@@ -11029,15 +11215,14 @@ function SplitToggle({ on, onChange }) {
 }
 
 // A colleague from the directory. Value is { id, name, email, title } once
-// picked (a legacy string still renders, as a name-only chip). Picking from the
-// list is the only way in — a typed name that matches nobody can't be
-// submitted, which is what made "User to clone" tickets bounce back to the
-// requester asking "which Alex?".
+// picked. The directory shows on focus, and "Use “…”" accepts a typed name for
+// someone who can't be found; that value is a plain string and renders as a
+// name-only chip marked as typed in.
 function PersonField({ value, onChange, exclude, invalid, id, placeholder = 'Search by name or email…' }) {
   const [refocus, setRefocus] = React.useState(false);
-  const p = value && typeof value === 'object' ? value : (typeof value === 'string' && value.trim() ? { id: '', name: value.trim() } : null);
+  const p = value && typeof value === 'object' ? value : (typeof value === 'string' && value.trim() ? { id: '', name: value.trim(), typed: true } : null);
   if (p) {
-    const meta = [p.title, p.email].filter(Boolean).join(' · ');
+    const meta = p.typed ? 'Typed in — not matched to the directory' : [p.title, p.email].filter(Boolean).join(' · ');
     return (
       <div className="pf-chosen" id={id}>
         <PersonAvatar name={p.name || p.email} size={32} />
@@ -11051,8 +11236,9 @@ function PersonField({ value, onChange, exclude, invalid, id, placeholder = 'Sea
   }
   return (
     <div className={'pf' + (invalid ? ' is-invalid' : '')}>
-      <PeopleSearch placeholder={placeholder} autoFocus={refocus} exclude={exclude} limit={6}
-        onPick={(u) => onChange({ id: String(u.id), name: u.name || u.email || String(u.id), email: u.email || '', title: u.title || '' })} />
+      <PeopleSearch placeholder={placeholder} autoFocus={refocus} exclude={exclude} limit={8} browse
+        onPick={(u) => onChange({ id: String(u.id), name: u.name || u.email || String(u.id), email: u.email || '', title: u.title || '' })}
+        onPickText={(t) => onChange(t)} />
     </div>
   );
 }
@@ -11079,6 +11265,7 @@ const RQ_ICONS = {
   flag: <path d="M5 2.5a1 1 0 0 1 1 1V4h11.4a1 1 0 0 1 .8 1.6L16 9l2.2 3.4a1 1 0 0 1-.8 1.6H6v6.5a1 1 0 1 1-2 0v-17a1 1 0 0 1 1-1Z" />,
   book: <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6.5a.5.5 0 0 0 0 1H19a1 1 0 1 1 0 2H6.5A2.5 2.5 0 0 1 4 19.5v-15Z" />,
   building: <path fillRule="evenodd" d="M4 3.5A1.5 1.5 0 0 1 5.5 2h9A1.5 1.5 0 0 1 16 3.5V8h2.5A1.5 1.5 0 0 1 20 9.5V21h1a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2h1V3.5ZM7 6v2h2V6H7Zm4 0v2h2V6h-2Zm-4 4v2h2v-2H7Zm4 0v2h2v-2h-2Zm-4 4v2h2v-2H7Zm4 0v2h2v-2h-2Z" />,
+  pencil: <path d="M16.6 2.9a2.4 2.4 0 0 1 3.4 0l1.1 1.1a2.4 2.4 0 0 1 0 3.4L9.4 19.1a2 2 0 0 1-.9.5l-4.6 1.3a.8.8 0 0 1-1-1l1.3-4.6a2 2 0 0 1 .5-.9L16.6 2.9Z" />,
   tick: <path d="M9.5 18.2a1.5 1.5 0 0 1-1.1-.4l-4.6-4.6a1.5 1.5 0 1 1 2.1-2.1l3.5 3.5 8-8.3a1.5 1.5 0 0 1 2.2 2.1l-9 9.4a1.5 1.5 0 0 1-1.1.4Z" />,
   close: <path fillRule="evenodd" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm3.5 6.5a1.2 1.2 0 0 0-1.7 0L12 10.3l-1.8-1.8a1.2 1.2 0 1 0-1.7 1.7l1.8 1.8-1.8 1.8a1.2 1.2 0 1 0 1.7 1.7l1.8-1.8 1.8 1.8a1.2 1.2 0 0 0 1.7-1.7L13.7 12l1.8-1.8a1.2 1.2 0 0 0 0-1.7Z" />,
 };
@@ -11448,7 +11635,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
         <PeopleSearch
           key={n}
           placeholder={n > 0 ? 'Add another person…' : 'Search by name or email…'}
-          exclude={(u) => has(u.id)}
+          exclude={(u) => has(u.id) && 'Already added'}
           onPick={add}
           onEscape={n === 0 ? backToMe : undefined} />
       </div>
@@ -11459,15 +11646,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Nobody chosen yet</p>
           <span style={{ display: 'block', marginTop: 2, fontSize: 11.5, color: '#78684C' }}>Start typing a name above to find them.</span>
         </div>
-      ) : (
-        <p style={{ fontSize: 11.5, margin: '9px 0 0', lineHeight: 1.45, color: selfPicked ? '#78684C' : '#8E5A00', fontWeight: selfPicked ? 400 : 600 }}>
-          {selfPicked
-            ? (n === 1 ? 'One ticket, raised for you.' : n + ' separate tickets, one per person.')
-            : (n === 1
-                ? '1 ticket, for ' + (people[0].name || people[0].email) + '. You won’t get one.'
-                : n + ' tickets, one each. None for you.')}
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -15716,7 +15895,7 @@ function InstantPanel({ rows, active, onHover, onPick, id }) {
                 <AppIcon name={r.item.name} iconUrl={r.item.icon_url} size={28} />
                 <span className="instant-main">
                   <span className="instant-title">Request <b>{r.item.name}</b></span>
-                  <span className="instant-sub">{r.item.approval_required ? 'Goes to your manager for approval' : 'No approval needed'}{r.item.category_name ? ` · ${r.item.category_name}` : ''}</span>
+                  <span className="instant-sub">{catalogNeedsApproval(r.item) ? 'Goes to your manager for approval' : 'No approval needed'}{r.item.category_name ? ` · ${r.item.category_name}` : ''}</span>
                 </span>
                 <span className="instant-go">Request <IconArrow size={13} stroke={2.4} /></span>
               </>}
@@ -15865,8 +16044,8 @@ function AppRequestCard({ item, others, onRequest, onBrowse }) {
           {item.description ? String(item.description).slice(0, 140) : 'Request it here and the IT Team takes it from there.'}
         </div>
         <div className="ask-app-meta">
-          <span className={'ask-chip' + (item.approval_required ? ' is-warn' : ' is-ok')}>
-            {item.approval_required ? 'Needs manager approval' : 'No approval needed'}
+          <span className={'ask-chip' + (catalogNeedsApproval(item) ? ' is-warn' : ' is-ok')}>
+            {catalogNeedsApproval(item) ? 'Needs manager approval' : 'No approval needed'}
           </span>
           {others && others.length > 0 && (
             <span className="ask-app-others">Not it?{' '}
