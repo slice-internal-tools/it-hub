@@ -367,6 +367,9 @@ catalogItems.push(
   { id: 509, name: 'Google Workspace', description: 'Shared drives, group mailboxes and calendar resources.', category_name: 'Productivity', icon_url: appIcon('#FFFFFF', '#4285F4', 'G', 38), request_count: 22, approval_required: false, justify_required: false, request_form_fields: simpleForm('Which drive, group or calendar?') },
   { id: 510, name: 'Adobe Creative Cloud', description: 'Photoshop, Illustrator, InDesign and Acrobat Pro.', category_name: 'Design', icon_url: appIcon('#DA1F26', '#FFFFFF', 'Cc', 28), request_count: 18, approval_required: true, justify_required: true, request_form_fields: simpleForm('Which apps do you need?') },
   { id: 511, name: 'Claude', description: 'Team seat for Claude — drafting, research and code.', category_name: 'Productivity', icon_url: appIcon('#D97757', '#FFFFFF', '✳', 38), request_count: 64, approval_required: true, justify_required: true, request_form_fields: simpleForm() },
+  // Migrated from Freshservice: "User to Clone:" arrives as a plain text field.
+  { id: 514, name: 'Salesforce', description: 'Salesforce access, set up to match an existing colleague.', category_name: 'Sales', icon_url: appIcon('#00A1E0', '#FFFFFF', 'SF', 26), request_count: 15, approval_required: true, justify_required: true,
+    request_form_fields: [{ key: 'user_to_clone', label: 'User to Clone:', type: 'text', required: true }] },
   { id: 513, name: 'Salesforce Sales Cloud — Enterprise Edition (Read-only reporting)', description: 'Dashboards and reports for the revenue team; no record editing.', category_name: 'Sales', icon_url: appIcon('#00A1E0', '#FFFFFF', 'S', 36), request_count: 0, approval_required: true, justify_required: false, request_form_fields: [] },
   { id: 512, name: 'MacBook Pro 14"', description: 'Standard engineering build with the Jamf baseline.', category_name: 'Hardware', icon_url: appIcon('#E8E8ED', '#1D1D1F', '⌘', 34), request_count: 12, approval_required: true, justify_required: true, request_form_fields: [] },
 );
@@ -377,13 +380,21 @@ for (const [ticketId, itemId] of [[90008, 502], [90004, 511], [90006, 504], [900
 }
 
 // People directory for local search.
+// manager_id drives the dev approval preview, so a multi-person request shows
+// the per-manager grouping (and Marcus's manager is a suspended account, to
+// exercise the "choose a new approver" block).
 const devPeople = [
-  { id: 'u-jane', name: 'Jane Doe', email: 'jane.doe@local', title: 'Engineering Manager' },
-  { id: 'u-arben', name: 'Arben Krasniqi', email: 'arben@local', title: 'Backend Engineer' },
-  { id: 'u-elira', name: 'Elira Hoxha', email: 'elira@local', title: 'Product Designer' },
-  { id: 'u-marcus', name: 'Marcus Reed', email: 'marcus.reed@local', title: 'IT Support' },
-  { id: 'u-priya', name: 'Priya Nair', email: 'priya.nair@local', title: 'Finance Lead' },
-  { id: 'u-dana', name: 'Dana Brooks', email: 'dana.brooks@local', title: 'IT Support Lead' },
+  { id: 'u-jane', name: 'Jane Doe', email: 'jane.doe@local', title: 'Engineering Manager', manager_id: 'u-dana' },
+  { id: 'u-arben', name: 'Arben Krasniqi', email: 'arben@local', title: 'Backend Engineer', manager_id: 'u-jane' },
+  { id: 'u-elira', name: 'Elira Hoxha', email: 'elira@local', title: 'Product Designer', manager_id: 'u-sam' },
+  { id: 'u-marcus', name: 'Marcus Reed', email: 'marcus.reed@local', title: 'IT Support', manager_id: 'u-tom' },
+  { id: 'u-priya', name: 'Priya Nair', email: 'priya.nair@local', title: 'Finance Lead', manager_id: 'u-jane' },
+  { id: 'u-dana', name: 'Dana Brooks', email: 'dana.brooks@local', title: 'IT Support Lead', manager_id: 'u-priya' },
+  { id: 'u-sam', name: 'Sam Lee', email: 'sam.lee@local', title: 'Design Lead', manager_id: 'u-priya' },
+];
+// Managers who aren't in the searchable directory any more.
+const devFormerPeople = [
+  { id: 'u-tom', name: 'Tom Former', email: 'tom.former@local', account_disabled: true, account_reason: 'Suspended in OneLogin' },
 ];
 
 const findTicket = (idOrNum) => {
@@ -549,11 +560,19 @@ export function handleDevTicket(method, subPath, body) {
     const it = catalogItems.find((c) => String(c.id) === decodeURIComponent(parts[1]));
     if (!it) return notFound();
     if (!it.approval_required) return ok({ requires_approval: false });
+    // Route on the requester's manager, like the module does.
+    const rid = params.get('requester_id') || '';
+    const person = devPeople.find((u) => u.id === rid);
+    const mgrId = (person && person.manager_id) || 'u-jane';
+    const mgr = devPeople.find((u) => u.id === mgrId) || devFormerPeople.find((u) => u.id === mgrId);
+    const approver = { user_id: mgr.id, name: mgr.name, email: mgr.email, is_manager_role: true,
+      ...(mgr.account_disabled ? { account_disabled: true, account_reason: mgr.account_reason } : {}) };
     return ok({
       requires_approval: true,
       workflow: { name: 'Manager approval' },
-      stages: [{ order: 1, name: 'Manager approval', overridable: true,
-        approvers: [{ user_id: 'u-jane', name: 'Jane Doe', email: 'jane.doe@local' }] }],
+      stages: [{ order: 1, name: 'Manager approval', overridable: true, approvers: [approver] }],
+      requires_new_approver: !!mgr.account_disabled,
+      blocked_reason: mgr.account_disabled ? mgr.account_reason : null,
     });
   }
   // GET /agents/directory
