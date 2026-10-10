@@ -1074,6 +1074,19 @@ app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
   const { justification, urgency, form_responses, requested_for, talked_to_agent_id, talked_to_note,
     approver_override, approver_override_reason } = req.body ?? {};
   const requester = resolveRequester(u, requested_for);
+  // Self-approval guard. The module bars the beneficiary as a nominee, but its
+  // module API authenticates the portal as a system, not a person, so it can't
+  // bar the SUBMITTER — without this, raising a request for a colleague and
+  // nominating yourself would let you approve it.
+  if (approver_override) {
+    const nominee = String(approver_override).trim();
+    if (nominee === String(u.id) || nominee === String(requester.id)) {
+      return res.status(400).json({
+        error: 'The approver can’t be you or the person the request is for. Pick someone else.',
+        validation_errors: [{ field: 'approver_override', error: 'self_approval', message: 'The approver can’t be you or the person the request is for. Pick someone else.' }],
+      });
+    }
+  }
   try {
     const { ok, status, data } = await ticketModuleFetch('POST', `/catalog/${encodeURIComponent(req.params.id)}/request`, {
       requester_id: requester.id,
@@ -1202,16 +1215,45 @@ if (DEV_LOCAL_GUIDES) {
   registerGuideRoutes(app, { requireSliceUser, requireSliceAdmin });
 }
 
+// A one-line plain-text summary of a guide body (Markdown or editor HTML) for
+// list cards: drops the leading "# Title" heading, markup, links and images,
+// and keeps the first real paragraph, cut on a word boundary.
+function guideExcerpt(body, title, max = 160) {
+  let t = String(body || '');
+  t = t.replace(/<[^>]+>/g, ' ');                       // editor HTML
+  t = t.replace(/^\s*#{1,6}\s+.*$/m, (h) =>             // first heading = title
+    (String(title || '').trim() && h.toLowerCase().includes(String(title).trim().toLowerCase().slice(0, 12))) ? '' : h);
+  const para = t.split(/\n\s*\n/).map((p) => p
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')              // images
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')            // links → text
+    .replace(/^\s*(#{1,6}|[-*+]|\d+\.|>)\s*/gm, '')       // headings, bullets, quotes
+    .replace(/[*_`~]+/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()).find((p) => p.length >= 30) || '';
+  if (para.length <= max) return para;
+  const cut = para.slice(0, max);
+  return cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 20)).replace(/[,.;:\s]+$/, '') + '…';
+}
+
 app.get('/api/guides', requireSliceUser, async (req, res, next) => {
   try {
     const r = await pool.query(
       `SELECT id, title, category, tags, source_type, metadata,
-              helpful_count, unhelpful_count, created_at, updated_at
+              helpful_count, unhelpful_count, created_at, updated_at,
+              left(body, 2000) AS body_head,
+              coalesce(array_length(regexp_split_to_array(trim(body), '\\s+'), 1), 0) AS word_count
          FROM guides
         WHERE deleted_at IS NULL
         ORDER BY updated_at DESC`,
     );
-    res.json(r.rows);
+    // excerpt + read_min feed the Knowledge page cards; the body itself
+    // stays out of the list payload.
+    res.json(r.rows.map(({ body_head, word_count, ...g }) => ({
+      ...g,
+      excerpt: guideExcerpt(body_head, g.title),
+      read_min: Math.max(1, Math.round(Number(word_count || 0) / 200)),
+    })));
   } catch (e) { next(e); }
 });
 

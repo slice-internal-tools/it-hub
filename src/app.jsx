@@ -5659,7 +5659,10 @@ function PageShell({ title, kicker, subtitle, onClose, children, icon, backLabel
     <div className="page pg-shell">
       {/* Back always sits top-left on the page's full column — the same spot as
           on My Tickets — even when the form below is a narrower centred column. */}
-      <div className={'pg-topbar' + (centered ? ' is-beside' : '')}>
+      {/* Beside the title only when the centred column is narrow enough to
+          leave room for it on the left — a wide column (the request form with
+          its side panel) would put Back on top of the logo. */}
+      <div className={'pg-topbar' + (centered && maxWidth <= 900 ? ' is-beside' : '')}>
         <button onClick={onClose} className="kb-back-btn pg-back">
           <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>{backLabel}
         </button>
@@ -6552,6 +6555,15 @@ function AttachmentItem({ name, source, size, isImage, onOpenImage }) {
     : <span style={chip} title={err ? 'Couldn’t load this attachment' : 'Open this attachment from the ticket in SliceDesk'}>{inner}</span>;
 }
 
+// Check files before they're staged on a form. Large PNG/JPEG/WebP images are
+// shrunk before upload (shrinkImageForUpload), so only other files are held to
+// the raw size cap. Returns an error message, or '' when they're all fine.
+function attachmentProblem(list) {
+  const shrinkable = (f) => /^image\/(png|jpe?g|webp)$/i.test(f.type || '') && f.size <= 60 * 1024 * 1024;
+  const tooBig = Array.from(list || []).find((f) => f.size > MAX_ATTACH_BYTES && !shrinkable(f));
+  return tooBig ? '“' + tooBig.name + '” is over 12 MB — attach a smaller file.' : '';
+}
+
 // Reusable file picker — a button + a chip list of staged files. Files aren't
 // uploaded here; the parent uploads them after the ticket/comment is created.
 function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' }) {
@@ -6559,11 +6571,8 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
   const [err, setErr] = React.useState('');
   const add = (list) => {
     const incoming = Array.from(list || []);
-    // Large PNG/JPEG/WebP images are shrunk before upload (shrinkImageForUpload),
-    // so only other files are held to the raw size cap here.
-    const shrinkable = (f) => /^image\/(png|jpe?g|webp)$/i.test(f.type || '') && f.size <= 60 * 1024 * 1024;
-    const tooBig = incoming.find((f) => f.size > MAX_ATTACH_BYTES && !shrinkable(f));
-    if (tooBig) { setErr('“' + tooBig.name + '” is over 12 MB — attach a smaller file.'); return; }
+    const problem = attachmentProblem(incoming);
+    if (problem) { setErr(problem); return; }
     setErr('');
     onChange([...(files || []), ...incoming]);
   };
@@ -6590,6 +6599,62 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
         </div>
       )}
       {err && <p style={{ color: '#B92323', fontSize: 12.5, marginTop: 6 }}>{err}</p>}
+    </div>
+  );
+}
+
+// A text box with attachments built in, like a chat or email composer: write
+// in the box, attach from the bar at its foot (or drop / paste files onto it),
+// and staged files show as chips inside the same box. Replaces a separate
+// "Attachments" field under the form. Files are staged only; the parent
+// uploads them after the ticket is created, same as AttachmentPicker.
+function ComposerField({ id, value, onChange, placeholder, invalid, files, onFilesChange, disabled, minHeight = 84, maxLength = 4000 }) {
+  const inputRef = React.useRef(null);
+  const [err, setErr] = React.useState('');
+  const [drag, setDrag] = React.useState(false);
+  const list = files || [];
+  const add = (incoming) => {
+    const arr = Array.from(incoming || []).filter((f) => f && f.size != null);
+    if (!arr.length) return;
+    const problem = attachmentProblem(arr);
+    if (problem) { setErr(problem); return; }
+    setErr('');
+    onFilesChange([...list, ...arr]);
+  };
+  return (
+    <div className={'cmp' + (invalid ? ' is-invalid' : '') + (drag ? ' is-drag' : '')}
+      onDragOver={(e) => { if (disabled || !Array.from(e.dataTransfer.types || []).includes('Files')) return; e.preventDefault(); setDrag(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDrag(false); }}
+      onDrop={(e) => { if (disabled) return; e.preventDefault(); setDrag(false); add(e.dataTransfer.files); }}>
+      <textarea id={id} className="cmp-input" style={{ minHeight }} value={value} maxLength={maxLength}
+        aria-invalid={invalid || undefined} placeholder={placeholder} disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        // A pasted screenshot becomes an attachment instead of being lost.
+        onPaste={(e) => { const fl = e.clipboardData && e.clipboardData.files; if (fl && fl.length) { e.preventDefault(); add(fl); } }} />
+      {list.length > 0 && (
+        <div className="cmp-files">
+          {list.map((f, i) => (
+            <span key={i} className="cmp-file">
+              <span className="cmp-file-name">{f.name}</span>
+              <span className="cmp-file-size">{fmtBytes(f.size)}</span>
+              {!disabled && (
+                <button type="button" className="cmp-file-x" onClick={() => onFilesChange(list.filter((_, j) => j !== i))} aria-label={'Remove ' + f.name}>
+                  <RqIcon name="close" size={13} />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="cmp-bar">
+        <input ref={inputRef} type="file" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
+        <button type="button" className="cmp-attach" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+          Attach{list.length ? ` · ${list.length}` : ''}
+        </button>
+        <span className="cmp-hint">{drag ? 'Drop to attach' : 'or drop / paste a screenshot'}</span>
+      </div>
+      {err && <p className="cf-err" role="alert" style={{ margin: '0 12px 10px' }}><RqIcon name="alert" size={13} />{err}</p>}
     </div>
   );
 }
@@ -7042,12 +7107,12 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
       {!detailOpen && (
       <div style={{ background: 'var(--bg)', padding: '34px 32px 8px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-          {/* Title + one-line purpose on the left, the two actions on the right.
-              No Back button: this is a top-level section, the nav is right there. */}
+          {/* Just the title — the two start buttons below already say what the
+              page is for. No Back button: this is a top-level section, the nav
+              is right there. */}
           <div className="tkt-head">
             <div style={{ minWidth: 0 }}>
               <h1 className="tkt-title">My tickets</h1>
-              <p className="tkt-sub">Follow your issues and requests, and sign off on requests waiting on you.</p>
             </div>
           </div>
           {/* The two ways to start something — big, side by side, first thing
@@ -7097,11 +7162,10 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
               /* Page header. */
               .tkt-head { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; }
               .tkt-title { font-family:var(--font-head); font-size:44px; font-weight:400; line-height:1.05; letter-spacing:-0.01em; color:#211E1E; margin:0; }
-              .tkt-sub { margin:8px 0 0; font-size:15px; line-height:1.5; color:#5C5240; }
-              /* View tabs sit on a hairline, search on the right of the same line.
-                 The selected tab gets a charcoal underline (SlideIndicator). */
-              .tkt-tabsrow { display:flex; align-items:flex-end; gap:16px; margin-top:28px; flex-wrap:wrap;
-                border-bottom:1px solid rgba(33,30,30,.14); }
+              /* View tabs, search on the right of the same row. No full-width
+                 rule underneath — the selected tab's charcoal underline
+                 (SlideIndicator) is enough. */
+              .tkt-tabsrow { display:flex; align-items:flex-end; gap:16px; margin-top:28px; flex-wrap:wrap; }
               .tkt-switch { position:relative; display:inline-flex; gap:6px; align-self:stretch; }
               .tkt-switch .tab-slider { background:transparent !important; box-shadow:inset 0 -2px 0 #211E1E !important; border-radius:0 !important; }
               .tkt-tab { position:relative; z-index:1; justify-content:center; padding:12px 4px 13px; margin:0 8px; cursor:pointer;
@@ -9256,20 +9320,49 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // to freeform, back to the list, or on to a different item.
   const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
   const [talkedToNote, setTalkedToNote] = React.useState('');
-  React.useEffect(() => { setTalkedToAgentId(''); }, [view]);
-  // Requester-nominated approver: null, or { user_id, name, email, reason }.
-  // Only applies to "requester's manager" approval stages — see ApprovalRoute.
-  // Cleared on every view change for the same reason talkedToAgentId is: a pick
-  // must never survive a switch to another item, the list, or freeform.
-  const [approverOverride, setApproverOverride] = React.useState(null);
-  const [approverReasonErr, setApproverReasonErr] = React.useState('');
-  // Raised by ApprovalRoute when the resolved approver's account is disabled:
-  // the request can't be submitted until someone else is nominated.
-  const [approvalBlocked, setApprovalBlocked] = React.useState(false);
-  React.useEffect(() => { setApproverOverride(null); setApproverReasonErr(''); setApprovalBlocked(false); }, [view]);
+  // "Try again for the ones that failed" goes done → form for the SAME item and
+  // the same conversation, so it's the one view change that keeps the agent pick.
+  const keepTalkedToRef = React.useRef(false);
+  React.useEffect(() => {
+    if (keepTalkedToRef.current) { keepTalkedToRef.current = false; return; }
+    setTalkedToAgentId('');
+  }, [view]);
+  // Requester-nominated approvers, keyed by beneficiary (personKeyOf): each
+  // value is { user_id, name, email, reason, auto }. Keyed per person because a
+  // fan-out to several people routes each ticket to THAT person's manager — one
+  // nomination applied to every ticket would re-point approvals nobody asked
+  // to change. ApprovalRoute groups people who share an approver and writes the
+  // same nomination to everyone in the group. Only applies to "requester's
+  // manager" stages. Cleared on every view change: a pick must never survive a
+  // switch to another item, the list, or freeform.
+  const [approverOverrides, setApproverOverrides] = React.useState({});
+  // Raised by ApprovalRoute: the names of the people whose approver's account
+  // is disabled and who have no nominee yet. Submit is blocked while non-empty.
+  const [approvalBlocked, setApprovalBlocked] = React.useState([]);
+  // Approval reasons are only flagged once a submit has been tried, so the
+  // field doesn't shout at someone who is still typing.
+  const [showApprovalErrs, setShowApprovalErrs] = React.useState(false);
+  React.useEffect(() => { setApproverOverrides({}); setApprovalBlocked([]); setShowApprovalErrs(false); }, [view]);
   // [] = requesting for yourself; otherwise a list of { id, name, email } people.
   // One request is created per person (fan-out) — see RequestedForPicker.
   const [requestedFor, setRequestedFor] = React.useState([]);
+  // Person fields ("User to clone") answered separately for each recipient:
+  // { [fieldKey]: { [personKey]: person } }. A key is present only while that
+  // field is switched to "Different for each person".
+  const [personSplit, setPersonSplit] = React.useState({});
+  // Inline field errors: { [fieldKey]: msg } and { [fieldKey|personKey]: msg }.
+  const [fieldErrs, setFieldErrs] = React.useState({});
+  // Fan-out entries that failed: [{ target, message }], shown on the done view.
+  const [failed, setFailed] = React.useState([]);
+  // The "N things to fix" summary goes away once the last flagged field is
+  // fixed — otherwise the bar keeps shouting about problems that are gone.
+  const fixErrRef = React.useRef('');
+  React.useEffect(() => {
+    if (Object.keys(fieldErrs).length === 0 && fixErrRef.current && err === fixErrRef.current) {
+      fixErrRef.current = '';
+      setErr('');
+    }
+  }, [fieldErrs]); // eslint-disable-line react-hooks/exhaustive-deps
   // True while "for someone else" is chosen but nobody has been named yet —
   // submitting then would raise it for the requester, which is not what they said.
   const [recipientMissing, setRecipientMissing] = React.useState(false);
@@ -9288,7 +9381,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // the bar where it was easy to miss.
   const barError = (text) => text ? (
     <span key={text + ':' + errTick} className="pg-actions-error" role="alert">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4.5" /><path d="M12 16h.01" /></svg>
+      <RqIcon name="alert" size={15} />
       {text}
     </span>
   ) : null;
@@ -9363,6 +9456,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
       const j = await ticketsApiJson('GET', '/api/catalog/' + encodeURIComponent(it.id));
       setItem(j.catalog_item || j);
       setResponses({});
+      setPersonSplit({});
+      setFieldErrs({});
       setJustification('');
       setUrgency('medium');
       setView('form');
@@ -9444,143 +9539,294 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // Fan-out: create one request per chosen recipient (or a single self-request
   // when none were picked). makeOne(target) posts one request for `target` — a
   // { id, name, email } person, or null to request for yourself. Any attachments
-  // are uploaded to each created ticket. On a mid-batch failure we re-throw the
-  // error with the tickets already created attached, so the caller can still
-  // show what went through.
+  // are uploaded to each created ticket.
+  //
+  // A failure for one person no longer stops the batch: the old loop threw on
+  // the first error, so "Ana, Ben, Cleo" with a bad approver on Ben created
+  // Ana's ticket, silently skipped Cleo's, and left no way to retry just the
+  // missing ones. Every person is attempted; the failures come back with the
+  // reason so the done view can offer "Try again" for exactly those people.
   const fanOut = async (makeOne) => {
     const targets = (requestedFor && requestedFor.length) ? requestedFor : [null];
     const created = [];
+    const failures = [];
     let attachWarned = '';
-    try {
-      for (const target of targets) {
-        const t = await makeOne(target);
-        if (attachFiles.length && t && (t.id || t.ticket_number)) {
-          try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
-          catch (ae) { attachWarned = 'One of the requests is missing a file. ' + (ae.message || 'An attachment didn’t upload.') + ' You can add it from the ticket.'; }
-        }
-        // Tag on-behalf tickets with the recipient's name so the done screen can
-        // spell out who each one is for (self-requests carry no tag).
-        created.push(target && target.name && t && typeof t === 'object' ? { ...t, _forName: target.name } : t);
+    for (const target of targets) {
+      let t;
+      try {
+        t = await makeOne(target);
+      } catch (e) {
+        failures.push({ target, message: apiErrorMessage(e, 'Couldn’t submit this request.'), data: e.data || null });
+        continue;
       }
-    } catch (e) {
-      e.created = created; e.total = targets.length; throw e;
+      if (attachFiles.length && t && (t.id || t.ticket_number)) {
+        try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
+        catch (ae) { attachWarned = 'One of the requests is missing a file. ' + (ae.message || 'An attachment didn’t upload.') + ' You can add it from the ticket.'; }
+      }
+      // Tag on-behalf tickets with the recipient's name so the done screen can
+      // spell out who each one is for (self-requests carry no tag).
+      created.push(target && target.name && t && typeof t === 'object' ? { ...t, _forName: target.name } : t);
     }
-    return { created, attachWarned, total: targets.length };
+    return { created, failures, attachWarned, total: targets.length };
   };
 
-  // Turn any fan-out failure into a user-facing message, showing partial success
-  // (some requests created before the error) when that happened.
-  const reportFanOutError = (e, fallback) => {
-    const ve = e.data && e.data.validation_errors;
-    const msg = ve && ve.length ? ve.map((x) => x.message || (x.field + ': ' + x.error)).join(' ') : (e.message || fallback);
-    if (e.created && e.created.length) {
-      setAttachWarn(e.created.length + ' of ' + e.total + ' requests were created — the rest failed: ' + msg);
-      setResults(e.created); setView('done');
-    } else {
-      setErr(msg); setBusy(false);
+  // Turn a fan-out outcome into the next screen. Nothing created → stay on the
+  // form with the reason (and any field the server rejected, inline). Some or
+  // all created → the done view, listing anyone who still needs a retry.
+  // ⚠️ Always clears `busy`: the done view's "Request something else" goes
+  // straight back to a form, and a stale busy left the next item's Submit
+  // stuck on "Submitting…".
+  const finishFanOut = ({ created, failures, attachWarned, total }) => {
+    setBusy(false);
+    if (created.length === 0) {
+      const first = failures[0] || {};
+      const ve = first.data && Array.isArray(first.data.validation_errors) ? first.data.validation_errors : [];
+      if (ve.length) {
+        const next = {};
+        for (const x of ve) if (x && x.field) next[x.field] = x.message || 'Check this field.';
+        setFieldErrs(next);
+        scrollToFirstError(next);
+      }
+      setErr(total > 1
+        ? 'None of the ' + total + ' requests went through. ' + (first.message || '')
+        : (first.message || 'Couldn’t submit your request.'));
+      return;
     }
+    if (attachWarned) setAttachWarn(attachWarned);
+    setFailed(failures);
+    setResults(created);
+    setView('done');
+  };
+
+  // Scroll the first invalid field into view (and focus its control), so a
+  // long form never fails with the problem off-screen.
+  const scrollToFirstError = (errs) => {
+    const keys = Object.keys(errs || {});
+    if (!keys.length || typeof document === 'undefined') return;
+    setTimeout(() => {
+      const nodes = [...document.querySelectorAll('[data-cf]')];
+      const el = nodes.find((n) => keys.some((k) => k === n.dataset.cf || k.startsWith(n.dataset.cf + '|')));
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const ctl = el.querySelector('input, select, textarea, [tabindex="0"]');
+      if (ctl) { try { ctl.focus({ preventScroll: true }); } catch {} }
+    }, 30);
+  };
+
+  // Everyone the request is for — the signed-in user stands in when the list is
+  // empty, which is what the wire format means by [].
+  const recipients = (requestedFor && requestedFor.length) ? requestedFor : [null];
+  const splitActive = (key) => recipients.length > 1 && !!personSplit[key];
+  // The answer one person's ticket carries for a field.
+  const valueFor = (f, target) => (isPersonField(f) && splitActive(f.key))
+    ? (personSplit[f.key] || {})[personKeyOf(target)]
+    : responses[f.key];
+
+  // All client-side checks at once, so the requester fixes everything in one
+  // pass instead of discovering problems one Submit press at a time. Returns
+  // { [fieldKey | fieldKey|personKey]: message }.
+  const validateFields = (submittable) => {
+    const errs = {};
+    const nameOf = (t) => (t ? (t.name || t.email || 'this person') : 'you');
+    for (const f of submittable) {
+      const type = String(f.type || 'text').toLowerCase();
+      const person = isPersonField(f);
+      const split = person && splitActive(f.key);
+      const checks = split ? recipients.map((t) => [f.key + '|' + personKeyOf(t), valueFor(f, t), [t]]) : [[f.key, responses[f.key], recipients]];
+      for (const [errKey, v, forWhom] of checks) {
+        const empty = Array.isArray(v) ? v.length === 0 : (v == null || (typeof v !== 'object' && String(v).trim() === ''));
+        if (empty) {
+          if (f.required) errs[errKey] = split ? 'Choose someone for ' + nameOf(forWhom[0]) + '.' : 'This is required.';
+          continue;
+        }
+        if (person) {
+          // Cloning someone from themselves copies nothing — and on a shared
+          // answer for several people, it means one of them gets their OWN
+          // access "copied", which is never what was meant.
+          const pid = v && typeof v === 'object' ? String(v.id) : '';
+          const clash = forWhom.find((t) => pid && pid === (t ? String(t.id) : String(self.id)));
+          if (clash !== undefined) {
+            errs[errKey] = clash
+              ? (split ? 'Pick someone other than ' + nameOf(clash) + '.' : nameOf(clash) + ' is one of the people this is for. Pick someone else, or answer separately for each person.')
+              : 'That’s you. Pick the colleague whose access should be copied.';
+          }
+          continue;
+        }
+        if (type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim())) errs[errKey] = 'Enter a full email address, like name@slice.com.';
+        if (type === 'number' && (String(v).trim() === '' || isNaN(Number(v)))) errs[errKey] = 'Enter a number.';
+        if ((type === 'date' || type === 'datetime') && isNaN(new Date(v).getTime())) errs[errKey] = 'Enter a valid date.';
+      }
+    }
+    return errs;
+  };
+
+  // The form_responses for one person's ticket: only visible, non-copy fields;
+  // strings trimmed; a picked person serialised as "Name (email)" so every
+  // existing reader (agent ticket view, onboarding automations) still gets the
+  // plain text it always got from the Freshservice-era text box.
+  const responsesFor = (submittable, target) => {
+    const out = {};
+    for (const f of submittable) {
+      const v = valueFor(f, target);
+      if (v === undefined) continue;
+      if (isPersonField(f)) { const s = formatPersonValue(v); if (s) out[f.key] = s; continue; }
+      out[f.key] = typeof v === 'string' ? v.trim() : v;
+    }
+    return out;
+  };
+
+  // ── Checks, run at Submit ──
+  const submittableFields = () => visibleFields.filter((f) => String(f.type || '').toLowerCase() !== 'static_text');
+  const checkWho = () => {
+    if (!recipientMissing) return true;
+    setErr('Choose who this request is for, or switch it back to yourself.');
+    return false;
+  };
+  const checkDetails = () => {
+    const errs = validateFields(submittableFields());
+    // Justification is mandatory only when the catalog item asks for it.
+    if (item && item.justify_required && !justification.trim()) errs.__justification = 'Tell IT why you need this.';
+    setFieldErrs(errs);
+    const nErr = Object.keys(errs).length;
+    if (!nErr) return true;
+    const msg = nErr === 1 ? 'One thing to fix before you submit.' : nErr + ' things to fix before you submit.';
+    fixErrRef.current = msg;
+    setErr(msg);
+    scrollToFirstError(errs);
+    return false;
+  };
+  const checkSubject = () => {
+    if (ffSubject.trim()) return true;
+    setFieldErrs({ __subject: 'Add a short summary of what you need.' });
+    fixErrRef.current = 'Add a short summary of what you need.';
+    setErr(fixErrRef.current);
+    scrollToFirstError({ __subject: 1 });
+    return false;
+  };
+  // Every check at once, so everything that needs fixing shows in one pass.
+  const recheckAll = () => {
+    const okWho = checkWho();
+    const okForm = view === 'freeform' ? checkSubject() : checkDetails();
+    return okWho && okForm;
   };
 
   const submitCatalog = async () => {
+    if (busy) return;
     // Only visible fields are validated (a hidden required field must never
     // block submit) and only their answers are sent; static_text is copy, not
     // an input, so it's skipped on both counts.
-    const submittable = visibleFields.filter((f) => String(f.type || '').toLowerCase() !== 'static_text');
-    for (const f of submittable) {
-      const v = responses[f.key];
-      // multiselect (and any future array field) is empty when it has no
-      // entries; everything else is empty when blank/whitespace.
-      const empty = Array.isArray(v) ? v.length === 0 : (v == null || String(v).trim() === '');
-      if (f.required && empty) {
-        setErr('Please fill in “' + (f.label || f.key) + '”.');
+    const submittable = submittableFields();
+    setShowApprovalErrs(true);
+    if (!recheckAll()) return;
+    // Someone's approver account is disabled and nobody has been nominated.
+    // The module enforces this too; catching it here points at the control to
+    // use instead of surfacing a bare API error after half the batch went out.
+    if (approvalBlocked.length) {
+      setErr(approvalBlocked.length === 1 && approvalBlocked[0] === 'you'
+        ? 'Your approver’s account isn’t active — choose someone else to approve this.'
+        : 'Choose a new approver for ' + peopleList(approvalBlocked.map((n) => (n === 'you' ? null : { name: n }))) + ' — their usual approver’s account isn’t active.');
+      return;
+    }
+    // Changing an approver always needs a reason (the module rejects a bare
+    // override), and the nominee can't be the submitter or anyone the request
+    // is for — the module only bars the beneficiary, so the submitter check
+    // lives here and in the hub server.
+    const beneficiaryIds = new Set(recipients.map((t) => (t ? String(t.id) : String(self.id))));
+    for (const t of recipients) {
+      const ov = approverOverrides[personKeyOf(t)];
+      if (!ov) continue;
+      if (String(ov.reason || '').trim().length < 5) { setErr('Say why you’re changing the approver (at least 5 characters).'); return; }
+      if (String(ov.user_id) === String(self.id) || beneficiaryIds.has(String(ov.user_id))) {
+        setErr(ov.name + ' can’t approve this — the approver can’t be you or someone the request is for.');
         return;
       }
     }
-    const formResponses = {};
-    for (const f of submittable) {
-      if (responses[f.key] !== undefined) formResponses[f.key] = responses[f.key];
-    }
-    // Justification is mandatory only when the catalog item asks for it.
-    if (item.justify_required && !justification.trim()) {
-      setErr('Please add a justification for this request.');
-      return;
-    }
-    // Changing the approver always needs a reason. The module rejects a bare
-    // override, so catch it here and point at the field rather than surfacing a
-    // generic API error after the fact.
-    if (recipientMissing) {
-      setErr('Choose who this request is for, or switch it back to yourself.');
-      return;
-    }
-    // Approver's account is disabled and nobody has been nominated. The module
-    // enforces this too; catching it here points at the control to use instead of
-    // surfacing a bare API error.
-    if (approvalBlocked && !approverOverride) {
-      setErr('Your approver’s account isn’t active — choose someone else to approve this.');
-      return;
-    }
-    const overrideReason = approverOverride ? String(approverOverride.reason || '').trim() : '';
-    if (approverOverride && overrideReason.length < 5) {
-      setApproverReasonErr('Please say why you’re changing the approver.');
-      setErr('Please say why you’re changing the approver.');
-      return;
-    }
-    setApproverReasonErr('');
-    setBusy(true); setErr(''); setAttachWarn('');
-    try {
-      const just = justification.trim();
-      const { created, attachWarned } = await fanOut((target) =>
-        ticketsApiJson('POST', '/api/catalog/' + encodeURIComponent(item.id) + '/request', {
-          urgency, form_responses: formResponses,
-          ...(just ? { justification: just } : {}),
-          ...(target ? { requested_for: target } : {}),
-          ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
-          ...(approverOverride ? {
-            approver_override: approverOverride.user_id,
-            approver_override_reason: overrideReason,
-          } : {}),
-        }));
-      if (attachWarned) setAttachWarn(attachWarned);
-      setResults(created); setView('done');
-    } catch (e) {
-      reportFanOutError(e, 'Couldn’t submit your request.');
-    }
+    setBusy(true); setErr(''); setAttachWarn(''); setFailed([]);
+    const just = justification.trim();
+    const out = await fanOut((target) => {
+      const ov = approverOverrides[personKeyOf(target)];
+      return ticketsApiJson('POST', '/api/catalog/' + encodeURIComponent(item.id) + '/request', {
+        urgency, form_responses: responsesFor(submittable, target),
+        ...(just ? { justification: just } : {}),
+        ...(target ? { requested_for: target } : {}),
+        ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
+        ...(ov ? { approver_override: ov.user_id, approver_override_reason: String(ov.reason || '').trim() } : {}),
+      });
+    });
+    finishFanOut(out);
   };
 
   const submitFreeform = async () => {
-    if (!ffSubject.trim()) { setErr('Please add a short summary of what you need.'); return; }
-    if (recipientMissing) { setErr('Choose who this request is for, or switch it back to yourself.'); return; }
-    setBusy(true); setErr(''); setAttachWarn('');
-    try {
-      const { created, attachWarned } = await fanOut((target) =>
-        ticketsApiJson('POST', '/api/tickets', {
-          // The same "How urgent?" as a catalog item; Critical alerts the team.
-          subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: urgency,
-          ...(target ? { requested_for: target } : {}),
-          ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
-        }));
-      if (attachWarned) setAttachWarn(attachWarned);
-      setResults(created); setView('done');
-    } catch (e) {
-      reportFanOutError(e, 'Couldn’t submit your request.');
-      return;
-    }
+    if (busy) return;
+    if (!recheckAll()) return;
+    setFieldErrs({});
+    setBusy(true); setErr(''); setAttachWarn(''); setFailed([]);
+    const out = await fanOut((target) =>
+      ticketsApiJson('POST', '/api/tickets', {
+        // The same "How urgent?" as a catalog item; Critical alerts the team.
+        subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: urgency,
+        ...(target ? { requested_for: target } : {}),
+        ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
+      }));
+    finishFanOut(out);
   };
 
   // Every answer change cascade-clears the values of fields that are no longer
   // visible (a dependent's dependents too, hence the loop), so a hidden field
   // can never hold stale data that would be validated or submitted.
-  const setResp = (key, val) => setResponses((r) => {
-    const next = { ...r, [key]: val };
-    for (let guard = 0; guard < fields.length + 1; guard++) {
-      let changed = false;
-      for (const f of fields) {
-        if (next[f.key] !== undefined && !fieldVisible(f, next)) { delete next[f.key]; changed = true; }
-      }
-      if (!changed) break;
-    }
+  const clearErr = (key) => setFieldErrs((e) => {
+    if (!Object.keys(e).some((k) => k === key || k.startsWith(key + '|'))) return e;
+    const next = {};
+    for (const [k, v] of Object.entries(e)) if (k !== key && !k.startsWith(key + '|')) next[k] = v;
     return next;
   });
+  const setResp = (key, val) => {
+    clearErr(key);
+    setResponses((r) => {
+      const next = { ...r, [key]: val };
+      for (let guard = 0; guard < fields.length + 1; guard++) {
+        let changed = false;
+        for (const f of fields) {
+          if (next[f.key] !== undefined && !fieldVisible(f, next)) { delete next[f.key]; changed = true; }
+        }
+        if (!changed) break;
+      }
+      return next;
+    });
+  };
+  // One person's answer to a split person field.
+  const setSplitResp = (key, pk, val) => {
+    setFieldErrs((e) => { if (!e[key + '|' + pk] && !e[key]) return e; const n = { ...e }; delete n[key + '|' + pk]; delete n[key]; return n; });
+    setPersonSplit((s) => ({ ...s, [key]: { ...(s[key] || {}), [pk]: val } }));
+  };
+  // "Same for everyone" ⇄ "Different for each person". Splitting seeds every
+  // person with the shared answer (usually most of them share it, so they only
+  // change the odd one out); joining keeps the first person's answer.
+  const toggleSplit = (key, on) => {
+    clearErr(key);
+    if (on) {
+      const seed = responses[key];
+      setPersonSplit((s) => ({ ...s, [key]: Object.fromEntries(recipients.map((t) => [personKeyOf(t), seed])) }));
+    } else {
+      const firstVal = (personSplit[key] || {})[personKeyOf(recipients[0])];
+      setPersonSplit((s) => { const n = { ...s }; delete n[key]; return n; });
+      setResponses((r) => ({ ...r, [key]: firstVal !== undefined ? firstVal : r[key] }));
+    }
+  };
+  // Down to one recipient → a split field has nothing to split; fold it back
+  // into the shared answer (keeping that person's pick) so it isn't lost.
+  React.useEffect(() => {
+    if (recipients.length > 1) return;
+    const keys = Object.keys(personSplit);
+    if (!keys.length) return;
+    const pk = personKeyOf(recipients[0]);
+    setResponses((r) => {
+      const n = { ...r };
+      for (const k of keys) { const v = (personSplit[k] || {})[pk]; if (v !== undefined && (n[k] == null || n[k] === '')) n[k] = v; }
+      return n;
+    });
+    setPersonSplit({});
+  }, [recipients.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Submit-button label reflects the fan-out count: "Submit N requests" when
   // several people are chosen, otherwise the plain "Submit request".
@@ -9596,11 +9842,23 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     const anyPending = results.some(isPending);
     const what = item ? item.name : (ffSubject || 'Your request');
     // Back to the catalog with a clean slate — for the "and one more thing" case.
+    // ⚠️ setBusy(false) matters: without it the next item's Submit button
+    // opened on "Submitting…" (and disabled) because the last submit never
+    // cleared it.
     const requestAnother = () => {
-      setItem(null); setResponses({}); setJustification(''); setUrgency('medium');
-      setTalkedToAgentId(''); setTalkedToNote(''); setApproverOverride(null); setRequestedFor([]);
+      setItem(null); setResponses({}); setPersonSplit({}); setFieldErrs({}); setJustification(''); setUrgency('medium');
+      setTalkedToAgentId(''); setTalkedToNote(''); setApproverOverrides({}); setRequestedFor([]);
       setAttachFiles([]); setAttachWarn(''); setFfSubject(''); setFfDesc(''); setCatQuery('');
-      setResults([]); setErr(''); setView('list');
+      setResults([]); setFailed([]); setErr(''); setBusy(false); setView('list');
+    };
+    // Back to the same form, now addressed to just the people whose request
+    // didn't go through — answers, files and the agent pick all kept.
+    const retryFailed = () => {
+      const again = failed.map((f) => f.target).filter(Boolean);
+      keepTalkedToRef.current = true;
+      setRequestedFor(again);
+      setResults([]); setFailed([]); setAttachWarn(''); setErr(''); setBusy(false);
+      setView(item ? 'form' : 'freeform');
     };
     const openTicket = (t) => {
       try { if (t && num(t)) window.__PORTAL_OPEN_TICKET__ = t.ticket_number || t.id; } catch {}
@@ -9677,6 +9935,31 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           </ol>
         </div>
 
+        {failed.length > 0 && (
+          <div className="done-failed" role="alert">
+            <div className="done-failed-head">
+              <span className="done-failed-icon" aria-hidden="true">!</span>
+              <span>
+                <b>{failed.length === 1 ? '1 request didn’t go through' : failed.length + ' requests didn’t go through'}</b>
+                <span className="done-failed-sub">The others were created. Nothing was sent for these people yet.</span>
+              </span>
+            </div>
+            <ul className="done-failed-list">
+              {failed.map((f, i) => (
+                <li key={(f.target && f.target.id) || i}>
+                  <span className="done-failed-name">{(f.target && (f.target.name || f.target.email)) || 'You'}</span>
+                  <span className="done-failed-why">{f.message}</span>
+                </li>
+              ))}
+            </ul>
+            {failed.some((f) => f.target) && (
+              <button type="button" className="btn btn-primary done-failed-retry" onClick={retryFailed}>
+                Try again for {failed.length === 1 ? (failed[0].target.name || 'them') : 'these ' + failed.length}
+              </button>
+            )}
+          </div>
+        )}
+
         {attachWarn && <p className="done-warn">{attachWarn}</p>}
 
         <div className="done-actions">
@@ -9689,27 +9972,80 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     );
   }
 
+  // ── One page: the form on the left, a sticky summary + Submit on the right ──
+  // The layout big service portals and checkouts use: fields in one column
+  // (fastest to scan and fill), and the "what happens when I press Submit"
+  // panel — who it's for, who approves, the button — pinned beside it, so the
+  // form never feels long and Submit is always in view.
+  const doSubmit = () => { setErrTick((t) => t + 1); (view === 'form' ? submitCatalog : submitFreeform)(); };
+  const inlineErr = err && !asPage ? <p className="rq-inline-err" role="alert">{err}</p> : null;
+  const whoBody = (
+    <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
+  );
+  // Urgency and "already talked to an agent" — always on show, just quieter
+  // than the item's own questions. Attachments live in the text box above.
+  const extrasBody = (
+    <div className="rqx-extras">
+      <UrgencyPicker value={urgency} onChange={setUrgency} labelStyle={TK.label} />
+      <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
+    </div>
+  );
+  const nPeople = recipients.length;
+  // The side panel. `approval` is the ApprovalRoute (catalog items only).
+  const sidePanel = ({ approval }) => (
+    <aside className="rqx-side" aria-label="Summary">
+      <div className="rqx-card">
+        <div className="rqx-card-row">
+          <span className="rqx-k">For</span>
+          <span className="rqx-people">
+            {recipients.map((t) => {
+              const name = t ? (t.name || t.email) : ((self && self.name) || 'You');
+              const isSelf = !t || String(t.id) === String(self.id);
+              return (
+                <span key={personKeyOf(t)} className="rqx-person">
+                  <PersonAvatar name={name} size={20} self={isSelf} />{isSelf ? 'You' : name}
+                </span>
+              );
+            })}
+          </span>
+          {nPeople > 1 && <span className="rqx-sub">{nPeople} tickets, one each</span>}
+        </div>
+        {approval}
+        {/* Pinned to the bottom of the viewport while the panel is taller
+            than the screen (several people, several approvers), so Submit is
+            never scrolled out of reach. */}
+        <div className="rqx-cta">
+          {err && asPage && <div className="rqx-err">{barError(err)}</div>}
+          <button className="btn btn-primary rqx-submit" onClick={doSubmit} disabled={busy} aria-busy={busy || undefined}>
+            {busy && <span className="tkt-life-spin rq-btn-spin" aria-hidden="true" />}{submitLabel}
+          </button>
+          <button className="rqx-cancel" onClick={onClose} disabled={busy}>Cancel</button>
+        </div>
+      </div>
+    </aside>
+  );
+
   // Freeform fallback
   if (view === 'freeform') {
     return (
-      <Shell title="Custom request" onClose={catalog && catalog.length ? () => { setErr(''); setView('list'); } : onClose} backLabel="Back" maxWidth={asPage ? 820 : 620} centered>
-        <p style={{ fontSize: 13.5, color: '#78684C', margin: '0 0 4px', lineHeight: 1.5 }}>
-          Tell us what you need access to — an app, a service, hardware, or anything else. IT will pick it up.
-        </p>
-        <label style={TK.label}>What do you need?</label>
-        <input style={TK.field} value={ffSubject} onChange={(e) => setFfSubject(e.target.value)} placeholder="e.g. Access to Figma" autoFocus />
-        <label style={TK.label}>Any details? (optional)</label>
-        <textarea style={{ ...TK.field, minHeight: 120, resize: 'vertical' }} value={ffDesc} onChange={(e) => setFfDesc(e.target.value)} placeholder="Why you need it, which team, how soon…" />
-        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
-        <UrgencyPicker value={urgency} onChange={setUrgency} labelStyle={TK.label} />
-        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
-        <label style={TK.label}>Attachments (optional)</label>
-        <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
-        {err && !asPage && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
-        <div className={asPage ? 'pg-actions' : undefined} style={asPage ? undefined : { display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
-          {asPage && barError(err)}
-          <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => { setErrTick((t) => t + 1); submitFreeform(); }} disabled={busy}>{submitLabel}</button>
+      <Shell title="Custom request"
+        onClose={catalog && catalog.length ? () => { setErr(''); setView('list'); } : onClose} backLabel="Back" maxWidth={asPage ? 1040 : 620} centered bare={asPage}>
+        <div className={'rqx' + (asPage ? '' : ' is-stacked')}>
+          <div className="rqx-main">
+            {whoBody}
+            <FieldBlock k="__subject" label="What do you need?" required err={fieldErrs.__subject} htmlFor="ff-subject">
+              <input id="ff-subject" className={'cf-input' + (fieldErrs.__subject ? ' is-invalid' : '')} value={ffSubject} maxLength={200}
+                onChange={(e) => { setFfSubject(e.target.value); if (fieldErrs.__subject) setFieldErrs({}); }} placeholder="e.g. Access to Figma" autoFocus />
+            </FieldBlock>
+            <FieldBlock k="__desc" label="Details" htmlFor="ff-desc">
+              <ComposerField id="ff-desc" minHeight={100} maxLength={8000} value={ffDesc} onChange={setFfDesc}
+                placeholder="Why you need it, which team, how soon…"
+                files={attachFiles} onFilesChange={setAttachFiles} disabled={busy} />
+            </FieldBlock>
+            {extrasBody}
+            {inlineErr}
+          </div>
+          {sidePanel({ approval: null })}
         </div>
       </Shell>
     );
@@ -9717,48 +10053,85 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
 
   // Item form
   if (view === 'form' && item) {
-    return (
-      <Shell title={item.name} kicker={item.category_name ? `Service request · ${item.category_name}` : 'Service request'} icon={item.icon_url} onClose={asPage ? () => { setErr(''); setView('list'); } : onClose} backLabel="Back" maxWidth={asPage ? 820 : 680} centered>
-        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
-        {visibleFields.map((f) => {
-          // static_text is rendered copy, not an input — no label, no asterisk.
-          if (String(f.type || '').toLowerCase() === 'static_text') {
-            return <p key={f.key} style={{ fontSize: 13, color: '#78684C', margin: '14px 0 0', lineHeight: 1.5 }}>{f.label || f.text || ''}</p>;
-          }
-          return (
-            <div key={f.key}>
-              <label style={TK.label}>{f.label || f.key}{f.required ? ' *' : ''}</label>
-              <CatalogField field={f} value={responses[f.key]} onChange={(v) => setResp(f.key, v)}
-                beneficiary={(requestedFor && requestedFor[0]) || self} />
+    const renderField = (f) => {
+      const type = String(f.type || '').toLowerCase();
+      // static_text is rendered copy, not an input — no label, no marker.
+      if (type === 'static_text') return <p key={f.key} className="cf-static">{f.label || f.text || ''}</p>;
+      const label = cleanFieldLabel(f.label || f.key);
+      const person = isPersonField(f);
+      const help = f.help_text || f.help || f.hint || f.description
+        || (person && isCloneField(f) ? (nPeople > 1 ? 'Whose access should be copied. Answer once, or separately for each person.' : 'Whose access should be copied.') : '');
+      const canSplit = person && nPeople > 1;
+      const split = canSplit && !!personSplit[f.key];
+      const err = fieldErrs[f.key];
+      const id = 'cf-' + f.key;
+      return (
+        <FieldBlock key={f.key} k={f.key} label={label} required={f.required} help={help} err={err} htmlFor={id}
+          aside={canSplit ? <SplitToggle on={split} onChange={(on) => toggleSplit(f.key, on)} /> : null}>
+          {split ? (
+            <div className="cf-split">
+              {recipients.map((t) => {
+                const pk = personKeyOf(t);
+                const e = fieldErrs[f.key + '|' + pk];
+                const who = t ? (t.name || t.email) : ((self && self.name) || 'You');
+                return (
+                  <div key={pk} className={'cf-split-row' + (e ? ' has-error' : '')}>
+                    <span className="cf-split-for">
+                      <PersonAvatar name={who} size={22} self={!t || String(t.id) === String(self.id)} />
+                      <span className="cf-split-name">For <b>{who}</b></span>
+                    </span>
+                    <PersonField value={(personSplit[f.key] || {})[pk]} onChange={(v) => setSplitResp(f.key, pk, v)} invalid={!!e}
+                      exclude={(u) => String(u.id) === (t ? String(t.id) : String(self.id))} />
+                    {e && <p className="cf-err" role="alert"><RqIcon name="alert" size={13} />{e}</p>}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-        <label style={TK.label}>Justification{item.justify_required ? ' *' : ' (optional)'}</label>
-        <textarea style={{ ...TK.field, minHeight: 70, resize: 'vertical' }} value={justification} onChange={(e) => setJustification(e.target.value)} placeholder={item.justify_required ? 'Let us know why you need this…' : 'Why you need this… (optional)'} />
-        <UrgencyPicker value={urgency} onChange={setUrgency} labelStyle={TK.label} />
-        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
-        <label style={TK.label}>Attachments (optional)</label>
-        <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
-        {/* Who approves this — last block before the buttons, so it's what the
-            requester reads just as they commit. */}
-        <ApprovalRoute
-          itemId={item.id}
-          requestedFor={requestedFor}
-          override={approverOverride}
-          onOverrideChange={(next) => { setApproverOverride(next); setApproverReasonErr(''); setErr(''); }}
-          onBlockedChange={setApprovalBlocked}
-          reasonError={approverReasonErr}
-        />
-        {err && !asPage && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
-        {/* On the full page the actions ride along at the bottom of the
-            screen, so a long form never makes you scroll to find Submit —
-            and a failed submit says why right beside the button. */}
-        <div className={asPage ? 'pg-actions' : undefined} style={asPage ? undefined : { display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
-          {asPage && (err
-            ? barError(err)
-            : (item.approval_required && <span className="pg-actions-note">Goes for approval after you submit</span>))}
-          <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => { setErrTick((t) => t + 1); submitCatalog(); }} disabled={busy}>{submitLabel}</button>
+          ) : person ? (
+            <PersonField id={id} value={responses[f.key]} onChange={(v) => setResp(f.key, v)} invalid={!!err}
+              exclude={(u) => recipients.some((t) => String(u.id) === (t ? String(t.id) : String(self.id)))} />
+          ) : (
+            <CatalogField field={f} value={responses[f.key]} onChange={(v) => setResp(f.key, v)} invalid={!!err} id={id}
+              beneficiary={(requestedFor && requestedFor[0]) || self} />
+          )}
+        </FieldBlock>
+      );
+    };
+    return (
+      <Shell title={item.name} kicker={item.category_name ? `Service request · ${item.category_name}` : 'Service request'} icon={item.icon_url}
+        onClose={asPage ? () => { setErr(''); setView('list'); } : onClose} backLabel="Back" maxWidth={asPage ? 1040 : 680} centered bare={asPage}>
+        <div className={'rqx' + (asPage ? '' : ' is-stacked')}>
+          <div className="rqx-main">
+            {whoBody}
+            {visibleFields.map(renderField)}
+            <FieldBlock k="__justification" label="Why do you need it?" required={!!item.justify_required} err={fieldErrs.__justification} htmlFor="cf-justification">
+              <ComposerField id="cf-justification" invalid={!!fieldErrs.__justification} minHeight={76}
+                value={justification} placeholder="A sentence is plenty"
+                onChange={(v) => { setJustification(v); if (fieldErrs.__justification) clearErr('__justification'); }}
+                files={attachFiles} onFilesChange={setAttachFiles} disabled={busy} />
+            </FieldBlock>
+            {extrasBody}
+            {inlineErr}
+          </div>
+          {sidePanel({
+            approval: (
+              <ApprovalRoute
+                itemId={item.id}
+                targets={requestedFor}
+                self={self}
+                overrides={approverOverrides}
+                onOverridesChange={(next) => { setApproverOverrides(next); setErr(''); }}
+                onBlockedChange={setApprovalBlocked}
+                showErrors={showApprovalErrs}
+                wrap={(c) => (
+                  <div className="rqx-card-row rqx-approval">
+                    <span className="rqx-k">Approved by</span>
+                    {c}
+                  </div>
+                )}
+              />
+            ),
+          })}
         </div>
       </Shell>
     );
@@ -9946,22 +10319,26 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   );
 }
 
-// One catalog form field → the right input for its declared type.
-function CatalogField({ field, value, onChange, beneficiary }) {
+// One catalog form field → the right input for its declared type. Person
+// fields ("User to clone") are handled by the form itself (PersonField),
+// because they can be answered per recipient.
+function CatalogField({ field, value, onChange, beneficiary, invalid, id }) {
   const type = String(field.type || 'text').toLowerCase();
+  const cls = 'cf-input' + (invalid ? ' is-invalid' : '');
+  const aria = { id, 'aria-invalid': invalid || undefined };
   if (type === 'office_location') {
-    return <OfficeLocationField value={value} onChange={onChange} beneficiary={beneficiary} />;
+    return <OfficeLocationField value={value} onChange={onChange} beneficiary={beneficiary} invalid={invalid} id={id} />;
   }
   if (type === 'static_text') return null; // copy only — the form renders it, never an input
+  const optsOf = () => (field.options || []).map((o) => ({
+    v: typeof o === 'string' ? o : (o.value != null ? o.value : o.label),
+    l: typeof o === 'string' ? o : (o.label != null ? o.label : o.value),
+  }));
   if (type === 'select') {
     return (
-      <select style={TK.field} value={value || ''} onChange={(e) => onChange(e.target.value)}>
+      <select className={cls + ' cf-select' + (value ? '' : ' is-empty')} {...aria} value={value || ''} onChange={(e) => onChange(e.target.value)}>
         <option value="">Choose…</option>
-        {(field.options || []).map((o) => {
-          const v = typeof o === 'string' ? o : (o.value != null ? o.value : o.label);
-          const l = typeof o === 'string' ? o : (o.label != null ? o.label : o.value);
-          return <option key={String(v)} value={v}>{l}</option>;
-        })}
+        {optsOf().map((o) => <option key={String(o.v)} value={o.v}>{o.l}</option>)}
       </select>
     );
   }
@@ -9971,28 +10348,13 @@ function CatalogField({ field, value, onChange, beneficiary }) {
     const sel = Array.isArray(value) ? value : [];
     const toggle = (v) => onChange(sel.includes(v) ? sel.filter((x) => x !== v) : [...sel, v]);
     return (
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 2 }}>
-        {(field.options || []).map((o) => {
-          const v = typeof o === 'string' ? o : (o.value != null ? o.value : o.label);
-          const l = typeof o === 'string' ? o : (o.label != null ? o.label : o.value);
-          const on = sel.includes(v);
+      <div className="cf-chips" role="group" id={id}>
+        {optsOf().map((o) => {
+          const on = sel.includes(o.v);
           return (
-            <button key={String(v)} type="button" onClick={() => toggle(v)} aria-pressed={on}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 12px',
-                border: '1px solid #211E1E', borderRadius: 7, cursor: 'pointer',
-                fontSize: 13.5, fontFamily: 'inherit', fontWeight: 600, lineHeight: 1.1,
-                background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FDC831' : '#211E1E',
-                boxShadow: on ? '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' : 'none', transition: 'background .15s, box-shadow .15s',
-              }}>
-              <span style={{
-                width: 15, height: 15, borderRadius: 4, flexShrink: 0,
-                border: `1.5px solid ${on ? '#FDC831' : '#9A8E78'}`,
-                display: 'grid', placeItems: 'center',
-              }}>
-                {on && <IconCheck size={9} stroke={3.5} style={{ color: '#FDC831' }} />}
-              </span>
-              {l}
+            <button key={String(o.v)} type="button" role="checkbox" aria-checked={on} onClick={() => toggle(o.v)} className={'cf-chip' + (on ? ' is-on' : '')}>
+              <span className="cf-chip-box" aria-hidden="true">{on && <RqIcon name="tick" size={12} />}</span>
+              {o.l}
             </button>
           );
         })}
@@ -10000,18 +10362,19 @@ function CatalogField({ field, value, onChange, beneficiary }) {
     );
   }
   if (type === 'textarea') {
-    return <textarea style={{ ...TK.field, minHeight: 80, resize: 'vertical' }} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || ''} />;
+    return <textarea className={cls} {...aria} style={{ minHeight: 88, resize: 'vertical' }} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || ''} maxLength={4000} />;
   }
   if (type === 'boolean' || type === 'checkbox') {
     return (
-      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#211E1E', cursor: 'pointer' }}>
-        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} style={{ width: 16, height: 16 }} />
-        Yes
+      <label className={'cf-check' + (value ? ' is-on' : '')}>
+        <input type="checkbox" {...aria} checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+        <span className="cf-check-box" aria-hidden="true">{value && <RqIcon name="tick" size={12} />}</span>
+        <span>{field.placeholder || 'Yes'}</span>
       </label>
     );
   }
   const inputType = type === 'datetime' ? 'datetime-local' : type === 'date' ? 'date' : type === 'number' ? 'number' : type === 'email' ? 'email' : 'text';
-  return <input type={inputType} style={TK.field} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || ''} />;
+  return <input type={inputType} className={cls} {...aria} value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || (type === 'email' ? 'name@slice.com' : '')} maxLength={inputType === 'text' || inputType === 'email' ? 500 : undefined} />;
 }
 
 // `office_location` — a dropdown of active offices (GET /api/locations),
@@ -10020,7 +10383,7 @@ function CatalogField({ field, value, onChange, beneficiary }) {
 // auto-fill — but a manually chosen office is never overwritten. The value is
 // the resolved { id, name, code } object (the shape the SliceDesk-native form
 // submits), so the ticket keeps the office name even if it's later renamed.
-function OfficeLocationField({ value, onChange, beneficiary }) {
+function OfficeLocationField({ value, onChange, beneficiary, invalid, id }) {
   const [locs, setLocs] = React.useState(null); // null = loading; [] = failed / none
   const [err, setErr] = React.useState('');
   const manualRef = React.useRef(false);
@@ -10054,7 +10417,7 @@ function OfficeLocationField({ value, onChange, beneficiary }) {
   };
   return (
     <>
-      <select style={TK.field} value={selId} onChange={(e) => pick(e.target.value)} disabled={locs === null}>
+      <select className={'cf-input cf-select' + (invalid ? ' is-invalid' : '')} id={id} aria-invalid={invalid || undefined} value={selId} onChange={(e) => pick(e.target.value)} disabled={locs === null}>
         <option value="">{locs === null ? 'Loading offices…' : 'Choose an office…'}</option>
         {(locs || []).map((l) => <option key={String(l.id)} value={String(l.id)}>{l.name}</option>)}
         {/* An auto-filled office that's no longer in the active list stays selectable. */}
@@ -10119,9 +10482,7 @@ function changeBtn(label, onClick, { quiet = false } = {}) {
     <button type="button" onClick={onClick} className={'ap-change' + (quiet ? ' is-quiet' : '')}>
       {/* Two-arrow swap glyph — says "route this elsewhere" faster than the
           label alone. It swings when hovered. */}
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5" />
-      </svg>
+      <RqIcon name="swap" size={12} />
       {label}
     </button>
   );
@@ -10171,7 +10532,7 @@ function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoF
   return (
     <div className="ps">
       <div className={'ps-field' + (open ? ' is-open' : '')}>
-        <svg className="ps-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        <RqIcon name="search" size={15} className="ps-icon" />
         <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} placeholder={placeholder}
           role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
           aria-activedescendant={open && shown[active] ? `${listId}-${active}` : undefined} autoComplete="off" spellCheck={false} />
@@ -10194,7 +10555,7 @@ function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoF
             <button key={u.id} id={`${listId}-${i}`} type="button" role="option" aria-selected={i === active}
               className={'ps-row' + (i === active ? ' is-active' : '')} style={{ animationDelay: `${i * 30}ms` }}
               onMouseEnter={() => setActive(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(u)}>
-              <span className="ps-avatar">{approverInitials(u.name || u.email)}</span>
+              <PersonAvatar name={u.name || u.email} size={30} />
               <span className="ps-text">
                 <span className="ps-name"><Hl text={u.name || u.email || u.id} tokens={tokens} /></span>
                 {(u.email || u.title) && <span className="ps-meta"><Hl text={[u.title, u.email].filter(Boolean).join(' · ')} tokens={tokens} /></span>}
@@ -10210,8 +10571,8 @@ function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoF
   );
 }
 
-// "Who approves this" — shown at the bottom of the catalog request form, right
-// above Submit.
+// "Who approves this" — the Approval section at the bottom of the catalog
+// request form, right above Submit.
 //
 // Requesters used to submit blind, and three things went wrong often enough to
 // build this: the manager on file was stale, the manager was on multi-week PTO,
@@ -10220,55 +10581,171 @@ function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoF
 // route (with availability) turns all three into something the requester fixes
 // in the ten seconds before they submit.
 //
-// `override` is null or { user_id, name, email, reason }, owned by the caller so
-// it can go into the submit body. Only stages the module marks `overridable`
-// (i.e. "requester's manager") can be changed — a stage IT pinned to a named
-// person or group is a deliberate control and renders read-only.
-function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlockedChange, reasonError }) {
-  const [preview, setPreview] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [picking, setPicking] = React.useState(false);
-
-  // Approval routes on the BENEFICIARY's manager, so an on-behalf request must
-  // preview against them, not the submitter. Serialised the same way the submit
-  // body sends it. Fan-out to several people previews the first — one nomination
-  // covers the whole submission anyway.
-  const target = (Array.isArray(requestedFor) && requestedFor.length > 0) ? requestedFor[0] : null;
-  const targetKey = target ? JSON.stringify({ id: target.id, name: target.name, email: target.email }) : '';
+// Several people at once: approval routes on each BENEFICIARY's manager, and
+// the fan-out creates one ticket per person — so Ana's ticket goes to Ana's
+// manager and Ben's to Ben's. The old version previewed only the first person
+// and applied one "change approver" to every ticket, which hid the other
+// managers and silently re-pointed their approvals too. Now every person is
+// previewed, people who share the same chain are grouped, and a nomination is
+// made per group (stored per person in `overrides`, keyed by personKeyOf).
+//
+// Only stages the module marks `overridable` (i.e. "requester's manager") can
+// be changed — a stage IT pinned to a named person or group is a deliberate
+// control and renders read-only.
+function ApprovalRoute({ itemId, targets, self, overrides, onOverridesChange, onBlockedChange, showErrors, wrap = (c) => c }) {
+  const people = (Array.isArray(targets) && targets.length) ? targets : [null];
+  const peopleKey = JSON.stringify(people.map((p) => (p ? [String(p.id), p.name || '', p.email || ''] : null)));
+  const [previews, setPreviews] = React.useState(null); // null = loading; [{ person, preview|null }]
 
   React.useEffect(() => {
     let off = false;
-    setLoading(true);
-    const qs = targetKey ? '?requested_for=' + encodeURIComponent(targetKey) : '';
-    ticketsApiJson('GET', '/api/catalog/' + encodeURIComponent(itemId) + '/approval-preview' + qs)
-      .then((j) => {
+    setPreviews(null);
+    const list = JSON.parse(peopleKey).map((p) => (p ? { id: p[0], name: p[1], email: p[2] } : null));
+    // A failed preview resolves to null and never blocks the request — the
+    // same fail-open rule the server applies.
+    const fetchOne = (p) => ticketsApiJson('GET', '/api/catalog/' + encodeURIComponent(itemId) + '/approval-preview'
+      + (p ? '?requested_for=' + encodeURIComponent(JSON.stringify(p)) : '')).catch(() => null);
+    (async () => {
+      const out = [];
+      // Four at a time: a fan-out to a whole team shouldn't fire 20 lookups at once.
+      for (let i = 0; i < list.length; i += 4) {
+        const chunk = list.slice(i, i + 4);
+        const res = await Promise.all(chunk.map(fetchOne));
         if (off) return;
-        setPreview(j);
-        // A disabled approver means they MUST choose someone, so open the
-        // picker rather than making them find the button. Only when nothing is
-        // chosen yet, so a re-fetch can't reopen it over their choice.
-        if (j && j.requires_new_approver && !override) setPicking(true);
-        if (onBlockedChange) onBlockedChange(!!(j && j.requires_new_approver));
-      })
-      .catch(() => {
-        if (off) return;
-        setPreview(null);
-        // A preview that failed to load must never block submitting — the same
-        // fail-open rule the server applies.
-        if (onBlockedChange) onBlockedChange(false);
-      })
-      .finally(() => { if (!off) setLoading(false); });
+        res.forEach((r, j) => out.push({ person: chunk[j], preview: r }));
+      }
+      if (!off) setPreviews(out);
+    })();
     return () => { off = true; };
-  }, [itemId, targetKey]);
+  }, [itemId, peopleKey]);
 
-  if (loading) {
-    return <p style={{ fontSize: 12.5, color: '#78684C', margin: '18px 0 0' }}>Checking who needs to approve this…</p>;
+  // People with the same approvers at every stage share one card.
+  const groups = React.useMemo(() => {
+    if (!previews) return [];
+    const map = new Map();
+    for (const { person, preview } of previews) {
+      if (!preview || !preview.requires_approval) continue;
+      const sig = preview.unroutable ? 'unroutable'
+        : (preview.stages || []).map((s) => s.order + ':' + (s.approvers || []).map((a) => String(a.user_id)).sort().join(',')).join('|');
+      if (!map.has(sig)) map.set(sig, { sig, preview, people: [] });
+      map.get(sig).people.push(person);
+    }
+    return [...map.values()];
+  }, [previews]);
+
+  // Keep nominations in step with the groups: a removed person's entry goes,
+  // and a person who joins a group that already has a nominee inherits it, so
+  // two people with the same manager can never end up routed differently.
+  React.useEffect(() => {
+    if (!previews) return;
+    const next = {};
+    for (const g of groups) {
+      const ov = g.people.map((p) => overrides[personKeyOf(p)]).find(Boolean);
+      if (ov) for (const p of g.people) next[personKeyOf(p)] = ov;
+    }
+    const a = Object.keys(next); const b = Object.keys(overrides || {});
+    if (a.length !== b.length || a.some((k) => next[k] !== overrides[k])) onOverridesChange(next);
+  }, [groups]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Who can't be submitted yet: their approver's account is off and nobody
+  // has been nominated instead.
+  React.useEffect(() => {
+    if (!onBlockedChange) return;
+    const names = [];
+    for (const g of groups) {
+      if (g.preview.requires_new_approver && !overrides[personKeyOf(g.people[0])]) {
+        for (const p of g.people) names.push(p ? (p.name || p.email || 'someone') : 'you');
+      }
+    }
+    onBlockedChange(names);
+  }, [groups, overrides]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!previews) {
+    return wrap(<p className="ap-loading"><span className="tkt-life-spin ps-spin" aria-hidden="true" />Checking who approves {people.length > 1 ? 'each request' : 'this'}…</p>);
   }
-  // A failed preview must never block the request — submitting still works and
-  // the module routes it exactly as it did before this existed.
-  if (!preview || !preview.requires_approval) return null;
+  if (!groups.length) return null;
 
+  const selfId = self && self.id != null ? String(self.id) : '';
+  const setGroupOverride = (g, ov) => {
+    const next = { ...overrides };
+    for (const p of g.people) { if (ov) next[personKeyOf(p)] = ov; else delete next[personKeyOf(p)]; }
+    onOverridesChange(next);
+  };
+  // The nominee can't be the submitter or anyone in the group (the module
+  // rejects the beneficiary; the hub server rejects the submitter).
+  const excludeFor = (g) => (u) => String(u.id) === selfId
+    || g.people.some((p) => String(u.id) === (p ? String(p.id) : selfId));
+  const multiPeople = people.length > 1;
+  const chainFor = (g, heading) => (
+    <ApprovalChain key={g.sig} preview={g.preview} heading={heading}
+      override={overrides[personKeyOf(g.people[0])] || null}
+      onChange={(ov) => setGroupOverride(g, ov)}
+      exclude={excludeFor(g)} forWhom={g.people} self={self} showErrors={showErrors} />
+  );
+
+  if (groups.length === 1) {
+    const g = groups[0];
+    const covered = g.people.length;
+    return wrap(
+      <>
+        {multiPeople && (
+          <p className="ap-note">
+            {covered === people.length
+              ? <>Same approver for all {people.length} people.</>
+              : <>Needed for {peopleList(g.people)} only — the others don’t need approval.</>}
+          </p>
+        )}
+        {chainFor(g, null)}
+      </>
+    );
+  }
+  return wrap(
+    <>
+      <p className="ap-note">
+        <b>{groups.length} different approvers.</b> Each ticket goes to that person’s own manager and is approved on its own.
+      </p>
+      <div className="ap-groups">
+        {groups.map((g) => chainFor(g, (
+          <span className="ap-for">
+            <span className="ap-for-label">For</span>
+            {g.people.map((p) => (
+              <span key={personKeyOf(p)} className="ap-for-chip">
+                <PersonAvatar name={p ? (p.name || p.email) : (self && (self.name || self.email))} size={20} self={!p || String(p.id) === selfId} />
+                {p ? (p.name || p.email) : 'You'}
+              </span>
+            ))}
+          </span>
+        )))}
+      </div>
+    </>
+  );
+}
+
+// "Ana, Ben and Cleo" — `null` is the signed-in user.
+function peopleList(people) {
+  const names = (people || []).map((p) => (p ? (p.name || p.email || 'someone') : 'you'));
+  if (names.length <= 1) return names[0] || '';
+  return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+}
+
+// One approval chain (one group of people who share it), as a card.
+// `override` is null or { user_id, name, email, reason, auto }.
+function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom, self, showErrors }) {
+  // 'auto' = opened for them (disabled approver); true = they pressed Change.
+  const [picking, setPicking] = React.useState(false);
+  // A disabled approver means they MUST choose someone, so open the picker
+  // rather than making them find the button. Only when nothing is chosen yet,
+  // so a re-render can't reopen it over their choice. It does NOT take focus:
+  // the preview lands while they may still be typing names into "Who it's
+  // for", and stealing the caret there scrolled the page to the bottom.
+  React.useEffect(() => { if (preview && preview.requires_new_approver && !override) setPicking('auto'); }, [preview]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selfId = self && self.id != null ? String(self.id) : '';
+  const forSelfOnly = (forWhom || []).every((p) => !p || String(p.id) === selfId);
   const blocked = !!preview.requires_new_approver && !override;
+  const reasonText = override ? String(override.reason || '') : '';
+  const reasonError = showErrors && override && reasonText.trim().length < 5
+    ? 'Say why you’re changing the approver (at least 5 characters).' : '';
 
   const pick = (u) => {
     // When the system found the approver disabled it already knows why, so the
@@ -10277,7 +10754,7 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
     const auto = (preview.requires_new_approver && preview.blocked_reason)
       ? "Original approver's account is not active — " + preview.blocked_reason
       : '';
-    onOverrideChange({
+    onChange({
       user_id: String(u.id), name: u.name || u.email || String(u.id), email: u.email || '',
       reason: (override && override.reason) || auto, auto: !!auto,
     });
@@ -10285,21 +10762,21 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
   };
 
   const stages = preview.stages || [];
-  // A single-stage chain needs no "1." and no stage label — the card header
-  // already says Approval, and the one row underneath is self-evidently it.
+  // A single-stage chain needs no "1." and no stage label — the section is
+  // already titled Approval, and the one row underneath is self-evidently it.
   const multiStage = stages.length > 1;
   const workflowName = (preview.workflow && preview.workflow.name) || '';
   const showWorkflowName = workflowName
     && !(stages.length === 1 && sameApprovalLabel(workflowName, stages[0].name));
 
   return (
-    <div style={{ ...TK.card, padding: 14, marginTop: 18, borderColor: blocked ? '#B92323' : '#211E1E', background: blocked ? '#FFF6F5' : '#FFFFFF' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-        <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
-          Approval
-        </span>
-        {showWorkflowName && <span style={{ fontSize: 11.5, color: '#78684C' }}>{workflowName}</span>}
-      </div>
+    <div className={'ap-card' + (blocked ? ' is-blocked' : '')}>
+      {(heading || showWorkflowName) && (
+        <div className="ap-card-head">
+          {heading || <span />}
+          {showWorkflowName && <span className="ap-workflow">{workflowName}</span>}
+        </div>
+      )}
 
       {/* Lead with the problem and the required action. Above the chain, because
           the chain below is the thing that's broken — an explanation underneath
@@ -10308,10 +10785,9 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
         <div style={{ display: 'flex', gap: 9, marginBottom: 12 }}>
           <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 1, borderRadius: '50%', background: '#B9232322', color: '#B92323', display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 12 }}>!</span>
           <div style={{ minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#8E1B1B' }}>Your approver’s account isn’t active</p>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#8E1B1B' }}>{forSelfOnly ? 'Your approver’s account isn’t active' : 'Their approver’s account isn’t active'}</p>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: '#8E1B1BCC', lineHeight: 1.45 }}>
-              {preview.blocked_reason ? preview.blocked_reason + '. ' : ''}
-              They can’t action this, so choose someone else to approve it. You won’t be able to submit until you do.
+              {preview.blocked_reason ? preview.blocked_reason + '. ' : ''}Pick someone else to approve it.
             </p>
           </div>
         </div>
@@ -10350,7 +10826,7 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                     <div style={{ border: '1px dashed #C9A227', borderRadius: 10, background: '#FFFBEB', padding: 12 }}>
                       <p style={{ fontSize: 13, color: '#7A5A00', margin: 0, lineHeight: 1.45, fontWeight: 700 }}>
                         {changeable
-                          ? 'We don’t have a manager on file for you.'
+                          ? (forSelfOnly ? 'We don’t have a manager on file for you.' : 'We don’t have a manager on file for ' + peopleList(forWhom) + '.')
                           : 'No approver could be worked out.'}
                       </p>
                       <p style={{ fontSize: 12, color: '#8A7040', margin: '3px 0 0', lineHeight: 1.45 }}>
@@ -10367,6 +10843,10 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                     // to the email, so printing it again underneath just shows
                     // the same address twice.
                     const subEmail = a.email && a.email !== a.name ? a.email : '';
+                    // The submitter is this person's manager: the module API
+                    // doesn't auto-approve portal requests, so they'll be asked
+                    // to sign off on it themselves. Say so.
+                    const isSelf = !a.chosen && selfId && String(a.user_id) === selfId;
                     return (
                       <div
                         key={a.chosen ? 'chosen-' + (override && override.user_id) : a.user_id}
@@ -10378,14 +10858,7 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                           borderRadius: 10, padding: '10px 11px',
                         }}
                       >
-                        <span style={{
-                          flexShrink: 0, width: 34, height: 34, borderRadius: '50%',
-                          background: a.account_disabled ? '#F3D6D6' : '#211E1E',
-                          color: a.account_disabled ? '#B92323' : '#FDC831',
-                          display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 900,
-                        }}>
-                          {approverInitials(a.name)}
-                        </span>
+                        <PersonAvatar name={a.name} size={34} off={!!a.account_disabled} self={!!isSelf} />
 
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <p style={{
@@ -10401,18 +10874,11 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                               {subEmail}
                             </p>
                           )}
-                          {a.chosen && (
-                            <span className="ap-picked" style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "var(--font-mono)", fontSize: 9.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
-                              You picked this
-                            </span>
-                          )}
-                          {a.account_disabled && (
-                            <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FBE3E3', border: '1px solid #D98B8B', fontFamily: "var(--font-mono)", fontSize: 9.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#8E1B1B' }}>
-                              {a.account_reason || 'Account not active'}
-                            </span>
-                          )}
+                          {a.chosen && <span className="ap-pill is-picked ap-picked">You picked this</span>}
+                          {isSelf && <span className="ap-pill is-picked">That’s you — you’ll be asked to approve it</span>}
+                          {a.account_disabled && <span className="ap-pill is-off">{a.account_reason || 'Account not active'}</span>}
                           {!a.account_disabled && a.unavailable && (
-                            <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FFF1C9', border: '1px solid #C9A227', fontFamily: "var(--font-mono)", fontSize: 9.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#7A5A00' }}>
+                            <span className="ap-pill is-away">
                               {AVAILABILITY_LABEL[a.status] || a.status}
                               {a.status_until ? ' until ' + new Date(a.status_until).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''}
                             </span>
@@ -10425,8 +10891,8 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                             could click. */}
                         {changeable && !picking && (
                           a.chosen
-                            ? changeBtn('Undo', () => onOverrideChange(null), { quiet: true })
-                            : changeBtn(a.account_disabled ? 'Pick approver' : 'Change', () => setPicking(true))
+                            ? changeBtn('Undo', () => onChange(null), { quiet: true })
+                            : changeBtn('Change', () => setPicking(true))
                         )}
                       </div>
                     );
@@ -10446,9 +10912,9 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
                         <span>Choose who approves this</span>
                         <button type="button" className="ap-pick-cancel" onClick={() => setPicking(false)}>Cancel</button>
                       </div>
-                      <PeopleSearch placeholder="Search by name or email…" limit={6}
+                      <PeopleSearch placeholder="Search by name or email…" limit={6} exclude={exclude} autoFocus={picking === true}
                         onPick={pick} onEscape={() => setPicking(false)} />
-                      <p className="ap-pick-hint">They get the approval instead, and your usual approver is told why.</p>
+                      <p className="ap-pick-hint">The usual approver is told why. It can’t be you or someone it’s for.</p>
                     </div>
                   )}
                 </div>
@@ -10464,23 +10930,203 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
           would otherwise have been asked. */}
       {override && (
         <div className="ap-reason" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0EBE0' }}>
-          <label style={{ ...TK.label, marginTop: 0 }}>
-            {override.auto ? 'Reason recorded on the ticket' : 'Why are you changing the approver?'} <span style={{ color: '#B92323' }}>*</span>
+          <label className="cf-label" style={{ display: 'block', marginBottom: 6 }}>
+            {override.auto ? 'Reason recorded on the ticket' : 'Why are you changing the approver?'}
           </label>
           <textarea
-            style={{ ...TK.field, minHeight: 58, resize: 'vertical', borderColor: reasonError ? '#B92323' : '#211E1E' }}
-            value={override.reason || ''}
-            onChange={(e) => onOverrideChange({ ...override, reason: e.target.value })}
-            placeholder="e.g. My manager is on leave until 12 September (min 5 characters)"
+            className={'cf-input' + (reasonError ? ' is-invalid' : '')}
+            style={{ minHeight: 58, resize: 'vertical' }}
+            value={reasonText}
+            maxLength={1000}
+            onChange={(e) => onChange({ ...override, reason: e.target.value })}
+            placeholder="e.g. My manager is on leave until 12 September"
           />
-          <p style={{ fontSize: 11.5, color: reasonError ? '#B92323' : '#78684C', margin: '6px 0 0', lineHeight: 1.45 }}>
+          <p className={reasonError ? 'cf-err' : 'cf-help'} style={{ margin: '6px 0 0' }}>
             {reasonError || (override.auto
               ? 'Filled in from what we found. Edit it if you want to add context.'
-              : 'At least 5 characters. Your usual approver is told about the change, so keep it accurate.')}
+              : 'The usual approver is told about the change, so keep it accurate.')}
           </p>
         </div>
       )}
     </div>
+  );
+}
+
+// ── Request form building blocks ─────────────────────────────────────────────
+
+// Fan-out entries and approver nominations are keyed by person; `null` (the
+// wire format's "for me") is the signed-in user.
+const personKeyOf = (t) => (t && t.id != null ? String(t.id) : 'self');
+
+// Fields whose answer is a colleague, rendered as a directory search instead
+// of a free-text box. Freshservice had no person field, so every "User to
+// clone" came across as `text` — matched by label/key rather than waiting for
+// each catalog item to be re-typed by hand. An explicit `user` type wins.
+const PERSON_FIELD_TYPES = ['user', 'person', 'user_picker', 'people'];
+function isCloneField(f) {
+  const s = (String((f && f.label) || '') + ' ' + String((f && f.key) || '')).toLowerCase().replace(/[_-]+/g, ' ');
+  return /\b(user|person|employee|colleague|member)s?\s+to\s+(clone|copy|mirror)\b/.test(s)
+    || /\bclone\s+(from|of|user|access)\b/.test(s)
+    || /\bsame access as\b/.test(s);
+}
+function isPersonField(f) {
+  if (!f) return false;
+  const type = String(f.type || 'text').toLowerCase();
+  if (PERSON_FIELD_TYPES.includes(type)) return true;
+  return type === 'text' && isCloneField(f);
+}
+// What the ticket stores for a picked person: plain text, the same shape the
+// old text box produced, so agent views and automations read it unchanged.
+function formatPersonValue(v) {
+  if (!v) return '';
+  if (typeof v === 'string') return v.trim();
+  const name = String(v.name || '').trim();
+  const email = String(v.email || '').trim();
+  if (name && email && name !== email) return name + ' (' + email + ')';
+  return name || email || String(v.id || '');
+}
+// Admin-typed labels carry Freshservice punctuation ("User to Clone:").
+const cleanFieldLabel = (s) => String(s || '').replace(/\s*[:：]\s*$/, '').trim();
+
+// The API's error as one readable sentence (validation errors joined).
+function apiErrorMessage(e, fallback) {
+  const ve = e && e.data && e.data.validation_errors;
+  if (Array.isArray(ve) && ve.length) return ve.map((x) => x.message || (x.field + ': ' + x.error)).join(' ');
+  return (e && e.message) || fallback;
+}
+
+// Label + optional marker + help + control + inline error, for one field.
+// `k` is the field key the submit-time scroll looks for.
+function FieldBlock({ k, label, required, help, err, aside, htmlFor, children }) {
+  return (
+    <div className={'cf' + (err ? ' has-error' : '')} data-cf={k}>
+      <div className="cf-head">
+        <label className="cf-label" htmlFor={htmlFor}>{label}</label>
+        {!required && <span className="cf-opt">Optional</span>}
+        {aside && <span className="cf-aside">{aside}</span>}
+      </div>
+      {help && <p className="cf-help">{help}</p>}
+      {children}
+      {err && (
+        <p className="cf-err" role="alert">
+          <RqIcon name="alert" size={13} />
+          {err}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// "Same for everyone" ⇄ "Different for each person", for a person field when
+// a request goes to several people.
+function SplitToggle({ on, onChange }) {
+  return (
+    <span className="cf-seg" role="group" aria-label="Answer once or per person">
+      <button type="button" className={!on ? 'is-on' : ''} aria-pressed={!on} onClick={() => onChange(false)}>Same for all</button>
+      <button type="button" className={on ? 'is-on' : ''} aria-pressed={on} onClick={() => onChange(true)}>Each person</button>
+    </span>
+  );
+}
+
+// A colleague from the directory. Value is { id, name, email, title } once
+// picked (a legacy string still renders, as a name-only chip). Picking from the
+// list is the only way in — a typed name that matches nobody can't be
+// submitted, which is what made "User to clone" tickets bounce back to the
+// requester asking "which Alex?".
+function PersonField({ value, onChange, exclude, invalid, id, placeholder = 'Search by name or email…' }) {
+  const [refocus, setRefocus] = React.useState(false);
+  const p = value && typeof value === 'object' ? value : (typeof value === 'string' && value.trim() ? { id: '', name: value.trim() } : null);
+  if (p) {
+    const meta = [p.title, p.email].filter(Boolean).join(' · ');
+    return (
+      <div className="pf-chosen" id={id}>
+        <PersonAvatar name={p.name || p.email} size={32} />
+        <span className="ps-text">
+          <span className="ps-name">{p.name || p.email}</span>
+          {meta && <span className="ps-meta">{meta}</span>}
+        </span>
+        {changeBtn('Change', () => { setRefocus(true); onChange(undefined); }, { quiet: true })}
+      </div>
+    );
+  }
+  return (
+    <div className={'pf' + (invalid ? ' is-invalid' : '')}>
+      <PeopleSearch placeholder={placeholder} autoFocus={refocus} exclude={exclude} limit={6}
+        onPick={(u) => onChange({ id: String(u.id), name: u.name || u.email || String(u.id), email: u.email || '', title: u.title || '' })} />
+    </div>
+  );
+}
+
+// Solid, one-colour icons for the request flow (brand rule: simple solid
+// shapes, not outlines). All drawn on a 24 grid and filled with currentColor.
+const RQ_ICONS = {
+  personAdd: <><circle cx="9" cy="7.5" r="4" /><path d="M1.5 20.2C1.5 16.4 4.9 14 9 14s7.5 2.4 7.5 6.2c0 .5-.4.8-.9.8H2.4c-.5 0-.9-.3-.9-.8Z" /><path d="M19 6.5a1.1 1.1 0 0 1 1.1 1.1v1.8h1.8a1.1 1.1 0 1 1 0 2.2h-1.8v1.8a1.1 1.1 0 1 1-2.2 0v-1.8h-1.8a1.1 1.1 0 1 1 0-2.2h1.8V7.6A1.1 1.1 0 0 1 19 6.5Z" /></>,
+  person: <><circle cx="12" cy="7.5" r="4.5" /><path d="M3.5 20.4c0-4 3.8-6.6 8.5-6.6s8.5 2.6 8.5 6.6c0 .4-.4.6-.8.6H4.3c-.4 0-.8-.2-.8-.6Z" /></>,
+  swap: <><path d="M16.3 2.3a1 1 0 0 1 1.4 0l3.6 3.6a1.5 1.5 0 0 1 0 2.2l-3.6 3.6a1 1 0 0 1-1.7-.7V9H5a2 2 0 0 1 0-4h11V3a1 1 0 0 1 .3-.7Z" /><path d="M7.7 12.3a1 1 0 0 1 .3.7v2h11a2 2 0 0 1 0 4H8v2a1 1 0 0 1-1.7.7l-3.6-3.6a1.5 1.5 0 0 1 0-2.2l3.6-3.6a1 1 0 0 1 1.4 0Z" /></>,
+  search: <path fillRule="evenodd" d="M10.5 2a8.5 8.5 0 0 1 6.8 13.6l4.3 4.3a1.5 1.5 0 0 1-2.1 2.1l-4.3-4.3A8.5 8.5 0 1 1 10.5 2Zm0 3a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z" />,
+  alert: <path fillRule="evenodd" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm0 4.8a1.4 1.4 0 0 0-1.4 1.5l.3 4.6a1.1 1.1 0 0 0 2.2 0l.3-4.6A1.4 1.4 0 0 0 12 6.8Zm0 8.4a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8Z" />,
+  plus: <path d="M12 3.5a1.6 1.6 0 0 1 1.6 1.6v5.3h5.3a1.6 1.6 0 1 1 0 3.2h-5.3v5.3a1.6 1.6 0 1 1-3.2 0v-5.3H5.1a1.6 1.6 0 1 1 0-3.2h5.3V5.1A1.6 1.6 0 0 1 12 3.5Z" />,
+  // Knowledge topics
+  key: <path fillRule="evenodd" d="M15.5 2a6.5 6.5 0 1 1-2.2 12.6l-1.8 1.8V18a1 1 0 0 1-1 1H9v1.5a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V18a1 1 0 0 1 .3-.7l6.6-6.6A6.5 6.5 0 0 1 15.5 2Zm1.5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" />,
+  wifi: <path d="M12 4.5c3.9 0 7.5 1.5 10.2 4a1 1 0 0 1 .05 1.43L12.7 19.9a1 1 0 0 1-1.4 0L1.75 9.93a1 1 0 0 1 .05-1.43C4.5 6 8.1 4.5 12 4.5Z" />,
+  mail: <><path d="M2 6.5A2.5 2.5 0 0 1 4.5 4h15A2.5 2.5 0 0 1 22 6.5v.3l-10 6.1L2 6.8v-.3Z" /><path d="M2 9.1l9.5 5.8a1 1 0 0 0 1 0L22 9.1v8.4a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 17.5V9.1Z" /></>,
+  gauge: <path fillRule="evenodd" d="M12 3a10 10 0 0 0-8.66 15 1 1 0 0 0 .87.5h15.58a1 1 0 0 0 .87-.5A10 10 0 0 0 12 3Zm4.2 5.4a1 1 0 0 1 .3 1.3l-2.9 4.9a2 2 0 1 1-2.6-2.1l3.9-3.9a1 1 0 0 1 1.3-.2Z" />,
+  laptop: <><path d="M5 4.5A1.5 1.5 0 0 0 3.5 6v9h17V6A1.5 1.5 0 0 0 19 4.5H5Z" /><path d="M1 16.5h22v.5a2.5 2.5 0 0 1-2.5 2.5h-17A2.5 2.5 0 0 1 1 17v-.5Z" /></>,
+  chat: <path d="M4.5 3h15A2.5 2.5 0 0 1 22 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-4.6 3.7A.9.9 0 0 1 4 20v-3a2.5 2.5 0 0 1-2-2.5v-9A2.5 2.5 0 0 1 4.5 3Z" />,
+  shield: <path d="M12 2.2a1 1 0 0 1 .4.1l7.5 3a1 1 0 0 1 .6.9V11c0 5-3.4 9-8.2 10.8a1 1 0 0 1-.6 0C6.9 20 3.5 16 3.5 11V6.2a1 1 0 0 1 .6-.9l7.5-3a1 1 0 0 1 .4-.1Z" />,
+  video: <><path d="M3.5 6h10A2.5 2.5 0 0 1 16 8.5v7a2.5 2.5 0 0 1-2.5 2.5h-10A2.5 2.5 0 0 1 1 15.5v-7A2.5 2.5 0 0 1 3.5 6Z" /><path d="M17.5 10.2l4-2.6a1 1 0 0 1 1.5.8v7.2a1 1 0 0 1-1.5.8l-4-2.6v-3.6Z" /></>,
+  lock: <path fillRule="evenodd" d="M12 2a5 5 0 0 1 5 5v2h.5A2.5 2.5 0 0 1 20 11.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 19.5v-8A2.5 2.5 0 0 1 6.5 9H7V7a5 5 0 0 1 5-5Zm0 2.5A2.5 2.5 0 0 0 9.5 7v2h5V7A2.5 2.5 0 0 0 12 4.5Z" />,
+  flag: <path d="M5 2.5a1 1 0 0 1 1 1V4h11.4a1 1 0 0 1 .8 1.6L16 9l2.2 3.4a1 1 0 0 1-.8 1.6H6v6.5a1 1 0 1 1-2 0v-17a1 1 0 0 1 1-1Z" />,
+  book: <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6.5a.5.5 0 0 0 0 1H19a1 1 0 1 1 0 2H6.5A2.5 2.5 0 0 1 4 19.5v-15Z" />,
+  building: <path fillRule="evenodd" d="M4 3.5A1.5 1.5 0 0 1 5.5 2h9A1.5 1.5 0 0 1 16 3.5V8h2.5A1.5 1.5 0 0 1 20 9.5V21h1a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2h1V3.5ZM7 6v2h2V6H7Zm4 0v2h2V6h-2Zm-4 4v2h2v-2H7Zm4 0v2h2v-2h-2Zm-4 4v2h2v-2H7Zm4 0v2h2v-2h-2Z" />,
+  tick: <path d="M9.5 18.2a1.5 1.5 0 0 1-1.1-.4l-4.6-4.6a1.5 1.5 0 1 1 2.1-2.1l3.5 3.5 8-8.3a1.5 1.5 0 0 1 2.2 2.1l-9 9.4a1.5 1.5 0 0 1-1.1.4Z" />,
+  close: <path fillRule="evenodd" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm3.5 6.5a1.2 1.2 0 0 0-1.7 0L12 10.3l-1.8-1.8a1.2 1.2 0 1 0-1.7 1.7l1.8 1.8-1.8 1.8a1.2 1.2 0 1 0 1.7 1.7l1.8-1.8 1.8 1.8a1.2 1.2 0 0 0 1.7-1.7L13.7 12l1.8-1.8a1.2 1.2 0 0 0 0-1.7Z" />,
+};
+function RqIcon({ name, size = 16, className = '' }) {
+  return (
+    <svg className={'rqi ' + className} width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+      {RQ_ICONS[name] || null}
+    </svg>
+  );
+}
+
+// Knowledge topic → solid icon, matched on the topic's name so admin-typed
+// categories ("Identity", "Wi-Fi & VPN", "Passwords & MFA") all land on a
+// sensible picture instead of a letter.
+const KB_TOPIC_ICONS = [
+  [/identity|password|mfa|login|sso|account/i, 'key'],
+  [/network|wi-?fi|vpn|internet/i, 'wifi'],
+  [/e-?mail|calendar|inbox/i, 'mail'],
+  [/perform|slow|speed/i, 'gauge'],
+  [/hardware|laptop|device|mac|printer/i, 'laptop'],
+  [/collab|slack|chat|teams/i, 'chat'],
+  [/secur|phish|privacy/i, 'shield'],
+  [/meeting|zoom|video|conference/i, 'video'],
+  [/access|permission/i, 'lock'],
+  [/onboard|new hire|getting started/i, 'flag'],
+  [/office|hq|building|facilit/i, 'building'],
+];
+function kbTopicIcon(category) {
+  const c = String(category || '');
+  for (const [re, name] of KB_TOPIC_ICONS) if (re.test(c)) return name;
+  return 'book';
+}
+
+// Initials avatar. Soft brand tints (cheese, dough, warm grey) with charcoal
+// initials — picked from the name, so a person always gets the same one and a
+// list of people is easy to tell apart. The signed-in user is solid cheese so
+// "you" stands out in any list. `off` is a disabled account.
+const PAV_TONES = ['t1', 't2', 't3'];
+function PersonAvatar({ name, size = 30, self = false, off = false }) {
+  const key = String(name || '');
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  const tone = off ? 'is-off' : self ? 'is-self' : 'is-' + PAV_TONES[h % PAV_TONES.length];
+  return (
+    <span className={'pav ' + tone} aria-hidden="true"
+      style={{ width: size, height: size, fontSize: Math.max(8.5, Math.round(size * 0.36)) }}>
+      {approverInitials(name)}
+    </span>
   );
 }
 
@@ -10718,18 +11364,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   };
   const backToMe = () => { setForOthers(false); onChange([]); };
 
-  const ini = (v) => {
-    const raw = String(v || '').trim();
-    if (!raw) return '?';
-    const src = raw.includes('@') ? raw.split('@')[0] : raw;
-    const w = src.split(/[\s._-]+/).filter(Boolean);
-    return (w.slice(0, 2).map((x) => x[0]).join('') || src[0]).toUpperCase();
-  };
-  const avatar = (label, size) => (
-    <span style={{ flexShrink: 0, width: size, height: size, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: size <= 26 ? 10.5 : 12.5, fontWeight: 900 }}>
-      {ini(label)}
-    </span>
-  );
+  const avatar = (label, size, isSelf) => <PersonAvatar name={label} size={size} self={isSelf} />;
   const youTag = (
     <span style={{ display: 'inline-block', marginLeft: 6, padding: '1px 6px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
   );
@@ -10744,17 +11379,17 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
             long name can never push it off, and under ~380px it drops to its own
             line at full size instead of being squashed. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          {avatar(self && (self.name || self.email), 34)}
-          <span style={{ minWidth: 0, flex: 1 }}>
+          {avatar(self && (self.name || self.email), 36, true)}
+          {/* flex-basis keeps the name readable: the button wraps below it on
+              a phone instead of squeezing it to "Dev…". */}
+          <span style={{ minWidth: 0, flex: '1 1 150px' }}>
             <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, ...ell }}>
               {(self && self.name) || 'You'}{youTag}
             </p>
             {self && self.email && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: '#78684C', ...ell }}>{self.email}</p>}
           </span>
           <button type="button" onClick={startForOthers} className="rfp-btn">
-            <svg className="rfp-btn-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" />
-            </svg>
+            <RqIcon name="personAdd" size={16} className="rfp-btn-icon" />
             Request this for someone else
           </button>
         </div>
@@ -10788,7 +11423,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
             const only = n === 1;
             return (
               <div key={p.id} className="rfp-person" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 11px', borderTop: '1px solid #F0EBE0' }}>
-                {avatar(p.name || p.email, 30)}
+                {avatar(p.name || p.email, 32, !!isSelf)}
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, ...ell }}>{p.name || p.email || p.id}{isSelf ? youTag : null}</p>
                   {p.email && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: '#78684C', ...ell }}>{p.email}</p>}
@@ -10800,7 +11435,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
                   className="rfp-remove"
                   aria-label={'Remove ' + (p.name || p.email)}
                 >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                  <RqIcon name="close" size={12} />
                   Remove
                 </button>
               </div>
@@ -10820,7 +11455,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
 
       {n === 0 ? (
         <div className="rfp-empty" style={{ border: '1px dashed #C9C0AB', borderRadius: 10, padding: 13, textAlign: 'center', background: '#FCFBF7', marginTop: 9 }}>
-          <svg className="rfp-empty-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></svg>
+          <RqIcon name="personAdd" size={22} className="rfp-empty-icon" />
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Nobody chosen yet</p>
           <span style={{ display: 'block', marginTop: 2, fontSize: 11.5, color: '#78684C' }}>Start typing a name above to find them.</span>
         </div>
@@ -10915,6 +11550,17 @@ const KB_SEARCH_INDEX = [
   { id: "k3", title: "Visiting HQ as a remote Slicer",                     category: "Office & HQ",      keywords: "office hq visitor badge guest remote visit",              body: "Badge, Wi-Fi, desks, lunch — everything you need.",                  updated: 21 },
 ];
 
+// "today", "3 days ago", "2 weeks ago", "5 months ago" from an age in days.
+function kbWhen(days) {
+  const d = Number(days) || 0;
+  if (d <= 0) return 'today';
+  if (d === 1) return 'yesterday';
+  if (d < 7) return d + ' days ago';
+  if (d < 30) { const w = Math.round(d / 7); return w + (w === 1 ? ' week' : ' weeks') + ' ago'; }
+  if (d < 365) { const m = Math.round(d / 30); return m + (m === 1 ? ' month' : ' months') + ' ago'; }
+  const y = Math.round(d / 365); return y + (y === 1 ? ' year' : ' years') + ' ago';
+}
+
 function scoreMatch(item, q) {
   const hay = (item.title + " " + item.category + " " + item.keywords + " " + item.body).toLowerCase();
   if (!hay.includes(q)) return 0;
@@ -10930,6 +11576,9 @@ function KnowledgePage({ onBack, onOpenGuide }) {
   const [query, setQuery] = React.useState("");
   const [activeCat, setActiveCat] = React.useState(null); // category id or null
   const [sort, setSort] = React.useState("relevance"); // 'relevance' | 'recent'
+  // One article list with a switch, instead of two near-identical lists side
+  // by side (they mostly showed the same handful of guides twice).
+  const [listTab, setListTab] = React.useState("popular"); // 'popular' | 'recent'
   const [suggestOpen, setSuggestOpen] = React.useState(false);
   const [suggestSent, setSuggestSent] = React.useState(false);
   const inputRef = React.useRef(null);
@@ -10949,7 +11598,9 @@ function KnowledgePage({ onBack, onOpenGuide }) {
     title: g.title,
     category: (g.category || 'General').replace(/\b\w/g, (c) => c.toUpperCase()),
     keywords: ((g.tags || []).join(' ') + ' ' + (g.source_type || '')).trim(),
-    body: '',
+    // The server's one-line summary — shown on cards and rows, and searched.
+    body: g.excerpt || '',
+    readMin: g.read_min || 0,
     updated: Math.max(0, Math.floor((Date.now() - new Date(g.updated_at).getTime()) / 86400000)),
     source_type: g.source_type,
     helpful_count: g.helpful_count ?? 0,
@@ -10957,11 +11608,11 @@ function KnowledgePage({ onBack, onOpenGuide }) {
 
   const liveFeatured = React.useMemo(() => liveIndex.slice(0, 3), [liveIndex]);
   const livePopular  = React.useMemo(
-    () => [...liveIndex].sort((a, b) => b.helpful_count - a.helpful_count).slice(0, 6),
+    () => [...liveIndex].sort((a, b) => b.helpful_count - a.helpful_count || a.updated - b.updated).slice(0, 8),
     [liveIndex],
   );
   const liveRecent   = React.useMemo(
-    () => [...liveIndex].sort((a, b) => a.updated - b.updated).slice(0, 6).map((g) => ({
+    () => [...liveIndex].sort((a, b) => a.updated - b.updated).slice(0, 8).map((g) => ({
       ...g,
       when: g.updated === 0 ? 'Today' : g.updated === 1 ? 'Yesterday'
         : g.updated < 7 ? `${g.updated}d ago`
@@ -11115,7 +11766,9 @@ function KnowledgePage({ onBack, onOpenGuide }) {
             <input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)}
               placeholder='Search for "VPN", "password", "laptop"…'
               style={{
-                flex: 1, border: "none", outline: "none",
+                // width/minWidth 0: an <input> keeps its default ~20ch width as
+                // a minimum, which made the whole page wider than a phone.
+                flex: 1, minWidth: 0, width: 0, border: "none", outline: "none",
                 background: "transparent",
                 fontFamily: "'Archivo', sans-serif",
                 fontSize: 17, fontWeight: 500, color: "#211E1E",
@@ -11190,76 +11843,58 @@ function KnowledgePage({ onBack, onOpenGuide }) {
         )}
         {!searching && (
         <React.Fragment>
-        {/* Categories */}
-        <SectionTitle kicker="Browse by topic" title="Pick a category" />
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 14,
-          marginBottom: 56,
-        }}>
-          {liveCats.map((c) => {
-            return (
-              <button key={c.id} className="kb-cat-card" onClick={() => { setActiveCat(c.id); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}>
-                <div className="kb-cat-card-inner">
-                  <div className="kb-cat-icon">
-                    {c.label.charAt(0)}
-                  </div>
-                  <div style={{ fontSize: 14.5, fontWeight: 800, marginBottom: 4, letterSpacing: "-0.005em" }}>
-                    {c.label}
-                  </div>
-                  <div style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.7 }}>{c.count} articles</div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Featured */}
-        <SectionTitle kicker="Editor's picks" title="Start here" />
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 18,
-          marginBottom: 56,
-        }}>
-          {liveFeatured.map((g) => (
-            <FeaturedGuideCard key={g.id} guide={g} onClick={() => onOpenGuide && onOpenGuide({ id: g.id, ...g })} />
+        {/* Topics — compact, icon-led rows so a dozen of them fit in two
+            short lines instead of three rows of big empty tiles. */}
+        <SectionTitle kicker="Browse by topic" title="Topics" />
+        <div className="kb-topics">
+          {liveCats.map((c) => (
+            <button key={c.id} className="kb-topic" onClick={() => { setActiveCat(c.id); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}>
+              <span className="kb-topic-icon"><RqIcon name={kbTopicIcon(c.label)} size={17} /></span>
+              <span className="kb-topic-text">
+                <span className="kb-topic-name">{c.label}</span>
+                <span className="kb-topic-count">{c.count} {c.count === 1 ? "article" : "articles"}</span>
+              </span>
+              <svg className="kb-topic-go" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.3 4.3a1.2 1.2 0 0 1 1.7 0l6.8 6.8a1.3 1.3 0 0 1 0 1.8L15 19.7a1.2 1.2 0 0 1-1.7-1.7l4.8-4.8H3.5a1.2 1.2 0 0 1 0-2.4h14.6l-4.8-4.8a1.2 1.2 0 0 1 0-1.7Z" /></svg>
+            </button>
           ))}
         </div>
 
-        {/* Two-col: Popular + Recent — unified row treatment */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-          gap: 28,
-        }}>
-          <div>
-            <SectionTitle kicker="Most viewed" title="Popular articles" />
-            <ArticleList items={livePopular.map(p => ({ ...p, meta: p.category }))} onOpen={handleOpen} markerTone="dot" />
-          </div>
-
-          <div>
-            <SectionTitle kicker="Fresh off the press" title="Recently updated" />
-            <ArticleList items={liveRecent.map(r => ({ ...r, meta: `${r.when} · ${r.category}` }))} onOpen={handleOpen} markerTone="dot" />
-
-            {/* Suggest an article — lighter, cream-on-charcoal-outline, not full charcoal */}
-            <div style={{
-              marginTop: 18,
-              background: "#FFF9E6", color: "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 10,
-              boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-              padding: "18px 20px",
-            }}>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#8A6A14", marginBottom: 8 }}>
-                Nothing matches?
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.5, marginBottom: 12, color: "#211E1E" }}>
-                Tell us what you searched for. If it's missing, we'll write it.
-              </div>
-              <button onClick={() => setSuggestOpen(true)} className="btn btn-primary" style={{ padding: "8px 14px" }}>Suggest an article →</button>
+        {/* Editor's picks — now with what the guide is about. */}
+        {liveFeatured.length > 0 && (
+          <>
+            <SectionTitle kicker="Editor's picks" title="Start here" />
+            <div className="kb-picks">
+              {liveFeatured.map((g) => (
+                <FeaturedGuideCard key={g.id} guide={g} onClick={() => onOpenGuide && onOpenGuide({ id: g.id, ...g })} />
+              ))}
             </div>
+          </>
+        )}
+
+        {/* All articles — one list, switch between most helpful and newest. */}
+        <SectionTitle kicker="Articles" title={listTab === "popular" ? "Most helpful" : "Recently updated"}
+          right={(
+            <div className="kb-seg" role="tablist" aria-label="Sort articles">
+              {[["popular", "Most helpful"], ["recent", "Recently updated"]].map(([v, label]) => (
+                <button key={v} role="tab" aria-selected={listTab === v} className={listTab === v ? "is-on" : ""} onClick={() => setListTab(v)}>{label}</button>
+              ))}
+            </div>
+          )} />
+        <ArticleList
+          items={(listTab === "popular" ? livePopular : liveRecent).map((g) => ({
+            ...g,
+            meta: [g.category, g.readMin ? `${g.readMin} min read` : null, listTab === "recent" ? `Updated ${kbWhen(g.updated)}` : null].filter(Boolean).join(" · "),
+          }))}
+          onOpen={handleOpen} />
+
+        {/* Can't find it — full width, the natural end of the page. */}
+        <div className="kb-missing">
+          <span className="kb-missing-icon" aria-hidden="true"><RqIcon name="book" size={20} /></span>
+          <div className="kb-missing-text">
+            <div className="kb-missing-title">Can’t find what you need?</div>
+            <div className="kb-missing-sub">Tell us what you were looking for. If it’s missing, we’ll write it.</div>
           </div>
+          <button onClick={() => setSuggestOpen(true)} className="btn btn-primary kb-missing-btn">Suggest an article</button>
         </div>
         </React.Fragment>
         )}
@@ -11400,42 +12035,28 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
 
 // Small icon-dot used as row marker — replaces numeric 1..6 ranks.
 function CategoryDot({ category }) {
-  const catId = CAT_LABEL_TO_ID[category];
-  const catMeta = KB_CATEGORIES.find(c => c.id === catId);
-  const Icon = catMeta ? window[catMeta.icon] : null;
-  const initial = (category || '?').trim().charAt(0).toUpperCase();
   return (
-    <div className="kb-row-icon">
-      {Icon ? <Icon size={16} stroke={2.2} /> : <span style={{ fontFamily: "Archivo, sans-serif", fontSize: 15, fontWeight: 900 }}>{initial}</span>}
-    </div>
+    <div className="kb-row-icon"><RqIcon name={kbTopicIcon(category)} size={16} /></div>
   );
 }
 
-// Unified article list used by Popular + Recent
+// The article list: topic icon, title, one-line summary, meta.
 function ArticleList({ items, onOpen }) {
+  if (!items.length) return <div className="kb-list kb-list-empty">No articles yet.</div>;
   return (
-    <div style={{
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 14,
-      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-      overflow: "hidden",
-    }}>
-      {items.map((p, i) => (
-        <div key={p.id} className="kb-row" onClick={() => onOpen && onOpen(p)}
-          style={{ borderBottom: i === items.length - 1 ? "none" : "1.5px solid #E7E1D4" }}>
+    <div className="kb-list">
+      {items.map((p) => (
+        <button key={p.id} type="button" className="kb-row" onClick={() => onOpen && onOpen(p)}>
           <CategoryDot category={p.category} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#211E1E", marginBottom: 2, letterSpacing: "-0.005em" }}>
-              {p.title}
-            </div>
-            <div style={{ fontSize: 11.5, color: "#78684C", fontWeight: 600 }}>
-              {p.meta}
-            </div>
-          </div>
-          <svg className="kb-row-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <span className="kb-row-text">
+            <span className="kb-row-title">{p.title}</span>
+            {p.body && <span className="kb-row-excerpt">{p.body}</span>}
+            <span className="kb-row-meta">{p.meta}</span>
+          </span>
+          <svg className="kb-row-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polyline points="9 18 15 12 9 6"/>
           </svg>
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -11482,44 +12103,18 @@ function SectionTitle({ kicker, title, right }) {
 
 function FeaturedGuideCard({ guide, onClick }) {
   return (
-    <div onClick={onClick} style={{
-      background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 14,
-      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-      padding: "22px 22px 20px",
-      cursor: "pointer",
-      transition: "transform .18s var(--ease), box-shadow .18s var(--ease)",
-      display: "flex", flexDirection: "column", gap: 14,
-      minHeight: 220,
-    }}
-    onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(0, 0)"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"; }}
-    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"; }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{
-          fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
-          letterSpacing: "0.04em", textTransform: "uppercase",
-          background: "#FDC831", color: "#211E1E",
-          border: "1px solid #211E1E", borderRadius: 3,
-          padding: "2px 8px",
-        }}>{guide.category}</span>
-      </div>
-      <h3 style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 18, fontWeight: 800,
-        margin: 0, letterSpacing: "-0.015em",
-        color: "#211E1E", lineHeight: 1.25,
-      }}>{guide.title}</h3>
-      <p style={{ fontSize: 13.5, color: "#4A3F2E", margin: 0, lineHeight: 1.5, flex: 1 }}>
-        {guide.body}
-      </p>
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "flex-end",
-        paddingTop: 12, borderTop: "1px solid #E7E1D4",
-        fontSize: 12, fontWeight: 800, color: "#211E1E",
-      }}>
-        Read →
-      </div>
-    </div>
+    <button type="button" className="kb-pick" onClick={onClick}>
+      <span className="kb-pick-top">
+        <span className="kb-pick-icon"><RqIcon name={kbTopicIcon(guide.category)} size={15} /></span>
+        <span className="kb-pick-cat">{guide.category}</span>
+      </span>
+      <span className="kb-pick-title">{guide.title}</span>
+      {guide.body && <span className="kb-pick-excerpt">{guide.body}</span>}
+      <span className="kb-pick-foot">
+        <span>{guide.readMin ? `${guide.readMin} min read` : 'Guide'}</span>
+        <span className="kb-pick-read">Read →</span>
+      </span>
+    </button>
   );
 }
 
@@ -11671,7 +12266,6 @@ function StatusPage({ onBack }) {
   // Live data from /api/status. Initial render shows a skeleton; we re-fetch
   // every 30s so the page reflects poller updates without a manual refresh.
   const [payload, setPayload] = React.useState(null);
-  const [lastCheck, setLastCheck] = React.useState(null);
   const [loadError, setLoadError] = React.useState(null);
 
   React.useEffect(() => {
@@ -11683,7 +12277,6 @@ function StatusPage({ onBack }) {
         const j = await r.json();
         if (cancelled) return;
         setPayload(j);
-        setLastCheck(new Date());
         setLoadError(null);
       } catch (e) {
         if (!cancelled) setLoadError(e.message);
@@ -11717,8 +12310,6 @@ function StatusPage({ onBack }) {
   const operationalCount = allServices.filter((s) => s.state === 'operational').length;
   const degraded = allServices.filter((s) => s.state === 'degraded');
   const down = allServices.filter((s) => s.state === 'down');
-  const overallTone = down.length ? 'red' : degraded.length ? 'amber' : 'green';
-  const toneAccent = overallTone === 'green' ? '#0A8A3E' : overallTone === 'amber' ? '#B8860B' : '#DA3327';
 
   const [expandedSvc, setExpandedSvc] = React.useState(null);
   const [filter, setFilter] = React.useState('all'); // all | issues | operational
@@ -11726,12 +12317,6 @@ function StatusPage({ onBack }) {
 
   // Total services — drives the "All" filter-chip count.
   const totalServices = allServices.length;
-
-  const agoSec = lastCheck ? Math.max(0, Math.round((Date.now() - lastCheck.getTime()) / 1000)) : null;
-  const agoLabel = agoSec == null ? 'syncing…'
-    : agoSec < 5 ? 'just now'
-    : agoSec < 60 ? `${agoSec}s ago`
-    : `${Math.floor(agoSec / 60)}m ago`;
 
   // Filter + search applied to grouped layout. Hide services that don't match
   // and drop any group that ends up empty so the table doesn't show stale headers.
@@ -11756,69 +12341,22 @@ function StatusPage({ onBack }) {
       background: "var(--bg)",
       display: "flex", flexDirection: "column",
     }}>
-      {/* Overall banner — one plain headline that states the situation, the
-          affected services right under it (click one to jump to its row), and
-          a single live/freshness line. Tone shows through the dot and chips. */}
-      <div style={{ background: "#F7F4EF", padding: "44px 32px 12px" }}>
+      {/* Just the page title — the service table below already shows what's
+          down or degraded, so a second summary up here repeated it. */}
+      <div style={{ background: "#F7F4EF", padding: "44px 32px 0" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap",
-            fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "#4A3F2E",
-          }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: payload ? toneAccent : "#C9BFA9", animation: payload ? "livePulse 1.8s ease-in-out infinite" : "none" }}/>
-            <span style={{ color: "#211E1E" }}>Live</span>
-            <span style={{ opacity: 0.45 }}>·</span>
-            <span>Checked {agoLabel}</span>
-            {loadError && (<><span style={{ opacity: 0.45 }}>·</span><span style={{ color: "#B92323" }}>Sync error</span></>)}
-          </div>
           <h1 title={loadError || undefined} style={{
             fontFamily: "var(--font-head)", fontSize: 44, fontWeight: 400,
-            margin: "12px 0 0", letterSpacing: "-0.01em", color: "#211E1E", lineHeight: 1.05, textTransform: "none",
+            margin: 0, letterSpacing: "-0.01em", color: "#211E1E", lineHeight: 1.05, textTransform: "none",
           }}>
-            {!payload ? "Checking services…"
-              : down.length ? `${down.length} service${down.length === 1 ? "" : "s"} down.`
-              : degraded.length ? `${degraded.length} service${degraded.length === 1 ? "" : "s"} degraded.`
-              : "All systems operational."}
+            Status
           </h1>
-          {payload && (down.length + degraded.length === 0 ? (
-            <div style={{ fontSize: 14.5, color: "#4A3F2E", marginTop: 12 }}>
-              All {totalServices} services are responding normally.
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
-              {[...down, ...degraded].slice(0, 6).map((svc, i) => (
-                <React.Fragment key={svc.id}>
-                  {i === down.length && down.length > 0 && (
-                    <span style={{ fontSize: 13.5, color: "#4A3F2E", margin: "0 2px 0 6px" }}>
-                      {`and ${degraded.length} degraded`}
-                    </span>
-                  )}
-                  <button type="button" className="status-hit"
-                    onClick={() => {
-                      setQuery(""); setFilter("issues"); setExpandedSvc(svc.id);
-                      requestAnimationFrame(() => {
-                        const row = document.querySelector(`[data-svc="${svc.id}"]`);
-                        if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
-                      });
-                    }}>
-                    <span aria-hidden="true" className="status-hit-dot" style={{ background: svc.state === "down" ? "#DA3327" : "#E0A100" }}/>
-                    {svc.name}
-                  </button>
-                </React.Fragment>
-              ))}
-              {down.length + degraded.length > 6 && (
-                <button type="button" className="status-hit is-more" onClick={() => { setQuery(""); setFilter("issues"); }}>
-                  +{down.length + degraded.length - 6} more
-                </button>
-              )}
-            </div>
-          ))}
         </div>
       </div>
 
       {/* Body */}
       <div style={{
-        maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "48px 32px 64px",
+        maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "28px 32px 64px",
         width: "100%",
         flex: "1 0 auto", display: "flex", flexDirection: "column",
       }}>
