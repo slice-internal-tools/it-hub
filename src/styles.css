@@ -3641,3 +3641,24 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 .tkd-reply-box:not(:focus-within):not(.is-open) .tkd-reply-hint { display: none; }
 .tkd-reply-box.is-open .rr-shell > div:first-child { display: flex !important; background: #FFFFFF !important; border-bottom-color: #F3EEE3 !important; }
 .tkd-reply-box.is-open [contenteditable] { min-height: 104px !important; }
+
+/* An open dropdown (people search, agent picker) must sit above the fields
+   below it. Each block animates in, which gives it its own stacking layer,
+   so later blocks painted over an earlier block's dropdown — the "Who is this
+   for?" results were covered by the User to clone box. The active block is
+   lifted above its siblings. */
+.rqx-main > :focus-within, .rqx-extras > :focus-within, .cf-split-row:focus-within, .ap-pick:focus-within { position: relative; z-index: 30; }
+
+/* Compact urgency switch in the request side panel. */
+.rep-urgency.is-compact { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 11px; background: rgba(33,30,30,.06); }
+.rep-urgency.is-compact .rep-urg {
+  flex-direction: column; gap: 4px; min-width: 0; padding: 7px 2px 6px; border: 0; border-radius: 8px;
+  background: transparent; box-shadow: none; transform: none; font-size: 11.5px;
+}
+.rep-urgency.is-compact .rep-urg:hover { background: rgba(255,255,255,.6); }
+.rep-urgency.is-compact .rep-urg.is-on { background: #FFFFFF; box-shadow: 0 1px 2px rgba(33,30,30,.16), 0 0 0 1px rgba(33,30,30,.08); }
+.rep-urgency.is-compact .rep-urg-title { font-size: 11.5px; white-space: nowrap; }
+.rep-urgency.is-compact .rep-urg-bars { height: 11px; }
+.rep-urgency.is-compact .rep-urg-bars i:nth-child(1) { height: 4px; } .rep-urgency.is-compact .rep-urg-bars i:nth-child(2) { height: 6px; }
+.rep-urgency.is-compact .rep-urg-bars i:nth-child(3) { height: 9px; } .rep-urgency.is-compact .rep-urg-bars i:nth-child(4) { height: 11px; }
+.rep-crit-note.is-compact { margin-top: 2px; font-size: 12px; padding: 7px 9px; }

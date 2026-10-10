@@ -5727,7 +5727,9 @@ const URGENCY_OPTIONS = [
 // every catalog request, so a requester never meets two vocabularies. Critical
 // posts an urgent-help alert to the IT Team's Slack channel (ticket module,
 // services/urgentAlerts.js), and says so before they submit.
-function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle }) {
+// `compact`: the small segmented version used in the request form's side
+// panel (bars over the label, one quiet track).
+function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, compact = false }) {
   // Critical interrupts the whole team, so picking it asks once. Saying no
   // leaves the previous choice in place.
   const [asking, setAsking] = React.useState(false);
@@ -5737,8 +5739,10 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle }) {
   };
   return (
     <>
-      <div className={labelStyle ? undefined : 'rep-label'} style={labelStyle}>{label}</div>
-      <div className="rep-urgency" role="radiogroup" aria-label={label}>
+      {compact
+        ? <span className="rqx-k">{label}</span>
+        : <div className={labelStyle ? undefined : 'rep-label'} style={labelStyle}>{label}</div>}
+      <div className={'rep-urgency' + (compact ? ' is-compact' : '')} role="radiogroup" aria-label={label}>
         {URGENCY_OPTIONS.map((o) => (
           <button key={o.value} type="button" role="radio" aria-checked={value === o.value}
             data-level={o.value} title={o.hint}
@@ -5752,9 +5756,9 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle }) {
         ))}
       </div>
       {value === 'critical' && (
-        <div className="rep-crit-note" role="note">
+        <div className={'rep-crit-note' + (compact ? ' is-compact' : '')} role="note">
           <span aria-hidden="true">🚨</span>
-          <span>The IT Team gets an alert on Slack as soon as you send this, so someone picks it up right away.</span>
+          <span>{compact ? 'Alerts the IT Team on Slack right away.' : 'The IT Team gets an alert on Slack as soon as you send this, so someone picks it up right away.'}</span>
         </div>
       )}
       {asking && (
@@ -9458,9 +9462,19 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     try {
       const j = await ticketsApiJson('GET', '/api/catalog/' + encodeURIComponent(it.id));
       setItem(j.catalog_item || j);
+      // Every item starts clean. Only the answers used to reset, so the people
+      // chosen under "Who is this for?", staged files and the agent note
+      // carried over from an item you backed out of without submitting.
       setResponses({});
       setPersonSplit({});
       setFieldErrs({});
+      setRequestedFor([]);
+      setRecipientMissing(false);
+      setAttachFiles([]);
+      setAttachWarn('');
+      setTalkedToNote('');
+      setFailed([]);
+      setResults([]);
       setJustification('');
       setUrgency('medium');
       setView('form');
@@ -9699,7 +9713,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     const errs = validateFields(submittableFields());
     // Justification is mandatory only when the catalog item asks for it.
     if (justificationRequired && !justification.trim()) {
-      errs.__justification = catalogNeedsApproval(item) ? 'Tell your approver why you need this.' : 'Tell IT why you need this.';
+      errs.__justification = 'Tell IT why you need this.';
     }
     setFieldErrs(errs);
     const nErr = Object.keys(errs).length;
@@ -9997,11 +10011,11 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const whoBody = (
     <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
   );
-  // Urgency and "already talked to an agent" — always on show, just quieter
-  // than the item's own questions. Attachments live in the text box above.
+  // "Already talked to an agent?" — always on show, just quieter than the
+  // item's own questions. Attachments live in the text box above; urgency is
+  // in the side panel next to Submit.
   const extrasBody = (
     <div className="rqx-extras">
-      <UrgencyPicker value={urgency} onChange={setUrgency} labelStyle={TK.label} />
       <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
     </div>
   );
@@ -10040,6 +10054,11 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             })}
           </span>
           {nPeople > 1 && <span className="rqx-sub">{nPeople} tickets, one each</span>}
+        </div>
+        {/* A property of the request, like priority in a ticket sidebar —
+            beside Submit rather than as another block in the form. */}
+        <div className="rqx-card-row rqx-urgency">
+          <UrgencyPicker value={urgency} onChange={setUrgency} label="Urgency" compact />
         </div>
         {approval}
         {/* Pinned to the bottom of the viewport while the panel is taller
@@ -10647,7 +10666,10 @@ function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoF
   // The free-text row, after the matches.
   const textRow = onPickText && term.length >= 2 ? { __text: term } : null;
   const rows = textRow ? [...people, textRow] : people;
-  const open = term.length >= 2 || browsing;
+  // Only while the box has focus: a results list left open after you moved
+  // on (e.g. "No one matches …" while typing in the next field) sat over the
+  // field you were now in.
+  const open = focused && (term.length >= 2 || browsing);
   const tokens = searchTokens(q);
   const reset = () => { setQ(''); setResults([]); };
   const pick = (r) => {
@@ -11125,10 +11147,10 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
 // `requires_approval`; older/dev data used `approval_required`. Reading only
 // the latter made every real item say "No approval needed".
 const catalogNeedsApproval = (item) => !!(item && (item.requires_approval ?? item.approval_required));
-// Is "Why do you need it?" required? When the item says so — and always when
-// it goes for approval, because the approver decides on that reason. (The
-// module only enforces the item's own flag, so this is stricter, never looser.)
-const catalogNeedsJustification = (item) => !!(item && (item.justify_required || catalogNeedsApproval(item)));
+// Is "Why do you need it?" required? Exactly when the item's own
+// justify_required flag says so — the same rule the ticket module enforces
+// (it treats the flag as on unless an admin turned it off).
+const catalogNeedsJustification = (item) => !!(item && item.justify_required);
 
 // Fan-out entries and approver nominations are keyed by person; `null` (the
 // wire format's "for me") is the signed-in user.
