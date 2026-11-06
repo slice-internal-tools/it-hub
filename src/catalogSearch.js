@@ -27,6 +27,13 @@ const W = {
   TAG_PREFIX: 430,
   NAME_CONTAINS: 350,
   TAG_CONTAINS: 240,
+  // Keywords are synced from the hub app's own "keywords" list — deliberate
+  // search synonyms ("one password", "onepassword" → 1Password). Weighted just
+  // under tags (admin-written per service item) and well under the name, so a
+  // real name match always wins.
+  KEYWORD_EXACT: 560,
+  KEYWORD_PREFIX: 400,
+  KEYWORD_CONTAINS: 220,
   CATEGORY: 150,
   DESC_WORD_PREFIX: 130,
   DESC_CONTAINS: 90,
@@ -34,6 +41,7 @@ const W = {
   // real substring match should always win over a guess about what you meant.
   FUZZY_NAME: 300,
   FUZZY_TAG: 200,
+  FUZZY_KEYWORD: 180,
 };
 
 // A token shorter than this is never fuzzy-matched — at 3 chars almost
@@ -137,11 +145,13 @@ function indexItem(item) {
   const name = normalise(item.name);
   const nameWords = name ? name.split(' ') : [];
   const tags = toTags(item.tags).map(normalise).filter(Boolean);
+  const keywords = toTags(item.keywords).map(normalise).filter(Boolean);
   return {
     name,
     nameWords,
     acronym: acronymOf(nameWords),
     tags,
+    keywords,
     category: normalise(item.category_name),
     // Long descriptions are truncated: past a couple of hundred characters a
     // substring hit says almost nothing about relevance, and scanning the
@@ -186,6 +196,12 @@ function scoreToken(idx, token, noFuzzy) {
     else if (t.includes(token)) hit(W.TAG_CONTAINS);
   }
 
+  for (const k of idx.keywords) {
+    if (k === token) { hit(W.KEYWORD_EXACT); break; }
+    if (k.startsWith(token)) hit(W.KEYWORD_PREFIX);
+    else if (k.includes(token)) hit(W.KEYWORD_CONTAINS);
+  }
+
   if (idx.category && (idx.category === token || idx.category.includes(token))) hit(W.CATEGORY);
 
   if (idx.desc && idx.desc.includes(token)) {
@@ -210,9 +226,16 @@ function scoreToken(idx, token, noFuzzy) {
         // Scale by how wrong it was: distance 1 keeps most of the weight.
         hit(Math.round(W.FUZZY_NAME / bestDist));
       } else {
+        let matched = false;
         for (const t of idx.tags) {
           const d = editDistanceWithin(token, t, budget);
-          if (d <= budget) { hit(Math.round(W.FUZZY_TAG / d)); break; }
+          if (d <= budget) { hit(Math.round(W.FUZZY_TAG / d)); matched = true; break; }
+        }
+        if (!matched) {
+          for (const k of idx.keywords) {
+            const d = editDistanceWithin(token, k, budget);
+            if (d <= budget) { hit(Math.round(W.FUZZY_KEYWORD / d)); break; }
+          }
         }
       }
     }
@@ -241,6 +264,7 @@ function scoreItem(item, query, opts = {}) {
     else if (idx.name.startsWith(full)) score += W.NAME_PREFIX;
     else if (idx.name.includes(full)) score += W.NAME_CONTAINS;
     if (idx.tags.includes(full)) score += W.TAG_EXACT;
+    else if (idx.keywords.includes(full)) score += W.KEYWORD_EXACT;
   }
 
   // Every token must contribute something. A query is a conjunction: if you
@@ -442,6 +466,7 @@ function matchFromText(items, text, opts = {}) {
       if (idx.name === pair) best = Math.max(best, W.NAME_EXACT);
       else if (idx.name.includes(pair)) best = Math.max(best, W.NAME_PREFIX);
       else if (idx.tags.includes(pair)) best = Math.max(best, W.TAG_EXACT);
+      else if (idx.keywords.includes(pair)) best = Math.max(best, W.KEYWORD_EXACT);
     }
 
     // Below a word-prefix hit we're into description and fuzzy noise —
