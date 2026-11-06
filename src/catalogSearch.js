@@ -28,12 +28,16 @@ const W = {
   NAME_CONTAINS: 350,
   TAG_CONTAINS: 240,
   // Keywords are synced from the hub app's own "keywords" list — deliberate
-  // search synonyms ("one password", "onepassword" → 1Password). Weighted just
-  // under tags (admin-written per service item) and well under the name, so a
-  // real name match always wins.
-  KEYWORD_EXACT: 560,
-  KEYWORD_PREFIX: 400,
-  KEYWORD_CONTAINS: 220,
+  // search synonyms ("one password", "onepassword" → 1Password). Weighted the
+  // SAME as tags (both are deliberate aliases, still below the app name). This
+  // matters for the free-text "Ask IT" matcher: confidenceOf() only reaches the
+  // 'strong' tier at >= TAG_EXACT, and the instant-suggestion panel shows an app
+  // on a 'strong' hit (or 'likely' + a request phrasing). At a lower weight a
+  // keyword-exact match capped at 'likely' and was dropped unless phrased as a
+  // request — so keywords matched in "Request app access" but not "Ask IT".
+  KEYWORD_EXACT: 620,
+  KEYWORD_PREFIX: 430,
+  KEYWORD_CONTAINS: 240,
   CATEGORY: 150,
   DESC_WORD_PREFIX: 130,
   DESC_CONTAINS: 90,
@@ -41,7 +45,7 @@ const W = {
   // real substring match should always win over a guess about what you meant.
   FUZZY_NAME: 300,
   FUZZY_TAG: 200,
-  FUZZY_KEYWORD: 180,
+  FUZZY_KEYWORD: 200,
 };
 
 // A token shorter than this is never fuzzy-matched — at 3 chars almost
