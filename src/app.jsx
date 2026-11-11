@@ -1179,7 +1179,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                 onClick={() => onOpenGuide && onOpenGuide({ id: g.id, title: g.title, category: g.category })}
                 style={{
                   textAlign: "left", cursor: "pointer",
-                  background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: 14,
+                  background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: 16,
                   padding: "16px 20px", boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                   fontFamily: "inherit",
                 }}>
@@ -1256,7 +1256,7 @@ function CompanionPromo() {
     <section className="companion-promo" aria-labelledby="companion-title">
       <style>{`
         .companion-promo { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:20px 20px; background:#FFFFFF;
-          border:1px solid rgba(33,30,30,.22); border-radius:18px; }
+          border:1px solid rgba(33,30,30,.22); border-radius:16px; }
         .companion-mark { width:40px; height:40px; border-radius:12px; display:grid; place-items:center; flex:none; background:#211E1E; color:#FFFFFF; }
         .companion-text { flex:1 1 260px; min-width:0; }
         .companion-title { margin:0; font:400 20px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
@@ -1410,7 +1410,7 @@ function PhishingCard({ onSubmit }) {
         padding: "24px 24px",
         background: "#0A8A3E",
         border: "1px solid #211E1E",
-        borderRadius: 14,
+        borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         color: "#FFFFFF",
         minHeight: 240,
@@ -1442,7 +1442,7 @@ function PhishingCard({ onSubmit }) {
         padding: "24px 24px",
         background: "#FFF0EE",
         border: "1px solid #B92323",
-        borderRadius: 14,
+        borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -1544,7 +1544,7 @@ function PhishingCard({ onSubmit }) {
       padding: "24px 24px",
       background: "#FFFFFF",
       border: "1px solid #B92323",
-      borderRadius: 14,
+      borderRadius: 16,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       position: "relative",
       minHeight: 240,
@@ -1674,7 +1674,7 @@ function OpenTicketsShortcut({ onOpenTickets }) {
         .otx-all:hover { color:#211E1E; background:rgba(33,30,30,.05); }
         .otx-all svg { transition:transform .2s var(--ease); }
         .otx-all:hover svg { transform:translateX(2px); }
-        .otx-card { background:#FFFFFF; border:1px solid rgba(33,30,30,.12); border-radius:18px; padding:8px; }
+        .otx-card { background:#FFFFFF; border:1px solid rgba(33,30,30,.12); border-radius:16px; padding:8px; }
         .otx-list { list-style:none; margin:0; padding:0; }
         .otx-list li + li { border-top:1px solid #F3EFE7; }
         .otx-list li:hover, .otx-list li:hover + li { border-top-color:transparent; }
@@ -1775,7 +1775,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         padding: "24px 24px",
         background: "#0A8A3E",
         border: "1px solid #211E1E",
-        borderRadius: 14,
+        borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         color: "#FFFFFF",
         minHeight: 240,
@@ -1809,7 +1809,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         padding: "24px 24px",
         background: "#FFFFFF",
         border: "1px solid #211E1E",
-        borderRadius: 14,
+        borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -1916,7 +1916,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
       padding: "24px 24px",
       background: "#FFFFFF",
       border: "1px solid #211E1E",
-      borderRadius: 14,
+      borderRadius: 16,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       position: "relative",
       minHeight: 240,
@@ -2345,7 +2345,7 @@ function QuestionFlow({ query, onBack, onDone }) {
           style={{
             width: "100%",
             border: "1px solid #211E1E",
-            borderRadius: 14,
+            borderRadius: 16,
             background: "#FFFFFF",
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             padding: "16px 16px",
@@ -2505,7 +2505,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
             background: "#211E1E",
             color: "#FFFFFF",
             border: "1px solid #211E1E",
-            borderRadius: 14,
+            borderRadius: 16,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "flex", gap: 16, alignItems: "center"
           }}>
@@ -2588,7 +2588,7 @@ function GuideCard({ guide, index, onOpen }) {
         padding: "16px 20px",
         background: "#FFFFFF",
         border: "1px solid #211E1E",
-        borderRadius: 10,
+        borderRadius: 12,
         boxShadow: hover ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         transform: hover ? "translate(0, 0)" : "none",
         cursor: "pointer",
@@ -2597,7 +2597,7 @@ function GuideCard({ guide, index, onOpen }) {
       }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
         <div style={{
-          width: 40, height: 40, borderRadius: 6, flexShrink: 0,
+          width: 40, height: 40, borderRadius: 8, flexShrink: 0,
           background: guide.hot ? "#F4F0E8" : "#F4F0E8",
           border: "1px solid #211E1E",
           color: "#211E1E",
@@ -2611,7 +2611,7 @@ function GuideCard({ guide, index, onOpen }) {
               padding: "2px 8px",
               background: "#FFFFFF",
               border: "1px solid #211E1E",
-              borderRadius: 3,
+              borderRadius: 4,
               fontFamily: "var(--font-mono)",
               fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -2622,7 +2622,7 @@ function GuideCard({ guide, index, onOpen }) {
               background: "#211E1E",
               color: "#FFFFFF",
               border: "1px solid #211E1E",
-              borderRadius: 3,
+              borderRadius: 4,
               fontFamily: "var(--font-mono)",
               fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -2682,7 +2682,7 @@ function RelatedRow({ ticket, index }) {
         padding: "3px 8px",
         background: "#F4F0E8",
         border: "1px solid #211E1E",
-        borderRadius: 3,
+        borderRadius: 4,
         textAlign: "center",
       }}>{ticket.id}</div>
       <div style={{ flex: 1, fontSize: 14, color: "#211E1E", fontWeight: 600, letterSpacing: "-0.01em", minWidth: 0 }}>
@@ -2692,7 +2692,7 @@ function RelatedRow({ ticket, index }) {
         padding: "2px 8px",
         background: statusBg,
         border: `1.5px solid ${statusColor}`,
-        borderRadius: 3,
+        borderRadius: 4,
         fontFamily: "var(--font-mono)",
         fontSize: 11, fontWeight: 600,
         letterSpacing: "0.04em", textTransform: "uppercase",
@@ -2707,7 +2707,7 @@ function RelatedRow({ ticket, index }) {
         padding: "3px 8px",
         background: "#F4F0E8",
         border: "1px solid #211E1E",
-        borderRadius: 3,
+        borderRadius: 4,
       }}>
         {Math.round(ticket.similar * 100)}%
       </div>
@@ -2722,7 +2722,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
       padding: "20px 24px",
       background: filed ? "#E8F5EC" : "#FFFFFF",
       border: "1px solid #211E1E",
-      borderRadius: 10,
+      borderRadius: 12,
       boxShadow: filed ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       animation: `fadeUp .5s ${index * 80}ms var(--ease) both`,
       transition: "background .35s ease, box-shadow .35s ease",
@@ -2735,7 +2735,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
               background: filed ? "#0A8A3E" : "#211E1E",
               color: "#FFFFFF",
               border: `1.5px solid ${filed ? "#0A8A3E" : "#211E1E"}`,
-              borderRadius: 3,
+              borderRadius: 4,
               fontFamily: "var(--font-mono)",
               fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -2745,7 +2745,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
               background: "#F4F0E8",
               color: "#211E1E",
               border: "1px solid #211E1E",
-              borderRadius: 3,
+              borderRadius: 4,
               fontFamily: "var(--font-mono)",
               fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -2766,7 +2766,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
         padding: "12px 12px",
         background: "#F4F0E8",
         border: "1px solid #211E1E",
-        borderRadius: 6,
+        borderRadius: 8,
         fontSize: 12, marginBottom: 16,
       }}>
         <div style={{
@@ -2914,7 +2914,7 @@ function GuideSheet({ guide, onClose }) {
           marginTop: 32, padding: "20px 20px",
           background: "#FFFFFF",
           border: "1px solid #211E1E",
-          borderRadius: 10,
+          borderRadius: 12,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           display: "flex", alignItems: "center", gap: 12,
         }}>
@@ -2973,7 +2973,7 @@ function FiledToast({ ticket, onClose, onView }) {
       width: 380,
       background: "#FFFFFF",
       border: "1px solid #211E1E",
-      borderRadius: 10,
+      borderRadius: 12,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       padding: "20px 20px",
       animation: "toastIn .4s var(--ease) both",
@@ -4798,7 +4798,7 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
         width: "100%",
         background: selected ? "#F4F0E8" : "#FFFFFF",
         border: "1px solid #211E1E",
-        borderRadius: 14,
+        borderRadius: 16,
         cursor: "pointer",
         transition: "transform .15s var(--ease), box-shadow .15s var(--ease), background .15s",
         boxShadow: selected ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -5105,14 +5105,14 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         .np-row.is-unread { background:#F4F0E8; }
         .np-row.is-unread:hover { background:#F4F0E8; }
         .np-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
-        .np-row .notif-kind { width:40px; height:40px; border-radius:10px; }
+        .np-row .notif-kind { width:40px; height:40px; border-radius:12px; }
         .np-title { font-family:'Archivo',sans-serif; font-size:14px; font-weight:700; color:#211E1E; letter-spacing:-.005em; }
         .np-row.is-unread .np-title { font-weight:900; }
         .np-ticket { font-size:13px; color:#5A4B28; margin-top:2px; }
         .np-body { font-size:13px; color:#4A4233; line-height:1.5; margin-top:8px; }
         .np-body.is-quote { font-style:italic; padding-left:12px; border-left:3px solid #E7E1D4; }
         .np-tag { display:inline-block; margin-top:8px; font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.06em;
-          text-transform:uppercase; color:#4A3F2E; padding:2px 8px; background:#F4F0E8; border:1px solid #211E1E; border-radius:3px; }
+          text-transform:uppercase; color:#4A3F2E; padding:2px 8px; background:#F4F0E8; border:1px solid #211E1E; border-radius:4px; }
         .np-when { font-size:11px; color:#8A7A4E; font-weight:600; font-family:'Archivo',sans-serif; flex-shrink:0; white-space:nowrap; }
         .np-x { flex-shrink:0; width:26px; height:26px; background:transparent; border:1px solid transparent; border-radius:999px;
           display:grid; place-items:center; cursor:pointer; color:#78684C; }
@@ -5154,7 +5154,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         {!ready ? (
           <TicketsNotice title="Loading notifications…" />
         ) : filtered.length === 0 ? (
-          <div style={{ padding: "48px 24px", textAlign: "center", background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14 }}>
+          <div style={{ padding: "48px 24px", textAlign: "center", background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 16 }}>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: "#211E1E", marginBottom: 8 }}>
               {items.length ? "Nothing here" : "You're all caught up"}
             </div>
@@ -5166,7 +5166,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
           [...grouped.entries()].map(([group, list]) => (
             <div key={group} style={{ marginBottom: 32 }}>
               <div className="eyebrow" style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 12 }}>{group}</div>
-              <div style={{ background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 14, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)", overflow: "hidden" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 16, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)", overflow: "hidden" }}>
                 {list.map((it) => (
                   <div key={it.id} role="button" tabIndex={0} onClick={() => openIt(it)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openIt(it); } }}
@@ -6201,7 +6201,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
 // Shared tokens so every ticket surface looks the same.
 const TK = {
   ink: '#211E1E', cheese: '#FDC831', cream: '#FFFFFF', muted: '#78684C', red: '#B92323',
-  field: { width: '100%', padding: '12px 12px', border: '1px solid #211E1E', borderRadius: 7, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
+  field: { width: '100%', padding: '12px 12px', border: '1px solid #211E1E', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
   label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#55503F', marginBottom: 8, marginTop: 16 },
   card: { background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' },
   // Spread onto a TK.card row to make it feel clickable (lift on hover, press in).
@@ -6478,7 +6478,7 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
   const link = () => { const u = window.prompt('Link URL:'); if (u) exec('createLink', u); };
   const image = () => { const u = window.prompt('Image URL:'); if (u) exec('insertImage', u); };
 
-  const tbBtn = { width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 6, border: 'none', background: 'transparent', color: '#6B5F4B', cursor: disabled ? 'default' : 'pointer', transition: 'background .12s, color .12s' };
+  const tbBtn = { width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 8, border: 'none', background: 'transparent', color: '#6B5F4B', cursor: disabled ? 'default' : 'pointer', transition: 'background .12s, color .12s' };
   const Sep = () => <span style={{ width: 1, height: 16, background: '#E4DDCD', margin: '0 3px' }} />;
   const TB = ({ title, onClick, children }) => (
     <button type="button" title={title} disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onClick}
@@ -6769,7 +6769,7 @@ function useAttachmentObjectUrl(source) {
 function AttachmentItem({ name, source, size, isImage, onOpenImage }) {
   const { url, loading, err } = useAttachmentObjectUrl(source);
   const paperclip = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
-  const chip = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 10, fontSize: 13, color: '#211E1E', textDecoration: 'none' };
+  const chip = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 12, fontSize: 13, color: '#211E1E', textDecoration: 'none' };
   if (isImage && url && !err) {
     const thumb = (
       <>
@@ -6825,7 +6825,7 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
       {(files || []).length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
           {files.map((f, i) => (
-            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 8px 4px 12px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 10, fontSize: 13, color: '#211E1E', maxWidth: 280 }}>
+            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 8px 4px 12px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 12, fontSize: 13, color: '#211E1E', maxWidth: 280 }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
               <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(f.size)}</span>
               {!disabled && (
@@ -7817,7 +7817,7 @@ function TicketListSkeleton({ rows = 4 }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }} aria-busy="true" aria-label="Loading your tickets">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="tkt-skel-row" style={{ ...TK.card, padding: '16px 20px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', animationDelay: `${i * 70}ms` }}>
-          <span className="tkt-skel" style={{ width: 44, height: 44, borderRadius: 10 }} />
+          <span className="tkt-skel" style={{ width: 44, height: 44, borderRadius: 12 }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span className="tkt-skel" style={{ width: 150, height: 11 }} />
             <span className="tkt-skel" style={{ width: `${62 - i * 7}%`, height: 14 }} />
@@ -8137,7 +8137,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
         .tkt-forothers-av { width:30px; height:30px; margin-left:-8px; border-radius:50%; display:grid; place-items:center; background:#F4F0E8; color:#211E1E;
           border:2px solid #FFFFFF; font-family:'Archivo',sans-serif; font-size:11px; font-weight:700; }
         .tkt-forothers-av:first-child { margin-left:0; }
-        .tkt-forothers-back { margin-left:auto; height:34px; padding:0 12px; border-radius:10px; border:1px solid rgba(33,30,30,.22); background:#FFFFFF; color:#211E1E; cursor:pointer;
+        .tkt-forothers-back { margin-left:auto; height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(33,30,30,.22); background:#FFFFFF; color:#211E1E; cursor:pointer;
           font-family:'Archivo',sans-serif; font-weight:650; font-size:13px; }
         .tkt-forothers-back:hover { border-color:#211E1E; background:#F4F0E8; }
         @keyframes tktForOthersIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
@@ -8499,7 +8499,7 @@ function ApprovalsButton({ approval, ticket }) {
     <div ref={ref} style={{ position: 'relative' }}>
       <style>{`
         .appr-btn { display:inline-flex; align-items:center; gap:12px; padding:8px 12px 8px 8px; min-height:38px; box-sizing:border-box;
-          background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:10px; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); cursor:pointer;
+          background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:12px; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); cursor:pointer;
           font-family:inherit; text-align:left; transition:transform .16s cubic-bezier(.22,.61,.36,1), box-shadow .16s cubic-bezier(.22,.61,.36,1); }
         .appr-btn:hover { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .appr-btn:active { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
@@ -8539,7 +8539,7 @@ function ApprovalsButton({ approval, ticket }) {
         <svg className="appr-caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none' }} aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, maxWidth: '86vw', background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', zIndex: 40, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, maxWidth: '86vw', background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', zIndex: 40, overflow: 'hidden' }}>
           <ApprovalSummary approval={approval} ticket={ticket} />
         </div>
       )}
@@ -9225,7 +9225,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
               <button type="button" onClick={() => setLightbox(null)} className="btn btn-outline" style={{ padding: '8px 12px', fontSize: 12, background: '#FFFFFF' }}>Close ✕</button>
             </div>
           </div>
-          <img className="overlay-panel-in" src={lightbox.url} alt={lightbox.name} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(92vw, 1100px)', maxHeight: '80vh', objectFit: 'contain', borderRadius: 10, border: '1px solid #211E1E', background: '#fff', cursor: 'default' }} />
+          <img className="overlay-panel-in" src={lightbox.url} alt={lightbox.name} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(92vw, 1100px)', maxHeight: '80vh', objectFit: 'contain', borderRadius: 12, border: '1px solid #211E1E', background: '#fff', cursor: 'default' }} />
         </div>,
         document.body,
       )}
@@ -9315,7 +9315,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                 {[0, 1].map((i) => (
                   <div key={i} className="tkt-skel-row" style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginTop: i ? 16 : 4, flexDirection: i ? 'row-reverse' : 'row', animationDelay: `${i * 90}ms` }}>
                     <span className="tkt-skel" style={{ width: 32, height: 32, borderRadius: '50%' }} />
-                    <span className="tkt-skel" style={{ width: i ? '38%' : '56%', height: 46, borderRadius: 14 }} />
+                    <span className="tkt-skel" style={{ width: i ? '38%' : '56%', height: 46, borderRadius: 16 }} />
                   </div>
                 ))}
               </div>
@@ -9517,7 +9517,7 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
           {shown.map((p, i) => (
             <button key={p.request_id} onClick={() => setSelId(p.request_id)} className="tkt-row tkt-row-in" style={{ animationDelay: `${Math.min(i, 8) * 28}ms` }}>
               {/* Same key tile as the approval page: these are access sign-offs. */}
-              <span className="apr-head-ic tkt-app-icon" aria-hidden="true" style={{ width: 40, height: 40, borderRadius: 10 }}><IconKey size={19} stroke={1.9} /></span>
+              <span className="apr-head-ic tkt-app-icon" aria-hidden="true" style={{ width: 40, height: 40, borderRadius: 12 }}><IconKey size={19} stroke={1.9} /></span>
               <div style={{ minWidth: 0 }}>
                 <div className="tkt-row-title"><span><Hl text={p.subject} tokens={tokens} /></span></div>
                 <div className="tkt-row-meta">
@@ -10629,7 +10629,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         <div className="cat-grid" aria-busy="true" aria-label="Loading the catalog">
           {Array.from({ length: 9 }).map((_, i) => (
             <div key={i} className="cat-tile2 tkt-skel-row" style={{ animationDelay: `${i * 40}ms`, pointerEvents: 'none' }}>
-              <span className="tkt-skel" style={{ width: 40, height: 40, borderRadius: 10 }} />
+              <span className="tkt-skel" style={{ width: 40, height: 40, borderRadius: 12 }} />
               <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <span className="tkt-skel" style={{ width: '55%', height: 12 }} />
                 <span className="tkt-skel" style={{ width: '85%', height: 9 }} />
@@ -11417,7 +11417,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                     // Nobody resolved. On a changeable stage this is the whole
                     // reason the feature exists, so lead with the action instead
                     // of hiding it behind a link.
-                    <div style={{ border: '1px dashed #C9A227', borderRadius: 10, background: '#F4F0E8', padding: 12 }}>
+                    <div style={{ border: '1px dashed #C9A227', borderRadius: 12, background: '#F4F0E8', padding: 12 }}>
                       <p style={{ fontSize: 13, color: '#7A5A00', margin: 0, lineHeight: 1.45, fontWeight: 700 }}>
                         {changeable
                           ? (forSelfOnly ? 'We don’t have a manager on file for you.' : 'We don’t have a manager on file for ' + peopleList(forWhom) + '.')
@@ -11449,7 +11449,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                           display: 'flex', alignItems: 'center', gap: 12,
                           border: '1px solid ' + (a.chosen ? '#211E1E' : (a.account_disabled ? '#E39C9C' : (a.unavailable ? '#E2DCD0' : '#E6DFCF'))),
                           background: a.chosen ? '#FFFFFF' : (a.account_disabled ? '#FFFFFF' : (a.unavailable ? '#F4F0E8' : '#FFFFFF')),
-                          borderRadius: 10, padding: '12px 12px',
+                          borderRadius: 12, padding: '12px 12px',
                         }}
                       >
                         <PersonAvatar name={a.name} size={34} off={!!a.account_disabled} self={!!isSelf} />
@@ -12031,7 +12031,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       </div>
 
       {n > 0 && (
-        <div style={{ border: '1px solid #211E1E', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ border: '1px solid #211E1E', borderRadius: 12, overflow: 'hidden' }}>
           {people.map((p) => {
             const isSelf = selfId && String(p.id) === selfId;
             const only = n === 1;
@@ -12068,7 +12068,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       </div>
 
       {n === 0 ? (
-        <div className="rfp-empty" style={{ border: '1px dashed #C9C0AB', borderRadius: 10, padding: 12, textAlign: 'center', background: '#FCFBF7', marginTop: 8 }}>
+        <div className="rfp-empty" style={{ border: '1px dashed #C9C0AB', borderRadius: 12, padding: 12, textAlign: 'center', background: '#FCFBF7', marginTop: 8 }}>
           <RqIcon name="personAdd" size={22} className="rfp-empty-icon" />
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Nobody chosen yet</p>
           <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: '#78684C' }}>Start typing a name above to find them.</span>
@@ -12357,7 +12357,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           <form onSubmit={onSubmit} className="kb-search-form" style={{
             background: "#FFFFFF",
             border: "1px solid #211E1E",
-            borderRadius: 14,
+            borderRadius: 16,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             padding: "8px 8px 8px 20px",
             display: "flex", alignItems: "center", gap: 16,
@@ -12578,7 +12578,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
 
       {results.length === 0 ? (
         <div style={{
-          background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14,
+          background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 16,
           padding: "48px 32px",
           textAlign: "center",
         }}>
@@ -12602,7 +12602,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
       ) : (
         <div style={{
           background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 14,
+          border: "1px solid #211E1E", borderRadius: 16,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           overflow: "hidden",
         }}>
@@ -13586,7 +13586,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           width: "min(720px, 100%)",
           background: "#F4F0E8",
           border: "1px solid #211E1E",
-          borderRadius: 14,
+          borderRadius: 16,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           padding: 0,
           animation: "ssPanelIn .35s var(--ease) both",
@@ -13867,7 +13867,7 @@ const kbd = {
   fontSize: 11,
   background: "#FFFFFF",
   border: "1px solid rgba(33,30,30,0.3)",
-  borderRadius: 3,
+  borderRadius: 4,
   color: "#211E1E",
   fontWeight: 600,
 };
@@ -14028,7 +14028,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
         <div style={{
           background: "#FFE8E5",
           border: "1px solid #DA3327",
-          borderRadius: 10,
+          borderRadius: 12,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           padding: "16px 20px",
           marginBottom: 20,
@@ -14094,7 +14094,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                     style={{
                       background: i === 0 ? "#F4F0E8" : "#FFFFFF",
                       border: "1px solid #211E1E",
-                      borderRadius: 10,
+                      borderRadius: 12,
                       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                       padding: "12px 16px",
                       cursor: "pointer",
@@ -14350,7 +14350,7 @@ function renderMarkdown(md, opts = {}) {
             flush();
             const alt = text.slice(j + 2, close);
             const src = text.slice(close + 2, urlEnd);
-            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: 'calc(100% - 20px)', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 10, margin: '16px 0 16px 20px', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
+            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: 'calc(100% - 20px)', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 12, margin: '16px 0 16px 20px', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
             j = urlEnd + 1; continue;
           }
         }
@@ -14373,7 +14373,7 @@ function renderMarkdown(md, opts = {}) {
           // breathing room. Explicit `data-align="right"` still right-aligns.
           const margin = align === 'right' ? '14px 0 14px auto' : '14px 0 14px 20px';
           const cappedMaxWidth = align === 'right' ? '100%' : 'calc(100% - 20px)';
-          nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: cappedMaxWidth, maxHeight: '70vh', width: w || 'auto', height: 'auto', borderRadius: 10, margin, boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
+          nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: cappedMaxWidth, maxHeight: '70vh', width: w || 'auto', height: 'auto', borderRadius: 12, margin, boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
           j += imgHtml[0].length; continue;
         }
       }
@@ -14901,7 +14901,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: active ? '#211E1E' : '#FFFFFF',
     color: active ? '#FFFFFF' : '#211E1E',
-    border: '1px solid ' + (active ? '#211E1E' : 'rgba(33,30,30,.22)'), borderRadius: 10,
+    border: '1px solid ' + (active ? '#211E1E' : 'rgba(33,30,30,.22)'), borderRadius: 12,
     cursor: 'pointer', boxSizing: 'border-box',
   });
 
@@ -15014,7 +15014,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         <article ref={articleRef} style={{
           background: '#FFFFFF',
           border: '1px solid #211E1E',
-          borderRadius: 14,
+          borderRadius: 16,
           boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
           padding: '16px 64px 40px',
           fontSize: 16, lineHeight: 1.65, color: '#211E1E',
@@ -15032,7 +15032,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           <div style={{ position: 'sticky', top: 0, zIndex: 3, height: 0, pointerEvents: 'none' }}>
             <div style={{
               position: 'absolute', top: 0, left: -64, right: -64, height: 62,
-              background: '#FFFFFF', borderTopLeftRadius: 13, borderTopRightRadius: 13,
+              background: '#FFFFFF', borderTopLeftRadius: 12, borderTopRightRadius: 12,
             }} />
           </div>
           {/* Tools — icon-only, parked at the article's top-right corner.
@@ -15488,7 +15488,7 @@ function FeedbackPanel({
       marginTop: 32, padding: "20px 24px",
       background: "#FFFFFF",
       border: "1px solid #211E1E",
-      borderRadius: 14,
+      borderRadius: 16,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 14px rgba(33,30,30,0.06)",
     }}>
       <style>{`
@@ -15921,7 +15921,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         {loading && (
           <div>
             <div style={{
-              background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
+              background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 16,
               padding: '24px 32px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
               display: 'flex', alignItems: 'center', gap: 16,
             }}>
@@ -15958,7 +15958,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           const hasTrailer = !!m;
           return (
             <div style={{
-              background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 14,
+              background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 16,
               padding: '24px 24px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
             }}>
               <div style={{
@@ -16031,7 +16031,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                       textAlign: 'left',
                       background: '#FFFFFF',
                       border: '1px solid #211E1E',
-                      borderRadius: 14,
+                      borderRadius: 16,
                       padding: '20px 24px',
                       boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
                       cursor: 'pointer',
@@ -16044,7 +16044,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     }}
                   >
                     <div className="card-icon" style={{
-                      width: 40, height: 40, borderRadius: 10,
+                      width: 40, height: 40, borderRadius: 12,
                       background: '#F4F0E8', border: '1px solid #211E1E',
                       display: 'grid', placeItems: 'center', flexShrink: 0,
                       marginTop: 2,
@@ -16090,7 +16090,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
         {!loading && suggestions && suggestions.length > 0 && (
           <div style={{
-            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
+            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 16,
             padding: '20px 24px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
           }}>
             <div style={{
@@ -16137,7 +16137,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
         {!loading && citations.length === 0 && (!suggestions || suggestions.length === 0) && (
           <div style={{
-            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
+            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 16,
             padding: '24px 32px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
           }}>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>No matching guides yet.</div>
