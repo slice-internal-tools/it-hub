@@ -493,7 +493,7 @@
     background: linear-gradient(to bottom, rgba(255,255,255,.85), #FFFFFF 14px);
   }
   .rqx-err .pg-actions-error { margin: 0; width: 100%; box-sizing: border-box; }
-  .rqx-submit { width: 100%; justify-content: center; min-height: 46px; }
+  .rqx-submit { width: 100%; justify-content: center; }
   .rqx-submit::after { content: "→"; margin-left: 8px; font-size: 14px; }
   .rqx-cancel { align-self: center; margin-top: -2px; padding: 4px 8px; border: 0; background: none; cursor: pointer; font: 700 12.5px 'Archivo', sans-serif; color: #6B5F4B; border-radius: 8px; }
   .rqx-cancel:hover { color: #211E1E; background: #F7F4EF; }
@@ -3800,7 +3800,7 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
   .apr-page .tkd-grid, .apr-page .tkd-bar { grid-template-columns: minmax(0, 1fr) minmax(0, 740px) 340px minmax(0, 1fr); }
   .apr-page .tkd-grid > .tkd-side { padding-left: 40px !important; }
   /* back arrow, title icon and the card all start on the same line */
-  .apr-page .tkd-bar .kb-back-btn { margin-left: -8px; }
+  .apr-page .tkd-bar .kb-back-btn { margin-left: -12px; }
   .apr-page .tkd-main > .tkd-head { margin-left: 0; }
 }
 .apr-page .apr-head { margin-bottom: 24px; }
@@ -4017,3 +4017,80 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
   opacity: 0; pointer-events: none; transition: opacity .15s ease; }
 .tour-help:hover::after, .tour-help:focus-visible::after { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .hc-note-done { animation: none; opacity: 1; } .tour-help { animation: none; } }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BUTTON SYSTEM — one set for the whole portal (audit 2026-11-11: 47 button
+   styles → primary / secondary / ghost / danger + chip, two sizes).
+   Kept as one block at the end so it wins over the older per-page rules;
+   the full token clean-up will delete those rules and these !importants.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --btn-h: 40px; --btn-h-lg: 44px; --btn-h-sm: 36px; --chip-h: 30px;
+  --btn-r: 10px; --btn-font: 600 14px/1 'Archivo', sans-serif; --btn-font-sm: 600 13px/1 'Archivo', sans-serif;
+  --b-ink: #211E1E; --b-ink-hover: #2E2A28; --b-muted: #4A3F2E; --b-line: rgba(33,30,30,.18); --b-line-hover: rgba(33,30,30,.4);
+  --b-fill: #F4F0E8; --b-disabled-bg: #EFE8DA; --b-disabled-ink: #A89C84; --b-danger: #B92323; --b-danger-bg: #FFF4F2;
+}
+
+/* shared shape */
+.btn-primary, .btn-outline, .hc-go, .mini-search-btn, .hc-ghost, .rfp-btn, .rep-nudge-btn,
+.tkt-life-btn.is-primary, .tkt-life-btn.cdlg-confirm, .cdlg-actions .tkt-life-btn, .tkt-close-btn, .tkd-hero .tkt-life-btn,
+.kb-back-btn, .rqx-cancel, .cmp-attach, .tkt-nav-btn {
+  display: inline-flex !important; align-items: center !important; justify-content: center; gap: 8px;
+  height: var(--btn-h) !important; padding: 0 16px !important; border-radius: var(--btn-r) !important;
+  font: var(--btn-font) !important; letter-spacing: -.005em !important; text-transform: none !important;
+  box-shadow: none !important; transform: none !important; cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease !important;
+}
+.btn-primary svg, .btn-outline svg, .hc-go svg, .hc-ghost svg, .tkt-life-btn svg { width: 15px; height: 15px; flex: none; }
+
+/* PRIMARY — charcoal, white text */
+.btn-primary, .hc-go, .mini-search-btn, .tkt-life-btn.is-primary, .tkt-life-btn.cdlg-confirm {
+  background: var(--b-ink) !important; color: #FFFFFF !important; border: 1px solid var(--b-ink) !important; }
+.btn-primary:hover:not(:disabled), .hc-go:hover:not(:disabled), .mini-search-btn:hover:not(:disabled),
+.tkt-life-btn.is-primary:hover:not(:disabled), .tkt-life-btn.cdlg-confirm:hover:not(:disabled) {
+  background: var(--b-ink-hover) !important; border-color: var(--b-ink-hover) !important; color: #FFFFFF !important; }
+.btn-primary:disabled, .hc-go:disabled, .mini-search-btn:disabled, .tkt-life-btn.is-primary:disabled, .tkt-life-btn.cdlg-confirm:disabled {
+  background: var(--b-disabled-bg) !important; border-color: var(--b-disabled-bg) !important; color: var(--b-disabled-ink) !important; cursor: not-allowed; opacity: 1 !important; }
+
+/* SECONDARY — white, hairline, warm-grey hover */
+.btn-outline, .hc-ghost, .rfp-btn, .rep-nudge-btn, .tkt-close-btn, .tkd-hero .tkt-life-btn:not(.is-primary),
+.cdlg-actions .tkt-life-btn:not(.cdlg-confirm), .tkt-nav-btn {
+  background: #FFFFFF !important; color: var(--b-ink) !important; border: 1px solid var(--b-line) !important; }
+.btn-outline:hover:not(:disabled), .hc-ghost:hover:not(:disabled), .rfp-btn:hover:not(:disabled), .rep-nudge-btn:hover:not(:disabled),
+.tkt-close-btn:hover:not(:disabled), .tkd-hero .tkt-life-btn:not(.is-primary):hover:not(:disabled),
+.cdlg-actions .tkt-life-btn:not(.cdlg-confirm):hover:not(:disabled), .tkt-nav-btn:hover:not(:disabled) {
+  background: var(--b-fill) !important; border-color: var(--b-line-hover) !important; }
+.tkt-nav-btn { width: var(--btn-h-sm); padding: 0 !important; height: var(--btn-h-sm) !important; }
+.tkt-nav-btn:disabled { opacity: .4 !important; cursor: default; }
+
+/* DANGER — secondary with red text (Reject, Cancel request) */
+.apr-reject, .tkd-hero .tkt-life-btn.is-cancel { color: var(--b-danger) !important; }
+.apr-reject:hover:not(:disabled), .tkd-hero .tkt-life-btn.is-cancel:hover:not(:disabled) {
+  background: var(--b-danger-bg) !important; border-color: rgba(185,35,35,.35) !important; color: #8A1E17 !important; }
+
+/* GHOST — no border; for Back / Cancel / Attach */
+.kb-back-btn, .rqx-cancel, .cmp-attach {
+  background: transparent !important; color: var(--b-muted) !important; border: 1px solid transparent !important; height: var(--btn-h-sm) !important; padding: 0 12px !important; }
+.kb-back-btn:hover, .rqx-cancel:hover:not(:disabled), .cmp-attach:hover:not(:disabled) { background: var(--b-fill) !important; color: var(--b-ink) !important; }
+.kb-back-btn { margin-left: -12px; }
+.rqx-cancel { width: 100%; }
+
+/* SIZES — large for the one main action on a page; small for in-field helpers */
+.hc-go, .rqx-submit, .apr-actions .btn, .done-actions .btn { height: var(--btn-h-lg) !important; padding: 0 20px !important; }
+.mini-search-btn, .hc-ghost, .rfp-btn, .rep-nudge-btn, .cmp-attach { height: var(--btn-h-sm) !important; font: var(--btn-font-sm) !important; padding: 0 14px !important; }
+
+/* CHIPS — pill, hairline (suggestions & quick picks) */
+.rep-shortcut, .kb-popular-chip, .tkt-quick-chip {
+  display: inline-flex !important; align-items: center; gap: 6px; height: var(--chip-h) !important; padding: 0 12px !important;
+  border-radius: 999px !important; background: #FFFFFF !important; color: var(--b-ink) !important; border: 1px solid rgba(33,30,30,.14) !important;
+  font: 600 12.5px/1 'Archivo', sans-serif !important; letter-spacing: 0 !important; text-transform: none !important;
+  box-shadow: none !important; transform: none !important; transition: background-color .15s ease, border-color .15s ease !important; }
+.rep-shortcut:hover, .kb-popular-chip:hover, .tkt-quick-chip:hover { background: var(--b-fill) !important; border-color: var(--b-line-hover) !important; }
+.kb-popular-chip.is-active { background: var(--b-ink) !important; color: #FFFFFF !important; border-color: var(--b-ink) !important; }
+
+/* focus — one ring for every button and chip */
+.btn-primary:focus-visible, .btn-outline:focus-visible, .hc-go:focus-visible, .mini-search-btn:focus-visible, .hc-ghost:focus-visible,
+.rfp-btn:focus-visible, .rep-nudge-btn:focus-visible, .tkt-life-btn:focus-visible, .kb-back-btn:focus-visible, .rqx-cancel:focus-visible,
+.cmp-attach:focus-visible, .tkt-nav-btn:focus-visible, .rep-shortcut:focus-visible, .kb-popular-chip:focus-visible, .tkt-quick-chip:focus-visible {
+  outline: 2px solid var(--b-ink) !important; outline-offset: 2px !important; }
+@media (prefers-reduced-motion: reduce) { .btn-primary, .btn-outline, .hc-go, .hc-ghost, .tkt-life-btn, .kb-back-btn { transition: none !important; } }
