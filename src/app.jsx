@@ -1165,7 +1165,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           animation: "fadeUp .8s .3s var(--ease) both"
         }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", margin: 0, letterSpacing: "-0.015em" }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--ink)", margin: 0, letterSpacing: "-0.015em" }}>
               📌 Your pinned guides
             </h2>
           </div>
@@ -1184,7 +1184,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                   fontFamily: "inherit",
                 }}>
                 <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 800, color: "#211E1E", marginBottom: 4, letterSpacing: "-0.01em" }}>{g.title}</div>
-                <div style={{ fontSize: 11.5, color: "#5C4916", fontWeight: 600 }}>{g.category || "Guide"}</div>
+                <div style={{ fontSize: 12, color: "#5C4916", fontWeight: 600 }}>{g.category || "Guide"}</div>
               </button>
             ))}
           </div>
@@ -1259,7 +1259,7 @@ function CompanionPromo() {
           border:1px solid rgba(33,30,30,.22); border-radius:18px; }
         .companion-mark { width:40px; height:40px; border-radius:12px; display:grid; place-items:center; flex:none; background:#211E1E; color:#FFFFFF; }
         .companion-text { flex:1 1 260px; min-width:0; }
-        .companion-title { margin:0; font:400 19px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
+        .companion-title { margin:0; font:400 20px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
         .companion-lede { margin:3px 0 0; font-size:13px; color:#78684C; line-height:1.45; }
         .companion-actions { display:flex; gap:8px; flex-wrap:wrap; }
         .companion-btn { display:inline-flex; align-items:center; gap:8px; height:38px; padding:0 14px 0 10px; border:1px solid #211E1E; border-radius:999px;
@@ -1427,9 +1427,9 @@ function PhishingCard({ onSubmit }) {
         </div>
         <div style={{
           fontFamily: "var(--font-head)",
-          fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 6,
+          fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 6,
         }}>Report sent to Security</div>
-        <div style={{ fontSize: 13.5, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
+        <div style={{ fontSize: 14, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
           Thanks — we've quarantined the message in your inbox and our Security team is reviewing. You'll hear back within an hour.
         </div>
       </div>
@@ -1453,7 +1453,7 @@ function PhishingCard({ onSubmit }) {
             border: "1px solid #DA3327",
             borderRadius: 4,
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 10.5,
+            fontWeight: 600, fontSize: 11,
             letterSpacing: "0.08em", textTransform: "uppercase",
           }}>
             <IconShield size={11} stroke={2.5} /> Security
@@ -1466,7 +1466,7 @@ function PhishingCard({ onSubmit }) {
 
         <div style={{
           fontFamily: "'Archivo', sans-serif",
-          fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
+          fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
           marginBottom: 14, lineHeight: 1.25,
         }}>Report suspicious email</div>
 
@@ -1499,7 +1499,7 @@ function PhishingCard({ onSubmit }) {
 
         <div style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
+          fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 8,
         }}>What looked off?</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
@@ -1528,7 +1528,7 @@ function PhishingCard({ onSubmit }) {
             border: "1px solid #211E1E", borderRadius: 4,
             boxShadow: (sender || subject) ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 12.5,
+            fontWeight: 600, fontSize: 13,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: (sender || subject) ? "pointer" : "not-allowed",
           }}>
@@ -1568,7 +1568,7 @@ function PhishingCard({ onSubmit }) {
           border: "1px solid #DA3327",
           borderRadius: 4,
           fontFamily: "var(--font-mono)",
-          fontWeight: 600, fontSize: 10.5,
+          fontWeight: 600, fontSize: 11,
           letterSpacing: "0.08em", textTransform: "uppercase",
         }}>
           <IconShield size={11} stroke={2.5} /> Security
@@ -1577,12 +1577,12 @@ function PhishingCard({ onSubmit }) {
 
       <div style={{
         fontFamily: "var(--font-head)",
-        fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em", color: "#211E1E",
+        fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", color: "#211E1E",
         lineHeight: 1.15, marginBottom: 8,
       }}>
         Got a suspicious email?
       </div>
-      <div style={{ fontSize: 13.5, color: "#4A3F2E", lineHeight: 1.5, marginBottom: 18, maxWidth: 360 }}>
+      <div style={{ fontSize: 14, color: "#4A3F2E", lineHeight: 1.5, marginBottom: 18, maxWidth: 360 }}>
         One click sends it to Security — we quarantine it, investigate, and alert the rest of Slice if it's a real threat.
       </div>
 
@@ -1601,7 +1601,7 @@ function PhishingCard({ onSubmit }) {
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
         marginTop: 14, paddingTop: 12, borderTop: "1px dashed rgba(33,30,30,0.2)",
-        fontSize: 11.5, color: "#78684C", fontWeight: 500,
+        fontSize: 12, color: "#78684C", fontWeight: 500,
       }}>
         <IconBolt size={11} stroke={2.2} />
         <span>Also: forward to <strong style={{ color: "#211E1E", fontFamily: "var(--font-mono)" }}>phishing@slice.com</strong></span>
@@ -1666,7 +1666,7 @@ function OpenTicketsShortcut({ onOpenTickets }) {
       <style>{`
         .otx { max-width:880px; margin:56px auto 0; position:relative; z-index:1; animation:fadeUp .8s .2s var(--ease) both; }
         .otx-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 4px 14px; }
-        .otx-title { margin:0; display:flex; align-items:center; gap:10px; font:400 22px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
+        .otx-title { margin:0; display:flex; align-items:center; gap:10px; font:400 24px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
         .otx-count { display:inline-grid; place-items:center; min-width:22px; height:22px; padding:0 7px; box-sizing:border-box;
           background:#211E1E; color:#FFFFFF; border-radius:999px; font:600 11px/1 var(--font-mono); }
         .otx-all { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 4px 0 12px; border-radius:999px;
@@ -1684,15 +1684,15 @@ function OpenTicketsShortcut({ onOpenTickets }) {
         .otx-row:hover, .otx-row:focus-visible { background:#F7F4EF; }
         .otx-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
         .otx-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
-        .otx-subject { font-size:15px; font-weight:600; color:#211E1E; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .otx-meta { display:flex; align-items:center; flex-wrap:wrap; gap:2px 8px; font-size:12.5px; color:#8A7E68; }
+        .otx-subject { font-size:16px; font-weight:600; color:#211E1E; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .otx-meta { display:flex; align-items:center; flex-wrap:wrap; gap:2px 8px; font-size:13px; color:#8A7E68; }
         .otx-num { font-family:var(--font-mono); font-weight:600; color:#4A3F2E; }
         .otx-for { font-weight:600; color:#4A3F2E; }
         .otx-status { flex:none; display:flex; align-items:center; gap:6px; }
         .otx-go { flex:none; color:#211E1E; opacity:0; transform:translateX(-4px); transition:opacity .15s ease, transform .2s var(--ease); }
         .otx-row:hover .otx-go, .otx-row:focus-visible .otx-go { opacity:1; transform:none; }
         .open-tix-new { position:absolute; top:-6px; left:-6px; min-width:18px; height:18px; padding:0 5px; box-sizing:border-box; display:grid; place-items:center;
-          background:#DA3327; color:#FFFFFF; border-radius:999px; font:700 10px/1 'Archivo',sans-serif; box-shadow:0 0 0 2px #FFFFFF; z-index:2; }
+          background:#DA3327; color:#FFFFFF; border-radius:999px; font:700 11px/1 'Archivo',sans-serif; box-shadow:0 0 0 2px #FFFFFF; z-index:2; }
         @media (max-width: 640px) { .otx { margin-top:40px; } .otx-row { gap:12px; padding:12px 10px; } .otx-go { display:none; } }
         @media (max-width: 520px) { .otx-status { display:none; } }
       `}</style>
@@ -1792,9 +1792,9 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         </div>
         <div style={{
           fontFamily: "var(--font-head)",
-          fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 6,
+          fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 6,
         }}>Ticket filed</div>
-        <div style={{ fontSize: 13.5, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
+        <div style={{ fontSize: 14, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
           IT Support has it. You'll get an ack in Slack shortly. Track it in Freshservice any time.
         </div>
       </div>
@@ -1820,7 +1820,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             border: "1px solid #211E1E",
             borderRadius: 4,
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 10.5,
+            fontWeight: 600, fontSize: 11,
             letterSpacing: "0.08em", textTransform: "uppercase",
           }}>
             <IconTicket size={11} stroke={2.5} /> New ticket
@@ -1833,7 +1833,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
 
         <div style={{
           fontFamily: "'Archivo', sans-serif",
-          fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
+          fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
           marginBottom: 14, lineHeight: 1.25,
         }}>Submit a ticket</div>
 
@@ -1860,7 +1860,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
               padding: "10px 12px",
               background: "#FFFFFF",
               border: "1px solid #211E1E", borderRadius: 4,
-              fontSize: 12.5, color: "#211E1E",
+              fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
               resize: "vertical",
             }}/>
@@ -1868,7 +1868,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
 
         <div style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
+          fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 8,
         }}>How urgent?</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
@@ -1900,7 +1900,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             border: "1px solid #211E1E", borderRadius: 4,
             boxShadow: canSend ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 12.5,
+            fontWeight: 600, fontSize: 13,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: canSend ? "pointer" : "not-allowed",
           }}>
@@ -1931,7 +1931,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           border: "1px solid #211E1E",
           borderRadius: 4,
           fontFamily: "var(--font-mono)",
-          fontWeight: 600, fontSize: 10.5,
+          fontWeight: 600, fontSize: 11,
           letterSpacing: "0.08em", textTransform: "uppercase",
         }}>
           <IconBolt size={11} stroke={2.5} /> IT Support
@@ -1940,11 +1940,11 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
 
       <div style={{
         fontFamily: "var(--font-head)",
-        fontSize: 18, fontWeight: 400, letterSpacing: "-0.01em", color: "#211E1E",
+        fontSize: 20, fontWeight: 400, letterSpacing: "-0.01em", color: "#211E1E",
         marginBottom: 4, lineHeight: 1.25,
       }}>Need a hand?</div>
       <div style={{
-        fontSize: 12.5, color: "#78684C", fontWeight: 500,
+        fontSize: 13, color: "#78684C", fontWeight: 500,
         marginBottom: 16, lineHeight: 1.4,
       }}>
         Urgent? Ping us on Slack. Everything else — drop a ticket.
@@ -1970,7 +1970,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontFamily: "'Archivo', sans-serif",
-            fontSize: 13.5, fontWeight: 800, letterSpacing: "-0.01em", color: "#211E1E",
+            fontSize: 14, fontWeight: 800, letterSpacing: "-0.01em", color: "#211E1E",
             marginBottom: 1,
           }}>
             My tickets
@@ -1992,7 +1992,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         display: "flex", alignItems: "center", gap: 10,
         margin: "14px 0",
         fontFamily: "var(--font-mono)",
-        fontSize: 10, fontWeight: 600, letterSpacing: "0.1em",
+        fontSize: 11, fontWeight: 600, letterSpacing: "0.1em",
         color: "#78684C", textTransform: "uppercase",
       }}>
         <div style={{ flex: 1, height: 1.5, background: "rgba(33,30,30,0.15)" }}/>
@@ -2041,7 +2041,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             #it-support on Slack
           </div>
           <div style={{
-            fontSize: 11.5, color: "#5C4916", fontWeight: 600, lineHeight: 1.3,
+            fontSize: 12, color: "#5C4916", fontWeight: 600, lineHeight: 1.3,
           }}>
             Urgent matters only
           </div>
@@ -2051,7 +2051,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           background: "#211E1E", color: "#FFFFFF",
           borderRadius: 4,
           fontFamily: "'Archivo', sans-serif",
-          fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em",
+          fontSize: 11, fontWeight: 900, letterSpacing: "0.08em",
         }}>OPEN →</div>
       </a>
     </div>
@@ -2142,7 +2142,7 @@ function QuestionFlow({ query, onBack, onDone }) {
           background: "#FFFFFF", border: "1px solid #211E1E",
           borderRadius: 4, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           fontFamily: "var(--font-mono)",
-          fontWeight: 600, fontSize: 11.5,
+          fontWeight: 600, fontSize: 12,
           letterSpacing: "0.04em", textTransform: "uppercase",
           color: "#211E1E", cursor: "pointer",
           transition: "transform .15s ease, box-shadow .15s ease, background .15s",
@@ -2177,7 +2177,7 @@ function QuestionFlow({ query, onBack, onDone }) {
 
         {!thinking && (
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className="eyebrow" style={{ color: "#211E1E", fontSize: 10.5 }}>
+            <span className="eyebrow" style={{ color: "#211E1E", fontSize: 11 }}>
               Step {step + 1} of {total}
             </span>
             <div style={{
@@ -2240,7 +2240,7 @@ function QuestionFlow({ query, onBack, onDone }) {
             }}>S</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontSize: 15, color: "#211E1E", lineHeight: 1.45,
+                fontSize: 16, color: "#211E1E", lineHeight: 1.45,
                 fontWeight: 500,
               }}>
                 Looks like a{" "}
@@ -2277,7 +2277,7 @@ function QuestionFlow({ query, onBack, onDone }) {
           </div>
 
           <h2 style={{
-            fontSize: 28, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.2,
+            fontSize: 32, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.2,
             margin: "0 0 24px", color: "#211E1E",
             fontFamily: "var(--font-head)",
           }}>
@@ -2349,7 +2349,7 @@ function QuestionFlow({ query, onBack, onDone }) {
             background: "#FFFFFF",
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             padding: "14px 16px",
-            fontSize: 15, lineHeight: 1.5, color: "#211E1E",
+            fontSize: 16, lineHeight: 1.5, color: "#211E1E",
             resize: "vertical",
             transition: "transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), opacity .2s var(--ease)",
             fontFamily: "inherit",
@@ -2451,7 +2451,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
         background: "#FFFFFF", border: "1px solid #211E1E",
         borderRadius: 4, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         fontFamily: "var(--font-mono)",
-        fontWeight: 600, fontSize: 11.5,
+        fontWeight: 600, fontSize: 12,
         letterSpacing: "0.04em", textTransform: "uppercase",
         color: "#211E1E", cursor: "pointer",
         transition: "transform .15s ease, box-shadow .15s ease",
@@ -2524,7 +2524,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
               }}>
                 {t("chatPrompt")}
               </div>
-              <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.72)", marginTop: 3 }}>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", marginTop: 3 }}>
                 {t("chatSub")}
               </div>
             </div>
@@ -2557,7 +2557,7 @@ function SectionHead({ kicker, title, subtitle, style }) {
       <div style={{
         display: "inline-block",
         fontFamily: "var(--font-mono)",
-        fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.08em",
+        fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em",
         color: "#211E1E", fontWeight: 600, marginBottom: 8,
         padding: "3px 8px",
         background: "#F4F0E8",
@@ -2570,7 +2570,7 @@ function SectionHead({ kicker, title, subtitle, style }) {
       }}>
         {title}
       </h2>
-      <p style={{ fontSize: 13.5, color: "#4A3F2E", margin: 0, lineHeight: 1.5 }}>
+      <p style={{ fontSize: 14, color: "#4A3F2E", margin: 0, lineHeight: 1.5 }}>
         {subtitle}
       </p>
     </div>);
@@ -2613,7 +2613,7 @@ function GuideCard({ guide, index, onOpen }) {
               border: "1px solid #211E1E",
               borderRadius: 3,
               fontFamily: "var(--font-mono)",
-              fontSize: 10, fontWeight: 600,
+              fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
               color: "#211E1E",
             }}>{guide.tag}</span>
@@ -2624,13 +2624,13 @@ function GuideCard({ guide, index, onOpen }) {
               border: "1px solid #211E1E",
               borderRadius: 3,
               fontFamily: "var(--font-mono)",
-              fontSize: 10, fontWeight: 600,
+              fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
             }}>★ Popular</span>}
           </div>
           <div style={{
             fontFamily: "'Archivo', sans-serif",
-            fontSize: 15, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.015em", marginBottom: 6, lineHeight: 1.3,
+            fontSize: 16, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.015em", marginBottom: 6, lineHeight: 1.3,
           }}>
             {guide.title}
           </div>
@@ -2675,7 +2675,7 @@ function RelatedRow({ ticket, index }) {
       animation: `fadeUp .5s ${index * 60}ms var(--ease) both`,
     }}>
       <div style={{
-        fontSize: 10.5,
+        fontSize: 11,
         fontFamily: "'Archivo', sans-serif",
         fontWeight: 800, letterSpacing: "0.04em",
         color: "#211E1E", minWidth: 64,
@@ -2685,7 +2685,7 @@ function RelatedRow({ ticket, index }) {
         borderRadius: 3,
         textAlign: "center",
       }}>{ticket.id}</div>
-      <div style={{ flex: 1, fontSize: 13.5, color: "#211E1E", fontWeight: 600, letterSpacing: "-0.01em", minWidth: 0 }}>
+      <div style={{ flex: 1, fontSize: 14, color: "#211E1E", fontWeight: 600, letterSpacing: "-0.01em", minWidth: 0 }}>
         {ticket.title}
       </div>
       <span style={{
@@ -2694,11 +2694,11 @@ function RelatedRow({ ticket, index }) {
         border: `1.5px solid ${statusColor}`,
         borderRadius: 3,
         fontFamily: "var(--font-mono)",
-        fontSize: 10, fontWeight: 600,
+        fontSize: 11, fontWeight: 600,
         letterSpacing: "0.04em", textTransform: "uppercase",
         color: statusColor,
       }}>{ticket.status}</span>
-      <div style={{ fontSize: 11.5, color: "#78684C", minWidth: 58, textAlign: "right", fontWeight: 500 }}>{ticket.when}</div>
+      <div style={{ fontSize: 12, color: "#78684C", minWidth: 58, textAlign: "right", fontWeight: 500 }}>{ticket.when}</div>
       <div style={{
         fontSize: 11,
         fontFamily: "'Archivo', sans-serif",
@@ -2737,7 +2737,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
               border: `1.5px solid ${filed ? "#0A8A3E" : "#211E1E"}`,
               borderRadius: 3,
               fontFamily: "var(--font-mono)",
-              fontSize: 10.5, fontWeight: 600,
+              fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
             }}>{ticket.priority}</span>
             {ticket.hot && <span style={{
@@ -2747,7 +2747,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
               border: "1px solid #211E1E",
               borderRadius: 3,
               fontFamily: "var(--font-mono)",
-              fontSize: 10.5, fontWeight: 600,
+              fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
             }}>★ Recommended</span>}
           </div>
@@ -2757,7 +2757,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
           }}>
             {ticket.title}
           </div>
-          <div style={{ fontSize: 12.5, color: "#78684C", marginTop: 4, fontWeight: 500 }}>
+          <div style={{ fontSize: 13, color: "#78684C", marginTop: 4, fontWeight: 500 }}>
             {ticket.team}
           </div>
         </div>
@@ -2771,10 +2771,10 @@ function TicketCard({ ticket, onFile, filed, index }) {
       }}>
         <div style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 9.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
+          fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 3,
         }}>Historical avg</div>
-        <div style={{ color: "#211E1E", fontWeight: 700, fontSize: 12.5 }}>{ticket.avg}</div>
+        <div style={{ color: "#211E1E", fontWeight: 700, fontSize: 13 }}>{ticket.avg}</div>
       </div>
       <button
         onClick={onFile}
@@ -2854,7 +2854,7 @@ function GuideSheet({ guide, onClose }) {
             border: "1px solid #211E1E",
             borderRadius: 4,
             fontFamily: "var(--font-mono)",
-            fontSize: 10.5, fontWeight: 600,
+            fontSize: 11, fontWeight: 600,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E",
           }}>
@@ -2903,7 +2903,7 @@ function GuideSheet({ guide, onClose }) {
               fontFamily: "'Archivo', sans-serif",
               fontSize: 13, fontWeight: 800,
             }}>{i + 1}</div>
-              <div style={{ fontSize: 14.5, color: "#211E1E", lineHeight: 1.55, paddingTop: 4, fontWeight: 500 }}>
+              <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.55, paddingTop: 4, fontWeight: 500 }}>
                 {s}
               </div>
             </li>
@@ -2932,7 +2932,7 @@ function GuideSheet({ guide, onClose }) {
             borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 11.5,
+            fontWeight: 600, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E", cursor: "pointer",
           }}>No, file ticket</button>
@@ -2943,7 +2943,7 @@ function GuideSheet({ guide, onClose }) {
             borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 11.5,
+            fontWeight: 600, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E", cursor: "pointer",
             display: "inline-flex", alignItems: "center", gap: 6,
@@ -2997,11 +2997,11 @@ function FiledToast({ ticket, onClose, onView }) {
           }}>Ticket filed</div>
           <div style={{
             fontFamily: "'Archivo', sans-serif",
-            fontSize: 15, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.015em",
+            fontSize: 16, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.015em",
           }}>
             {ref}
           </div>
-          <div style={{ fontSize: 12.5, color: "#4A3F2E", marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: "#4A3F2E", marginTop: 6, lineHeight: 1.5 }}>
             <strong style={{ color: "#211E1E" }}>{ticket.team}</strong> will get back to you shortly. We'll email you as it moves.
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
@@ -3630,7 +3630,7 @@ function App() {
         <TweakSection label="Voice" />
         <TweakRadio label="Tone" value={tweaks.voice} options={voiceOptions}
         onChange={(v) => setTweaksState("voice", v)} />
-        <div style={{ fontSize: 10.5, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
+        <div style={{ fontSize: 11, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
           {tweaks.voice === "concierge" && "Warm, first‑name, hospitable."}
           {tweaks.voice === "precise" && "Direct utility. No warm‑up."}
           {tweaks.voice === "playful" && "Friendly with character."}
@@ -3638,7 +3638,7 @@ function App() {
         <TweakSection label="Gesture" />
         <TweakRadio label="Motion" value={tweaks.gesture} options={gestureOptions}
         onChange={(v) => setTweaksState("gesture", v)} />
-        <div style={{ fontSize: 10.5, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
+        <div style={{ fontSize: 11, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
           {tweaks.gesture === "still" && "Animations off. Instant."}
           {tweaks.gesture === "smooth" && "Measured ease-out. Always."}
           {tweaks.gesture === "springy" && "Bouncy overshoot, toy‑like."}
@@ -3646,7 +3646,7 @@ function App() {
         <TweakSection label="Help guide" />
         <TweakRadio label="Step-by-step UI" value={tweaks.guideStyle} options={guideStyleOptions}
         onChange={(v) => setTweaksState("guideStyle", v)} />
-        <div style={{ fontSize: 10.5, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
+        <div style={{ fontSize: 11, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
           {tweaks.guideStyle === "guided" && "Full-screen, one step at a time, with progress + branches."}
           {tweaks.guideStyle === "legacy" && "Original side sheet — all steps in one scroll."}
         </div>
@@ -4677,7 +4677,7 @@ function Footer() {
       >
         <span>Built by the</span>
         <span style={{
-          fontFamily: "var(--font-mono)", fontWeight: 500, fontSize: 10.5,
+          fontFamily: "var(--font-mono)", fontWeight: 500, fontSize: 11,
           letterSpacing: ".04em", textTransform: "uppercase", color: "#211E1E",
         }}>Slice IT Team</span>
         <span style={{
@@ -4737,7 +4737,7 @@ function Card({ children, style, onClick, interactive }) {
 function Pill({ tone = "neutral", children, small }) {
   const toneClass = tone === "green" ? "tone-green" : tone === "amber" ? "tone-amber" : tone === "red" ? "tone-red" : tone === "accent" ? "tone-accent" : "";
   return (
-    <span className={`pill-flat ${toneClass}`} style={small ? { padding: "2px 8px", fontSize: 10.5 } : undefined}>
+    <span className={`pill-flat ${toneClass}`} style={small ? { padding: "2px 8px", fontSize: 11 } : undefined}>
       {children}
     </span>
   );
@@ -4811,8 +4811,8 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
         {selected && <IconCheck size={12} stroke={3} style={{color: "#FFFFFF"}} />}
       </div>
       <div style={{flex: 1}}>
-        <div style={{fontSize: 14.5, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.012em"}}>{title}</div>
-        {hint && <div style={{fontSize: 12.5, color: "#4A3F2E", marginTop: 3}}>{hint}</div>}
+        <div style={{fontSize: 14, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.012em"}}>{title}</div>
+        {hint && <div style={{fontSize: 13, color: "#4A3F2E", marginTop: 3}}>{hint}</div>}
       </div>
     </button>
   );
@@ -4984,14 +4984,14 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
+          fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
           textTransform: "uppercase", color: "#78684C",
           marginBottom: 4,
         }}>Tip</div>
         <div
           key={step}
           style={{
-            fontSize: 13.5, lineHeight: 1.5, color: "#211E1E",
+            fontSize: 14, lineHeight: 1.5, color: "#211E1E",
             animation: "fadeUp .4s var(--ease) both",
           }}
         >
@@ -5012,7 +5012,7 @@ function LoadingPatter({ messages = PATIENCE_MESSAGES, intervalMs = 1500, style 
     <span
       key={i}
       style={{
-        fontSize: 12.5, color: "#78684C", fontWeight: 500,
+        fontSize: 13, color: "#78684C", fontWeight: 500,
         display: "inline-block",
         animation: "fadeUp .35s var(--ease) both",
         ...style,
@@ -5101,10 +5101,10 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         .np-row .notif-kind { width:40px; height:40px; border-radius:10px; }
         .np-title { font-family:'Archivo',sans-serif; font-size:14px; font-weight:700; color:#211E1E; letter-spacing:-.005em; }
         .np-row.is-unread .np-title { font-weight:900; }
-        .np-ticket { font-size:12.5px; color:#5A4B28; margin-top:2px; }
+        .np-ticket { font-size:13px; color:#5A4B28; margin-top:2px; }
         .np-body { font-size:13px; color:#4A4233; line-height:1.5; margin-top:6px; }
         .np-body.is-quote { font-style:italic; padding-left:10px; border-left:3px solid #E7E1D4; }
-        .np-tag { display:inline-block; margin-top:8px; font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:.06em;
+        .np-tag { display:inline-block; margin-top:8px; font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.06em;
           text-transform:uppercase; color:#4A3F2E; padding:2px 7px; background:#F4F0E8; border:1px solid #211E1E; border-radius:3px; }
         .np-when { font-size:11px; color:#8A7A4E; font-weight:600; font-family:'Archivo',sans-serif; flex-shrink:0; white-space:nowrap; }
         .np-x { flex-shrink:0; width:26px; height:26px; background:transparent; border:1px solid transparent; border-radius:999px;
@@ -5148,10 +5148,10 @@ function NotificationsPage({ onBack, onOpenTickets }) {
           <TicketsNotice title="Loading notifications…" />
         ) : filtered.length === 0 ? (
           <div style={{ padding: "48px 24px", textAlign: "center", background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14 }}>
-            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: "#211E1E", marginBottom: 6 }}>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: "#211E1E", marginBottom: 6 }}>
               {items.length ? "Nothing here" : "You're all caught up"}
             </div>
-            <div style={{ fontSize: 13.5, color: "#78684C" }}>
+            <div style={{ fontSize: 14, color: "#78684C" }}>
               {items.length ? "No notifications match this filter." : "When IT replies or something changes on one of your tickets, it lands here."}
             </div>
           </div>
@@ -5724,7 +5724,7 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
         }}>
           {logo}
           <div style={{ minWidth: 0 }}>
-            {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 4 }}>{kicker}</div>}
+            {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 11, marginBottom: 4 }}>{kicker}</div>}
             <h2 style={{
               fontFamily: "var(--font-head)", fontSize: 20, fontWeight: 400,
               letterSpacing: "-0.01em", color: "#211E1E", margin: 0,
@@ -6506,11 +6506,11 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
         <TB title="Clear formatting" onClick={() => exec('removeFormat')}><RTIcon d={["M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21", "m5.082 11.09 8.828 8.828"]} /></TB>
       </div>
       <div style={{ position: 'relative' }}>
-        {empty && <div style={{ position: 'absolute', top: 10, left: 13, color: '#9A8E78', fontSize: 14.5, pointerEvents: 'none' }}>{placeholder}</div>}
+        {empty && <div style={{ position: 'absolute', top: 10, left: 13, color: '#9A8E78', fontSize: 14, pointerEvents: 'none' }}>{placeholder}</div>}
         <div ref={ref} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label={placeholder}
           spellCheck onInput={emit}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); onSubmit && onSubmit(); } }}
-          style={{ minHeight: 110, maxHeight: 300, overflowY: 'auto', padding: '10px 13px', fontSize: 14.5, lineHeight: 1.5, color: '#211E1E', outline: 'none', wordBreak: 'break-word' }}
+          style={{ minHeight: 110, maxHeight: 300, overflowY: 'auto', padding: '10px 13px', fontSize: 14, lineHeight: 1.5, color: '#211E1E', outline: 'none', wordBreak: 'break-word' }}
         />
       </div>
     </div>
@@ -6603,7 +6603,7 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend 
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
                 minHeight: 38, padding: '8px 10px', background: 'transparent', border: 'none', borderRadius: 8,
-                cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13.5, color: '#211E1E',
+                cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 14, color: '#211E1E',
               }}>
               <span style={{ color: it.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{it.icon}</span>
               {it.label}
@@ -6818,7 +6818,7 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
       {(files || []).length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
           {files.map((f, i) => (
-            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 8px 5px 10px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 10, fontSize: 12.5, color: '#211E1E', maxWidth: 280 }}>
+            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 8px 5px 10px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 10, fontSize: 13, color: '#211E1E', maxWidth: 280 }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
               <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(f.size)}</span>
               {!disabled && (
@@ -6828,7 +6828,7 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
           ))}
         </div>
       )}
-      {err && <p style={{ color: '#B92323', fontSize: 12.5, marginTop: 6 }}>{err}</p>}
+      {err && <p style={{ color: '#B92323', fontSize: 13, marginTop: 6 }}>{err}</p>}
     </div>
   );
 }
@@ -7020,7 +7020,7 @@ function TicketStatusBadge({ status, small, label, type }) {
       display: 'inline-flex', alignItems: 'center', gap: 7,
       padding: small ? '3px 10px 3px 8px' : '5px 12px 5px 10px',
       background: tint, color: '#211E1E', border: 'none',
-      borderRadius: 999, fontSize: small ? 12 : 12.5, fontWeight: 600,
+      borderRadius: 999, fontSize: small ? 12 : 13, fontWeight: 600,
       fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
       whiteSpace: 'nowrap', lineHeight: 1.2,
     }}>
@@ -7040,7 +7040,7 @@ function TicketTypeBadge({ type }) {
       background: filled ? '#211E1E' : '#FFFFFF',
       color: filled ? '#FFFFFF' : '#211E1E',
       border: '1px solid #211E1E', borderRadius: 4,
-      fontSize: 10, fontWeight: 600, fontFamily: "var(--font-mono)",
+      fontSize: 11, fontWeight: 600, fontFamily: "var(--font-mono)",
       letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap',
     }}>{m.label}</span>
   );
@@ -7051,7 +7051,7 @@ function TicketsNotice({ title, body, action, onAction }) {
   return (
     <div style={{ ...TK.card, padding: '32px 26px', textAlign: 'center' }}>
       <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 16, fontWeight: 800, color: '#211E1E', marginBottom: 6 }}>{title}</div>
-      {body && <div style={{ fontSize: 13.5, color: '#78684C', lineHeight: 1.5, maxWidth: 460, margin: '0 auto' }}>{body}</div>}
+      {body && <div style={{ fontSize: 14, color: '#78684C', lineHeight: 1.5, maxWidth: 460, margin: '0 auto' }}>{body}</div>}
       {action && <button onClick={onAction} className="btn btn-primary" style={{ marginTop: 18 }}>{action}</button>}
     </div>
   );
@@ -7292,7 +7292,7 @@ function ApprovalPill({ state }) {
       display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 12px 5px 10px',
       background: { pending: '#F4F0E8', approved: '#DFF1E5', rejected: '#FBE3E0' }[String(state || '').toLowerCase()] || '#F1ECE2',
       color: '#211E1E', border: 'none', borderRadius: 999,
-      fontSize: 12.5, fontWeight: 600, fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
+      fontSize: 13, fontWeight: 600, fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
       whiteSpace: 'nowrap', lineHeight: 1.2,
     }}>
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot, flexShrink: 0 }} />
@@ -7400,7 +7400,7 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest, on
               .tkt-switch .tab-slider { background:transparent !important; box-shadow:inset 0 -2px 0 #211E1E !important; border-radius:0 !important; }
               .tkt-tab { position:relative; z-index:1; justify-content:center; padding:12px 4px 13px; margin:0 8px; cursor:pointer;
                 border:none; background:transparent; color:#78684C;
-                font-family:'Archivo',sans-serif; font-weight:650; font-size:15px; letter-spacing:-0.005em;
+                font-family:'Archivo',sans-serif; font-weight:650; font-size:16px; letter-spacing:-0.005em;
                 display:inline-flex; align-items:center; gap:8px; transition: color .16s ease; }
               .tkt-tab:first-child, .tkt-switch > .tab-slider + .tkt-tab { margin-left:0; }
               .tkt-tab.is-idle:hover { color:#211E1E; }
@@ -7702,7 +7702,7 @@ function OnBehalfBanner({ ticket }) {
         background: '#F4F0E8', border: '1px solid rgba(33,30,30,.18)', display: 'grid', placeItems: 'center',
         fontFamily: "'Archivo', sans-serif", fontSize: 9, fontWeight: 900, color: '#211E1E', lineHeight: 1,
       }}>{obInitials(person.name)}</span>
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: '#55503F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: '#55503F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {text}
       </span>
     </div>
@@ -8102,8 +8102,8 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   if (st.tickets.length === 0) {
     return (
       <div style={{ ...TK.card, padding: '34px 28px', textAlign: 'center' }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: '#211E1E', marginBottom: 6 }}>No tickets yet</div>
-        <div style={{ fontSize: 13.5, color: '#78684C', lineHeight: 1.5, maxWidth: 480, margin: '0 auto 20px' }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: '#211E1E', marginBottom: 6 }}>No tickets yet</div>
+        <div style={{ fontSize: 14, color: '#78684C', lineHeight: 1.5, maxWidth: 480, margin: '0 auto 20px' }}>
           When something’s broken, report an issue. When you need access to an app or service, raise a request — it’ll go for approval if it needs one.
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -8125,10 +8125,10 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           background:#FFFFFF; color:#211E1E; border:1px solid rgba(33,30,30,.12); border-radius:12px;
           animation: tktForOthersIn .28s cubic-bezier(.22,.61,.36,1) both; }
         .tkt-forothers b { display:block; font-family:'Archivo',sans-serif; font-size:14px; font-weight:650; letter-spacing:-.01em; }
-        .tkt-forothers-sub { display:block; font-size:12.5px; color:#78684C; margin-top:2px; }
+        .tkt-forothers-sub { display:block; font-size:13px; color:#78684C; margin-top:2px; }
         .tkt-forothers-stack { display:flex; flex:none; }
         .tkt-forothers-av { width:30px; height:30px; margin-left:-8px; border-radius:50%; display:grid; place-items:center; background:#F4F0E8; color:#211E1E;
-          border:2px solid #FFFFFF; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:700; }
+          border:2px solid #FFFFFF; font-family:'Archivo',sans-serif; font-size:11px; font-weight:700; }
         .tkt-forothers-av:first-child { margin-left:0; }
         .tkt-forothers-back { margin-left:auto; height:34px; padding:0 12px; border-radius:10px; border:1px solid rgba(33,30,30,.22); background:#FFFFFF; color:#211E1E; cursor:pointer;
           font-family:'Archivo',sans-serif; font-weight:650; font-size:13px; }
@@ -8146,7 +8146,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
         .tkt-facet-n { flex-shrink:0; min-width:20px; padding:2px 6px; box-sizing:border-box; border-radius:999px;
           background:#F4F0E8; color:#211E1E; font:600 11px/1.2 var(--font-mono); text-align:center; }
         .tkt-facet-x { display:grid; place-items:center; width:17px; height:17px; margin-left:2px;
-          background:#211E1E; color:#FFFFFF; border-radius:999px; font-size:9.5px; font-weight:900; line-height:1; }
+          background:#211E1E; color:#FFFFFF; border-radius:999px; font-size:11px; font-weight:900; line-height:1; }
         .tkt-facet-dot { position:absolute; top:6px; right:4px; width:6px; height:6px; border-radius:999px; background:#E0A800; }
 
         @media (prefers-reduced-motion: reduce) {
@@ -8214,20 +8214,20 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
               {(view === 'open' ? closedList.length : openList.length) > 0 && (
-                <button type="button" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 12.5 }}
+                <button type="button" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}
                   onClick={() => setView(view === 'open' ? 'closed' : 'open')}>
                   Show {view === 'open' ? closedList.length : openList.length} {view === 'open' ? 'closed' : 'open'}
                 </button>
               )}
               {onQueryChange && (
-                <button type="button" className="btn btn-outline" style={{ padding: '8px 16px', fontSize: 12.5 }} onClick={() => onQueryChange('')}>
+                <button type="button" className="btn btn-outline" style={{ padding: '8px 16px', fontSize: 13 }} onClick={() => onQueryChange('')}>
                   Clear search
                 </button>
               )}
             </div>
           </div>
         ) : (
-        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>
+        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 14, color: '#78684C' }}>
           {forOthers
               ? `No ${view} tickets requested for others.` + (view === 'open' && closedList.length ? ` ${closedList.length} closed one${closedList.length === 1 ? '' : 's'} — check the Closed view.` : '')
               : view === 'open'
@@ -8290,12 +8290,12 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
       </div>
       {shown.length > PAGE_SIZE && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginTop: 18, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
+          <span style={{ fontSize: 13, color: '#78684C', fontWeight: 600 }}>
             Showing {pageStart + 1}–{Math.min(shown.length, pageStart + PAGE_SIZE)} of {shown.length}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button className="tkt-nav-btn is-prev is-wide" onClick={() => goToPage(safePage - 1)} disabled={safePage === 0} aria-label="Previous page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Prev</button>
-            <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 800, color: '#55503F', minWidth: 92, textAlign: 'center' }}>
+            <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#55503F', minWidth: 92, textAlign: 'center' }}>
               Page {safePage + 1} of {pageCount}
             </span>
             <button className="tkt-nav-btn is-next is-wide" onClick={() => goToPage(safePage + 1)} disabled={safePage >= pageCount - 1} aria-label="Next page">Next<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></button>
@@ -8401,7 +8401,7 @@ function ApprovalSummary({ approval, ticket }) {
   return (
     <div>
       {status === 'pending' && stages.length > 1 && (
-        <div style={{ padding: '9px 14px', fontSize: 11.5, fontWeight: 700, color: '#78684C', background: '#F4F0E8', borderBottom: '1px solid #F0EBE0' }}>
+        <div style={{ padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#78684C', background: '#F4F0E8', borderBottom: '1px solid #F0EBE0' }}>
           {done} of {stages.length} approvals done
         </div>
       )}
@@ -8415,9 +8415,9 @@ function ApprovalSummary({ approval, ticket }) {
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: meta.dot, border: '1px solid #211E1E', flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name || `Step ${i + 1}`}</span>
-              {line ? <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#4A4233', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null}
+              {line ? <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#4A4233', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null}
             </span>
-            <span style={{ fontSize: 10.5, fontWeight: 600, color: meta.txt, fontFamily: "var(--font-mono)", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{meta.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: meta.txt, fontFamily: "var(--font-mono)", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{meta.label}</span>
           </div>
         );
       })}
@@ -8509,7 +8509,7 @@ function ApprovalsButton({ approval, ticket }) {
         .appr-head { font-family:var(--font-mono); font-size:12px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
         .appr-btn.is-approved .appr-head { color:#0A6E31; }
         .appr-btn.is-declined .appr-head { color:#8E1A1A; }
-        .appr-sub { font-size:11.5px; font-weight:600; color:#5C5240; margin-top:2px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .appr-sub { font-size:12px; font-weight:600; color:#5C5240; margin-top:2px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .appr-caret { flex:none; transition:transform .18s ease; }
         @media (prefers-reduced-motion: reduce) { .appr-step.is-pending { animation:none; } .appr-btn { transition:none; } }
       `}</style>
@@ -9271,7 +9271,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
       {t && (
         <>
           {st.error && (
-            <div style={{ fontSize: 12.5, color: '#78684C', margin: '0 0 12px', fontWeight: 600 }}>Couldn’t load the latest — showing what we have.</div>
+            <div style={{ fontSize: 13, color: '#78684C', margin: '0 0 12px', fontWeight: 600 }}>Couldn’t load the latest — showing what we have.</div>
           )}
           <div className="tkd-head tkd-head-m">
             <TicketLeadIcon ticket={t} app={catInfo} size={48} />
@@ -9380,7 +9380,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
 
                     {reopenOnReply && confirmReopen ? (
                       <div style={{ borderTop: '1px solid #F0EADC', background: '#F4F0E8', padding: '11px 14px' }}>
-                        <div style={{ fontSize: 13.5, color: '#211E1E', fontWeight: 600, marginBottom: 10, lineHeight: 1.45 }}>
+                        <div style={{ fontSize: 14, color: '#211E1E', fontWeight: 600, marginBottom: 10, lineHeight: 1.45 }}>
                           This ticket is <b>{String(t.status).toLowerCase()}</b>. Sending this reply will <b>reopen</b> it — continue?
                         </div>
                         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -9499,7 +9499,7 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
         </div>
       )}
       {shown.length === 0 ? (
-        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>No approvals match “{query}”.</div>
+        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 14, color: '#78684C' }}>No approvals match “{query}”.</div>
       ) : (
         <div className="tkt-list" role="table" aria-label="Approvals">
           <div className="tkt-list-head" role="row">
@@ -10632,7 +10632,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         </div>
       )}
       {itemBusy && <div style={{ padding: '8px 4px', color: '#78684C', fontSize: 13 }}>Opening…</div>}
-      {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '0 0 12px' }}>{err}</p>}
+      {err && <p style={{ color: '#B92323', fontSize: 14, margin: '0 0 12px' }}>{err}</p>}
 
       {/* Catalog couldn't load — e.g. the ticket module isn't reachable or the
           module key is revoked. Offer a retry + the custom-request escape hatch. */}
@@ -10956,7 +10956,7 @@ function OfficeLocationField({ value, onChange, beneficiary, invalid, id }) {
           <option value={selId}>{(value && value.name) || 'Office #' + selId}</option>
         )}
       </select>
-      {err && <p style={{ color: '#9A4A00', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+      {err && <p style={{ color: '#9A4A00', fontSize: 13, margin: '6px 0 0' }}>{err}</p>}
     </>
   );
 }
@@ -11399,12 +11399,12 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
             return (
               <li key={stage.order} style={{ display: 'flex', gap: 10 }}>
                 {multiStage && (
-                  <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 12, borderRadius: '50%', background: '#211E1E', color: '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 900 }}>
+                  <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 12, borderRadius: '50%', background: '#211E1E', color: '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>
                     {i + 1}
                   </span>
                 )}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  {multiStage && <p style={{ fontSize: 11.5, fontWeight: 700, color: '#55503F', margin: '0 0 5px' }}>{stage.name}</p>}
+                  {multiStage && <p style={{ fontSize: 12, fontWeight: 700, color: '#55503F', margin: '0 0 5px' }}>{stage.name}</p>}
 
                   {changeable && picking ? null : rows.length === 0 ? (
                     // Nobody resolved. On a changeable stage this is the whole
@@ -11457,7 +11457,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                             {a.name}
                           </p>
                           {subEmail && (
-                            <p style={{ fontSize: 11.5, color: '#78684C', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <p style={{ fontSize: 12, color: '#78684C', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {subEmail}
                             </p>
                           )}
@@ -11488,7 +11488,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                   {/* The PTO case, said plainly, at the only moment the
                       requester can still do something about it. */}
                   {!showOverride && changeable && anyAway && !picking && (
-                    <p style={{ fontSize: 11.5, color: '#8A7040', margin: '6px 0 0', lineHeight: 1.45 }}>
+                    <p style={{ fontSize: 12, color: '#8A7040', margin: '6px 0 0', lineHeight: 1.45 }}>
                       They may not get to this for a while — you can send it to someone else.
                     </p>
                   )}
@@ -11777,7 +11777,7 @@ function TalkedToAgentPicker({ value, onChange, note, onNoteChange }) {
           </p>
         </div>
       )}
-      {err && <p style={{ color: '#9A4A00', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+      {err && <p style={{ color: '#9A4A00', fontSize: 13, margin: '6px 0 0' }}>{err}</p>}
     </>
   );
 }
@@ -11990,10 +11990,10 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
           {/* flex-basis keeps the name readable: the button wraps below it on
               a phone instead of squeezing it to "Dev…". */}
           <span style={{ minWidth: 0, flex: '1 1 150px' }}>
-            <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, ...ell }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, ...ell }}>
               {(self && self.name) || 'You'}{youTag}
             </p>
-            {self && self.email && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: '#78684C', ...ell }}>{self.email}</p>}
+            {self && self.email && <p style={{ margin: '1px 0 0', fontSize: 12, color: '#78684C', ...ell }}>{self.email}</p>}
           </span>
           <button type="button" onClick={startForOthers} className="rfp-btn">
             <RqIcon name="personAdd" size={16} className="rfp-btn-icon" />
@@ -12011,7 +12011,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
         <label style={{ ...TK.label, marginTop: 0, marginBottom: 0 }}>Who is this for?</label>
         {n > 1 && (
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>
             {n} requests
           </span>
         )}
@@ -12032,8 +12032,8 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
               <div key={p.id} className="rfp-person" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 11px', borderTop: '1px solid #F0EBE0' }}>
                 {avatar(p.name || p.email, 32, !!isSelf)}
                 <span style={{ minWidth: 0, flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, ...ell }}>{p.name || p.email || p.id}{isSelf ? youTag : null}</p>
-                  {p.email && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: '#78684C', ...ell }}>{p.email}</p>}
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, ...ell }}>{p.name || p.email || p.id}{isSelf ? youTag : null}</p>
+                  {p.email && <p style={{ margin: '1px 0 0', fontSize: 12, color: '#78684C', ...ell }}>{p.email}</p>}
                 </span>
                 <button
                   type="button"
@@ -12064,7 +12064,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
         <div className="rfp-empty" style={{ border: '1px dashed #C9C0AB', borderRadius: 10, padding: 13, textAlign: 'center', background: '#FCFBF7', marginTop: 9 }}>
           <RqIcon name="personAdd" size={22} className="rfp-empty-icon" />
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Nobody chosen yet</p>
-          <span style={{ display: 'block', marginTop: 2, fontSize: 11.5, color: '#78684C' }}>Start typing a name above to find them.</span>
+          <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: '#78684C' }}>Start typing a name above to find them.</span>
         </div>
       ) : null}
     </div>
@@ -12073,7 +12073,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
 
 // Small shared button styles for the ticket surfaces.
 const backLink = { background: 'none', border: 'none', padding: 0, marginBottom: 16, color: '#B92323', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-block' };
-const textActionBtn = { background: 'none', border: 'none', padding: 0, color: '#B92323', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' };
+const textActionBtn = { background: 'none', border: 'none', padding: 0, color: '#B92323', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' };
 // ─── hub-pages (237ee3bb) ──────────────────────────────────
 // ====================================================================
 //  Slice IT Hub — Knowledge, Status pages
@@ -12370,7 +12370,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
                 flex: 1, minWidth: 0, width: 0, border: "none", outline: "none",
                 background: "transparent",
                 fontFamily: "'Archivo', sans-serif",
-                fontSize: 17, fontWeight: 500, color: "#211E1E",
+                fontSize: 16, fontWeight: 500, color: "#211E1E",
                 padding: "12px 0",
                 letterSpacing: "-0.005em",
               }}/>
@@ -12520,7 +12520,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
           </div>
           <h2 style={{
             fontFamily: "var(--font-head)",
-            fontSize: 26, fontWeight: 400, margin: 0,
+            fontSize: 24, fontWeight: 400, margin: 0,
             color: "#211E1E", letterSpacing: "-0.01em",
           }}>
             {query ? `“${query}”` : categoryLabel}
@@ -12560,7 +12560,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
                 color: sort === opt.v ? "#FFFFFF" : "#211E1E",
                 border: "none",
                 borderLeft: i === 0 ? "none" : "1.5px solid #211E1E",
-                fontFamily: "Archivo, sans-serif", fontSize: 11.5, fontWeight: 700,
+                fontFamily: "Archivo, sans-serif", fontSize: 12, fontWeight: 700,
                 cursor: "pointer", letterSpacing: "0.01em",
               }}>{opt.label}</button>
             ))}
@@ -12581,7 +12581,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
             background: "#F4F0E8", border: "1px solid #211E1E", borderRadius: "50%",
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
-            fontFamily: "'Archivo', sans-serif", fontSize: 36, fontWeight: 900, color: "#211E1E",
+            fontFamily: "'Archivo', sans-serif", fontSize: 32, fontWeight: 900, color: "#211E1E",
             lineHeight: 1,
           }}>?</div>
           <div style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 20, fontWeight: 400, color: "#211E1E", marginBottom: 6 }}>
@@ -12611,13 +12611,13 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
               <CategoryDot category={r.category} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#211E1E", marginBottom: 3, letterSpacing: "-0.005em" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#211E1E", marginBottom: 3, letterSpacing: "-0.005em" }}>
                   <HighlightMatch text={r.title} query={query} />
                 </div>
-                <div style={{ fontSize: 12.5, color: "#4A3F2E", marginBottom: 4, lineHeight: 1.4 }}>
+                <div style={{ fontSize: 13, color: "#4A3F2E", marginBottom: 4, lineHeight: 1.4 }}>
                   <HighlightMatch text={r.body} query={query} />
                 </div>
-                <div style={{ fontSize: 10.5, color: "#78684C", fontWeight: 600, fontFamily: "var(--font-mono)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                <div style={{ fontSize: 11, color: "#78684C", fontWeight: 600, fontFamily: "var(--font-mono)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
                   {r.category}
                 </div>
               </div>
@@ -12690,7 +12690,7 @@ function SectionTitle({ kicker, title, right }) {
         </div>
         <h2 style={{
           fontFamily: "var(--font-head)",
-          fontSize: 22, fontWeight: 400, margin: 0,
+          fontSize: 24, fontWeight: 400, margin: 0,
           color: "#211E1E", letterSpacing: "-0.01em",
           lineHeight: 1.15,
         }}>{title}</h2>
@@ -12743,7 +12743,7 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
             <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 6 }}>
               Help us write the missing guide
             </div>
-            <h2 style={{ fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 400, margin: "0 0 18px", color: "#211E1E", letterSpacing: "-0.01em" }}>
+            <h2 style={{ fontFamily: "var(--font-head)", fontSize: 24, fontWeight: 400, margin: "0 0 18px", color: "#211E1E", letterSpacing: "-0.01em" }}>
               Suggest an article
             </h2>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", marginBottom: 6, fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What were you searching for?</label>
@@ -12762,9 +12762,9 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
               background: "#0A8A3E", border: "1px solid #211E1E", borderRadius: "50%",
               boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               display: "grid", placeItems: "center",
-              color: "#FFFFFF", fontSize: 36, fontWeight: 900,
+              color: "#FFFFFF", fontSize: 32, fontWeight: 900,
             }}>✓</div>
-            <h2 style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 400, margin: "0 0 8px", color: "#211E1E" }}>
+            <h2 style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 24, fontWeight: 400, margin: "0 0 8px", color: "#211E1E" }}>
               Thanks — we'll get on it.
             </h2>
             <p style={{ fontSize: 14, color: "#4A3F2E", margin: "0 0 22px" }}>
@@ -13600,18 +13600,18 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               border: "1px solid #211E1E",
               display: "grid", placeItems: "center",
               fontFamily: "Archivo, sans-serif",
-              fontSize: 18, fontWeight: 900,
+              fontSize: 20, fontWeight: 900,
             }}>📷</div>
             <div>
               <div style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5, fontWeight: 600,
+                fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.08em", textTransform: "uppercase",
                 color: "#4A3F2E",
               }}>Show, don't type</div>
               <div style={{
                 fontFamily: "var(--font-head)",
-                fontSize: 19, fontWeight: 400, color: "#211E1E",
+                fontSize: 20, fontWeight: 400, color: "#211E1E",
                 letterSpacing: "-0.01em",
               }}>
                 Add a screenshot — we'll take a look
@@ -13688,7 +13688,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                       background: "rgba(33,30,30,0.9)",
                       color: "#FFFFFF",
                       fontFamily: "ui-monospace, SF Mono, Menlo, monospace",
-                      fontSize: 11.5,
+                      fontSize: 12,
                       textAlign: "left",
                     }}>
                       {file.name}
@@ -13704,12 +13704,12 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                       display: "grid", placeItems: "center",
                       margin: "0 auto 14px",
                       fontFamily: "Archivo, sans-serif",
-                      fontSize: 28, fontWeight: 900,
+                      fontSize: 32, fontWeight: 900,
                       transition: "background .2s, color .2s",
                     }}>↑</div>
                     <div style={{
                       fontFamily: "Archivo, sans-serif",
-                      fontSize: 17, fontWeight: 800, color: "#211E1E",
+                      fontSize: 16, fontWeight: 800, color: "#211E1E",
                       marginBottom: 6, letterSpacing: "-0.012em",
                     }}>
                       {dragOver ? "Drop it!" : "Drag a screenshot here"}
@@ -13736,7 +13736,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                 <label style={{
                   display: "block",
                   fontFamily: "var(--font-mono)",
-                  fontSize: 10.5, fontWeight: 600,
+                  fontSize: 11, fontWeight: 600,
                   letterSpacing: "0.06em", textTransform: "uppercase",
                   color: "#4A3F2E", marginBottom: 6,
                 }}>
@@ -13768,7 +13768,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                 display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
                 flexWrap: "wrap",
               }}>
-                <div style={{ fontSize: 11.5, color: "#4A3F2E", lineHeight: 1.45, maxWidth: 360 }}>
+                <div style={{ fontSize: 12, color: "#4A3F2E", lineHeight: 1.45, maxWidth: 360 }}>
                   <strong style={{ color: "#211E1E" }}>Private.</strong> Your screenshot stays in this session — it isn't stored unless you file a ticket.
                 </div>
                 <button
@@ -13830,7 +13830,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               background: "#FFE8E5",
               border: "1px solid #DA3327",
               borderRadius: 8,
-              fontSize: 12.5, color: "#7A1A14", fontWeight: 600,
+              fontSize: 13, color: "#7A1A14", fontWeight: 600,
               lineHeight: 1.45,
             }}>
               <div>Couldn't analyze this screenshot — {error}.</div>
@@ -13857,7 +13857,7 @@ const kbd = {
   display: "inline-block",
   padding: "1px 5px",
   fontFamily: "ui-monospace, SF Mono, Menlo, monospace",
-  fontSize: 10.5,
+  fontSize: 11,
   background: "#FFFFFF",
   border: "1px solid rgba(33,30,30,0.3)",
   borderRadius: 3,
@@ -13940,7 +13940,7 @@ function AnalyzingView({ file, progress }) {
 
       <div style={{
         fontFamily: "Archivo, sans-serif",
-        fontSize: 13.5, fontWeight: 700,
+        fontSize: 14, fontWeight: 700,
         color: "#211E1E",
         display: "flex", alignItems: "center", gap: 10,
       }}>
@@ -13990,7 +13990,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
             border: `1.5px solid ${isHardware ? "#211E1E" : confColor}`,
             borderRadius: 999,
             fontFamily: "var(--font-mono)",
-            fontSize: 10, fontWeight: 600,
+            fontSize: 11, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
             marginBottom: 8,
           }}>
@@ -13999,13 +13999,13 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           </div>
           <div style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 10.5, fontWeight: 600,
+            fontSize: 11, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
             color: "#4A3F2E", marginBottom: 4,
           }}>What we see</div>
           <h3 style={{
             fontFamily: "var(--font-head)",
-            fontSize: 22, fontWeight: 400,
+            fontSize: 24, fontWeight: 400,
             letterSpacing: "-0.01em", lineHeight: 1.15,
             margin: 0, color: "#211E1E",
           }}>
@@ -14028,7 +14028,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
         }}>
           <div style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 10.5, fontWeight: 600,
+            fontSize: 11, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
             color: "#7A1A14", marginBottom: 6,
           }}>Hardware repair — IT Team only</div>
@@ -14059,11 +14059,11 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
             }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5, fontWeight: 600,
+                fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
                 color: "#4A3F2E", marginBottom: 8,
               }}>What gave it away</div>
-              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13.5, color: "#211E1E", lineHeight: 1.6 }}>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "#211E1E", lineHeight: 1.6 }}>
                 {clues.map((c, i) => <li key={i}>{c}</li>)}
               </ul>
             </div>
@@ -14074,7 +14074,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
             <div style={{ marginBottom: 18 }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5, fontWeight: 600,
+                fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
                 color: "#4A3F2E", marginBottom: 10,
               }}>{suggestions.length === 1 ? "Recommended guide" : "Recommended guides"}</div>
@@ -14106,7 +14106,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         fontFamily: "Archivo, sans-serif",
-                        fontSize: 15, fontWeight: 800,
+                        fontSize: 16, fontWeight: 800,
                         color: "#211E1E", letterSpacing: "-0.01em",
                       }}>{g.title}</div>
                       {(g.reason || g.category) && (
@@ -14126,7 +14126,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
             <div style={{ marginBottom: 22 }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5, fontWeight: 600,
+                fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
                 color: "#4A3F2E", marginBottom: 10,
               }}>Try this in order</div>
@@ -14188,7 +14188,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
               border: "1px solid #211E1E", borderRadius: 4,
               boxShadow: isHardware ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               fontFamily: "var(--font-mono)",
-              fontWeight: 600, fontSize: 12.5,
+              fontWeight: 600, fontSize: 13,
               letterSpacing: "0.04em", textTransform: "uppercase",
               cursor: "pointer",
             }}
@@ -14206,7 +14206,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                 border: "1px solid #211E1E", borderRadius: 4,
                 boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                 fontFamily: "var(--font-mono)",
-                fontWeight: 600, fontSize: 12.5,
+                fontWeight: 600, fontSize: 13,
                 letterSpacing: "0.04em", textTransform: "uppercase",
                 cursor: "pointer",
                 display: "inline-flex", alignItems: "center", gap: 6,
@@ -14257,7 +14257,7 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontFamily: "Archivo, sans-serif",
-          fontSize: 14.5, fontWeight: 800, color: "#211E1E",
+          fontSize: 14, fontWeight: 800, color: "#211E1E",
           letterSpacing: "-0.012em",
         }}>
           {headline || "Add a screenshot of what you're seeing"}
@@ -15010,7 +15010,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           borderRadius: 14,
           boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
           padding: '16px 64px 40px',
-          fontSize: 15, lineHeight: 1.65, color: '#211E1E',
+          fontSize: 16, lineHeight: 1.65, color: '#211E1E',
           fontFamily: "'Archivo', sans-serif",
           position: 'relative',
         }}>
@@ -15090,7 +15090,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               maxHeight: 280, overflowY: 'auto', zIndex: 120,
             }}>
               {searchHits.length === 0 ? (
-                <div style={{ padding: '9px 12px', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>No matching guides.</div>
+                <div style={{ padding: '9px 12px', fontSize: 13, color: '#78684C', fontWeight: 600 }}>No matching guides.</div>
               ) : searchHits.map((g) => (
                 <button key={g.id} className="guide-menu-item"
                   onClick={() => { setSearchQ(''); onOpenGuide && onOpenGuide({ id: g.id, title: g.title, category: g.category }); }}
@@ -15100,7 +15100,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                     background: 'transparent', border: 'none', cursor: 'pointer', color: '#211E1E',
                   }}>
                   <b style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800 }}>{g.title}</b>
-                  {g.category && <span style={{ color: '#78684C', marginLeft: 8, fontSize: 11.5, fontWeight: 600 }}>{g.category}</span>}
+                  {g.category && <span style={{ color: '#78684C', marginLeft: 8, fontSize: 12, fontWeight: 600 }}>{g.category}</span>}
                 </button>
               ))}
             </div>
@@ -15338,7 +15338,7 @@ function ImageLightbox({ images, index, onClose }) {
     boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
     cursor: disabled ? 'not-allowed' : 'pointer',
     display: 'grid', placeItems: 'center',
-    fontSize: 22, fontWeight: 800,
+    fontSize: 24, fontWeight: 800,
     fontFamily: "'Archivo', sans-serif",
     zIndex: 1010,
     opacity: disabled ? 0.35 : 1,
@@ -15492,7 +15492,7 @@ function FeedbackPanel({
           border: 1px solid #211E1E; border-radius: 8px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 2px 6px rgba(33,30,30,0.05);
           font-family: 'Archivo', sans-serif;
-          font-weight: 800; font-size: 13.5px;
+          font-weight: 800; font-size: 14px;
           cursor: pointer;
           transition: transform .2s cubic-bezier(.34, 1.56, .64, 1), box-shadow .2s ease, background .18s ease;
         }
@@ -15556,7 +15556,7 @@ function FeedbackPanel({
           border: 1px solid #211E1E;
           border-radius: 8px;
           font-family: 'Archivo', sans-serif;
-          font-size: 13.5px; color: #211E1E;
+          font-size: 14px; color: #211E1E;
           resize: vertical; min-height: 64px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           outline: none; box-sizing: border-box;
@@ -15569,7 +15569,7 @@ function FeedbackPanel({
           border: 1px solid #211E1E; border-radius: 8px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.10);
           font-family:var(--font-mono);
-          font-weight:600; font-size: 13.5px;
+          font-weight:600; font-size: 14px;
           letter-spacing: 0.04em; text-transform: uppercase;
           cursor: pointer;
           transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .18s ease;
@@ -15586,7 +15586,7 @@ function FeedbackPanel({
           border: 1px solid #211E1E; border-radius: 8px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.16);
           font-family:var(--font-mono);
-          font-weight:600; font-size: 13.5px;
+          font-weight:600; font-size: 14px;
           letter-spacing: 0.04em; text-transform: uppercase;
           cursor: pointer;
           transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .18s ease;
@@ -15611,7 +15611,7 @@ function FeedbackPanel({
           border: 1px solid #211E1E; border-radius: 999px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
-          font-size: 12.5px; font-weight: 700;
+          font-size: 13px; font-weight: 700;
           cursor: pointer;
           max-width: 100%;
           white-space: nowrap;
@@ -15633,12 +15633,12 @@ function FeedbackPanel({
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{
-          fontWeight: 800, fontSize: 15, fontFamily: "'Archivo', sans-serif",
+          fontWeight: 800, fontSize: 16, fontFamily: "'Archivo', sans-serif",
           color: "#211E1E", letterSpacing: "-0.005em",
         }}>{prompt}</span>
         {state === "positive" && (
           <span style={{
-            color: "#0A6B30", fontWeight: 700, fontSize: 13.5,
+            color: "#0A6B30", fontWeight: 700, fontSize: 14,
             display: "inline-flex", alignItems: "center", gap: 6,
             fontFamily: "'Archivo', sans-serif",
           }}>
@@ -15667,7 +15667,7 @@ function FeedbackPanel({
             <div style={{ marginBottom: 16 }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
+                fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
                 textTransform: "uppercase", color: "#78684C", marginBottom: 8,
               }}>Try one of these instead</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -15688,7 +15688,7 @@ function FeedbackPanel({
           <div style={{ marginBottom: 14 }}>
             <div style={{
               fontFamily: "'Archivo', sans-serif",
-              fontSize: 14.5, fontWeight: 800, color: "#211E1E",
+              fontSize: 14, fontWeight: 800, color: "#211E1E",
               marginBottom: 4, letterSpacing: "-0.005em",
             }}>Sorry this didn't fix it.</div>
             <div style={{ fontSize: 13, color: "#4A3F2E", lineHeight: 1.5 }}>
@@ -15699,7 +15699,7 @@ function FeedbackPanel({
           <div style={{ marginBottom: 14 }}>
             <div style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
+              fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
               textTransform: "uppercase", color: "#78684C", marginBottom: 8,
             }}>What was off? <span style={{ fontWeight: 600, opacity: 0.7 }}>(optional · multi-select)</span></div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -15716,7 +15716,7 @@ function FeedbackPanel({
           <div style={{ marginBottom: 16 }}>
             <div style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
+              fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
               textTransform: "uppercase", color: "#78684C", marginBottom: 8,
             }}>Anything else? <span style={{ fontWeight: 600, opacity: 0.7 }}>(optional)</span></div>
             <textarea className="fb-textarea" value={note} onChange={(e) => setNote(e.target.value)}
@@ -15730,7 +15730,7 @@ function FeedbackPanel({
               File a ticket →
             </button>
             <span style={{
-              fontSize: 11.5, color: "#78684C", fontWeight: 600,
+              fontSize: 12, color: "#78684C", fontWeight: 600,
               fontFamily: "'Archivo', sans-serif", marginLeft: "auto",
             }}>Your feedback shapes the next iteration.</span>
           </div>
@@ -15754,7 +15754,7 @@ function FeedbackPanel({
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 14, color: "#211E1E" }}>Thanks — we got it.</div>
-            <div style={{ fontSize: 12.5, color: "#4A3F2E", lineHeight: 1.4 }}>
+            <div style={{ fontSize: 13, color: "#4A3F2E", lineHeight: 1.4 }}>
               We review every piece of feedback weekly. {picked.size > 0 ? `Tagged: ${[...picked].join(", ")}.` : ""}
             </div>
           </div>
@@ -15971,7 +15971,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                   textTransform: 'uppercase', color: '#4A3F2E',
                 }}>Slice IT · here's what to try</div>
               </div>
-              <div style={{ fontSize: 14.5, lineHeight: 1.55, color: '#211E1E' }}>
+              <div style={{ fontSize: 14, lineHeight: 1.55, color: '#211E1E' }}>
                 {renderMarkdown(mainText, { stepStyle: 'cards' })}
               </div>
               <div style={{
@@ -15995,7 +15995,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     background: '#211E1E', color: '#FFFFFF',
                     border: '1px solid #211E1E', borderRadius: 8,
                     boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', cursor: 'pointer',
-                    fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 13.5,
+                    fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 14,
                     letterSpacing: '0.02em',
                   }}>
                   <IconTicket size={16} stroke={2} /> Submit a ticket
@@ -16047,17 +16047,17 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     <div style={{ minWidth: 0 }}>
                       {c.category && (
                         <div style={{ fontFamily: "var(--font-mono)",
-                          fontSize: 10.5, fontWeight: 600, letterSpacing: '0.08em',
+                          fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
                           textTransform: 'uppercase', color: '#78684C', marginBottom: 4,
                         }}>{c.category}</div>
                       )}
                       <div style={{
-                        fontSize: 18, fontWeight: 800, letterSpacing: '-0.012em',
+                        fontSize: 20, fontWeight: 800, letterSpacing: '-0.012em',
                         marginBottom: c.content_preview ? 6 : 0, lineHeight: 1.25,
                       }}>{c.title}</div>
                       {c.content_preview && (
                         <div style={{
-                          fontSize: 13.5, color: '#4A3F2E', lineHeight: 1.55,
+                          fontSize: 14, color: '#4A3F2E', lineHeight: 1.55,
                           display: '-webkit-box',
                           WebkitLineClamp: 3,
                           WebkitBoxOrient: 'vertical',
@@ -16114,11 +16114,11 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                       fontFamily: 'inherit',
                     }}>
                     <div style={{
-                      fontSize: 14.5, fontWeight: 700, color: '#211E1E',
+                      fontSize: 14, fontWeight: 700, color: '#211E1E',
                       textDecoration: 'underline', textUnderlineOffset: 3,
                       marginBottom: 4,
                     }}>{s.title}</div>
-                    <div style={{ fontSize: 12.5, color: '#4A3F2E', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 13, color: '#4A3F2E', lineHeight: 1.5 }}>
                       {s.reason}
                     </div>
                   </button>
@@ -16176,7 +16176,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
         <div style={{
           marginTop: 'auto', paddingTop: 56, textAlign: 'center',
-          fontSize: 10.5, color: '#4A3F2E',
+          fontSize: 11, color: '#4A3F2E',
           fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase',
           fontFamily: "var(--font-mono)",
         }}>Built by the Slice IT Team</div>
