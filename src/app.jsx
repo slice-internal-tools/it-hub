@@ -953,7 +953,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
       )}
 
       {/* Hero */}
-      <div className="hero-headline" style={{ position: "relative", zIndex: 1, textAlign: "center", marginBottom: 28 }}>
+      <div className="hero-headline" style={{ position: "relative", zIndex: 1, textAlign: "center", marginBottom: 32 }}>
         <h1 style={{
           fontSize: "clamp(34px, 4.4vw, 60px)",
           fontWeight: 400,
@@ -1172,7 +1172,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-            gap: 14
+            gap: 16
           }}>
             {pinnedGuides.slice(0, 8).map((g) => (
               <button key={g.id}
@@ -1180,7 +1180,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                 style={{
                   textAlign: "left", cursor: "pointer",
                   background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: 14,
-                  padding: "16px 18px", boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+                  padding: "16px 20px", boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                   fontFamily: "inherit",
                 }}>
                 <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 800, color: "#211E1E", marginBottom: 4, letterSpacing: "-0.01em" }}>{g.title}</div>
@@ -1255,14 +1255,14 @@ function CompanionPromo() {
   return (
     <section className="companion-promo" aria-labelledby="companion-title">
       <style>{`
-        .companion-promo { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:18px 20px; background:#FFFFFF;
+        .companion-promo { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:20px 20px; background:#FFFFFF;
           border:1px solid rgba(33,30,30,.22); border-radius:18px; }
         .companion-mark { width:40px; height:40px; border-radius:12px; display:grid; place-items:center; flex:none; background:#211E1E; color:#FFFFFF; }
         .companion-text { flex:1 1 260px; min-width:0; }
         .companion-title { margin:0; font:400 20px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
         .companion-lede { margin:3px 0 0; font-size:13px; color:#78684C; line-height:1.45; }
         .companion-actions { display:flex; gap:8px; flex-wrap:wrap; }
-        .companion-btn { display:inline-flex; align-items:center; gap:8px; height:38px; padding:0 14px 0 10px; border:1px solid #211E1E; border-radius:999px;
+        .companion-btn { display:inline-flex; align-items:center; gap:8px; height:38px; padding:0 16px 0 12px; border:1px solid #211E1E; border-radius:999px;
           background:#FFFFFF; color:#211E1E; text-decoration:none; font-size:13px; font-weight:600; transition:background-color .15s ease; }
         .companion-btn:hover { background:#F4F0E8; }
         .companion-btn.is-rec { background:#F4F0E8; }
@@ -1407,7 +1407,7 @@ function PhishingCard({ onSubmit }) {
   if (stage === "sent") {
     return (
       <div style={{
-        padding: "24px 26px",
+        padding: "24px 24px",
         background: "#0A8A3E",
         border: "1px solid #211E1E",
         borderRadius: 14,
@@ -1427,7 +1427,7 @@ function PhishingCard({ onSubmit }) {
         </div>
         <div style={{
           fontFamily: "var(--font-head)",
-          fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 6,
+          fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 8,
         }}>Report sent to Security</div>
         <div style={{ fontSize: 14, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
           Thanks — we've quarantined the message in your inbox and our Security team is reviewing. You'll hear back within an hour.
@@ -1439,16 +1439,16 @@ function PhishingCard({ onSubmit }) {
   if (stage === "form") {
     return (
       <div style={{
-        padding: "24px 26px",
+        padding: "24px 24px",
         background: "#FFF0EE",
         border: "1px solid #B92323",
         borderRadius: 14,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "4px 10px",
+            padding: "4px 12px",
             background: "#FFFFFF", color: "#DA3327",
             border: "1px solid #DA3327",
             borderRadius: 4,
@@ -1467,17 +1467,17 @@ function PhishingCard({ onSubmit }) {
         <div style={{
           fontFamily: "'Archivo', sans-serif",
           fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
-          marginBottom: 14, lineHeight: 1.25,
+          marginBottom: 16, lineHeight: 1.25,
         }}>Report suspicious email</div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 12 }}>
           <input
             placeholder="Sender email (e.g. finance@suspicious.co)"
             value={sender}
             onChange={(e) => setSender(e.target.value)}
             style={{
               width: "100%", boxSizing: "border-box",
-              padding: "10px 12px",
+              padding: "12px 12px",
               background: "#FFFFFF",
               border: "1px solid #211E1E", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
@@ -1489,7 +1489,7 @@ function PhishingCard({ onSubmit }) {
             onChange={(e) => setSubject(e.target.value)}
             style={{
               width: "100%", boxSizing: "border-box",
-              padding: "10px 12px",
+              padding: "12px 12px",
               background: "#FFFFFF",
               border: "1px solid #211E1E", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
@@ -1502,10 +1502,10 @@ function PhishingCard({ onSubmit }) {
           fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 8,
         }}>What looked off?</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {REASONS.map((r) => (
             <button key={r.id} onClick={() => setReason(r.id)} style={{
-              padding: "5px 10px",
+              padding: "4px 12px",
               background: reason === r.id ? "#211E1E" : "#FFFFFF",
               color: reason === r.id ? "#FFFFFF" : "#211E1E",
               border: "1px solid #211E1E", borderRadius: 4,
@@ -1521,7 +1521,7 @@ function PhishingCard({ onSubmit }) {
           onClick={send}
           disabled={!sender && !subject}
           style={{
-            width: "100%", padding: "11px 16px",
+            width: "100%", padding: "12px 16px",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
             background: (sender || subject) ? "#211E1E" : "#E8DFDD",
             color: (sender || subject) ? "#FFFFFF" : "#78684C",
@@ -1541,7 +1541,7 @@ function PhishingCard({ onSubmit }) {
   // idle card
   return (
     <div className="phish-card" style={{
-      padding: "24px 26px",
+      padding: "24px 24px",
       background: "#FFFFFF",
       border: "1px solid #B92323",
       borderRadius: 14,
@@ -1560,10 +1560,10 @@ function PhishingCard({ onSubmit }) {
         pointerEvents: "none",
       }}/>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "4px 10px",
+          padding: "4px 12px",
           background: "#FFFFFF", color: "#DA3327",
           border: "1px solid #DA3327",
           borderRadius: 4,
@@ -1582,11 +1582,11 @@ function PhishingCard({ onSubmit }) {
       }}>
         Got a suspicious email?
       </div>
-      <div style={{ fontSize: 14, color: "#4A3F2E", lineHeight: 1.5, marginBottom: 18, maxWidth: 360 }}>
+      <div style={{ fontSize: 14, color: "#4A3F2E", lineHeight: 1.5, marginBottom: 20, maxWidth: 360 }}>
         One click sends it to Security — we quarantine it, investigate, and alert the rest of Slice if it's a real threat.
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginTop: "auto", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 12, marginTop: "auto", flexWrap: "wrap" }}>
         <button className="phish-btn-primary" onClick={() => setStage("form")}>
           <span className="phish-btn-icon">
             <IconShield size={13} stroke={2.5} />
@@ -1600,7 +1600,7 @@ function PhishingCard({ onSubmit }) {
 
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
-        marginTop: 14, paddingTop: 12, borderTop: "1px dashed rgba(33,30,30,0.2)",
+        marginTop: 16, paddingTop: 12, borderTop: "1px dashed rgba(33,30,30,0.2)",
         fontSize: 12, color: "#78684C", fontWeight: 500,
       }}>
         <IconBolt size={11} stroke={2.2} />
@@ -1665,35 +1665,35 @@ function OpenTicketsShortcut({ onOpenTickets }) {
     <section aria-labelledby="open-tix-title" className="otx">
       <style>{`
         .otx { max-width:880px; margin:56px auto 0; position:relative; z-index:1; animation:fadeUp .8s .2s var(--ease) both; }
-        .otx-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 4px 14px; }
-        .otx-title { margin:0; display:flex; align-items:center; gap:10px; font:400 24px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
-        .otx-count { display:inline-grid; place-items:center; min-width:22px; height:22px; padding:0 7px; box-sizing:border-box;
+        .otx-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 4px 16px; }
+        .otx-title { margin:0; display:flex; align-items:center; gap:12px; font:400 24px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
+        .otx-count { display:inline-grid; place-items:center; min-width:22px; height:22px; padding:0 8px; box-sizing:border-box;
           background:#211E1E; color:#FFFFFF; border-radius:999px; font:600 11px/1 var(--font-mono); }
-        .otx-all { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 4px 0 12px; border-radius:999px;
+        .otx-all { display:inline-flex; align-items:center; gap:8px; height:32px; padding:0 4px 0 12px; border-radius:999px;
           font-size:13px; font-weight:600; color:#4A3F2E; text-decoration:none; transition:color .15s ease, background-color .15s ease; }
         .otx-all:hover { color:#211E1E; background:rgba(33,30,30,.05); }
         .otx-all svg { transition:transform .2s var(--ease); }
         .otx-all:hover svg { transform:translateX(2px); }
-        .otx-card { background:#FFFFFF; border:1px solid rgba(33,30,30,.12); border-radius:18px; padding:6px; }
+        .otx-card { background:#FFFFFF; border:1px solid rgba(33,30,30,.12); border-radius:18px; padding:8px; }
         .otx-list { list-style:none; margin:0; padding:0; }
         .otx-list li + li { border-top:1px solid #F3EFE7; }
         .otx-list li:hover, .otx-list li:hover + li { border-top-color:transparent; }
-        .otx-row { display:flex; align-items:center; gap:16px; width:100%; min-height:68px; padding:12px 14px; box-sizing:border-box;
+        .otx-row { display:flex; align-items:center; gap:16px; width:100%; min-height:68px; padding:12px 16px; box-sizing:border-box;
           background:transparent; border:none; border-radius:12px; text-align:left; font-family:inherit; color:inherit; cursor:pointer;
           transition:background-color .15s ease; }
         .otx-row:hover, .otx-row:focus-visible { background:#F7F4EF; }
         .otx-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
-        .otx-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+        .otx-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
         .otx-subject { font-size:16px; font-weight:600; color:#211E1E; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .otx-meta { display:flex; align-items:center; flex-wrap:wrap; gap:2px 8px; font-size:13px; color:#8A7E68; }
         .otx-num { font-family:var(--font-mono); font-weight:600; color:#4A3F2E; }
         .otx-for { font-weight:600; color:#4A3F2E; }
-        .otx-status { flex:none; display:flex; align-items:center; gap:6px; }
+        .otx-status { flex:none; display:flex; align-items:center; gap:8px; }
         .otx-go { flex:none; color:#211E1E; opacity:0; transform:translateX(-4px); transition:opacity .15s ease, transform .2s var(--ease); }
         .otx-row:hover .otx-go, .otx-row:focus-visible .otx-go { opacity:1; transform:none; }
-        .open-tix-new { position:absolute; top:-6px; left:-6px; min-width:18px; height:18px; padding:0 5px; box-sizing:border-box; display:grid; place-items:center;
+        .open-tix-new { position:absolute; top:-6px; left:-6px; min-width:18px; height:18px; padding:0 4px; box-sizing:border-box; display:grid; place-items:center;
           background:#DA3327; color:#FFFFFF; border-radius:999px; font:700 11px/1 'Archivo',sans-serif; box-shadow:0 0 0 2px #FFFFFF; z-index:2; }
-        @media (max-width: 640px) { .otx { margin-top:40px; } .otx-row { gap:12px; padding:12px 10px; } .otx-go { display:none; } }
+        @media (max-width: 640px) { .otx { margin-top:40px; } .otx-row { gap:12px; padding:12px 12px; } .otx-go { display:none; } }
         @media (max-width: 520px) { .otx-status { display:none; } }
       `}</style>
       <div className="otx-head">
@@ -1772,7 +1772,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
   if (stage === "sent") {
     return (
       <div style={{
-        padding: "24px 26px",
+        padding: "24px 24px",
         background: "#0A8A3E",
         border: "1px solid #211E1E",
         borderRadius: 14,
@@ -1792,7 +1792,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         </div>
         <div style={{
           fontFamily: "var(--font-head)",
-          fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 6,
+          fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 8,
         }}>Ticket filed</div>
         <div style={{ fontSize: 14, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
           IT Support has it. You'll get an ack in Slack shortly. Track it in Freshservice any time.
@@ -1806,16 +1806,16 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
     const canSend = subject.trim().length > 2;
     return (
       <div style={{
-        padding: "24px 26px",
+        padding: "24px 24px",
         background: "#FFFFFF",
         border: "1px solid #211E1E",
         borderRadius: 14,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "4px 10px",
+            padding: "4px 12px",
             background: "#211E1E", color: "#FFFFFF",
             border: "1px solid #211E1E",
             borderRadius: 4,
@@ -1834,17 +1834,17 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         <div style={{
           fontFamily: "'Archivo', sans-serif",
           fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
-          marginBottom: 14, lineHeight: 1.25,
+          marginBottom: 16, lineHeight: 1.25,
         }}>Submit a ticket</div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 12 }}>
           <input
             placeholder="What's the issue? (e.g. VPN drops every 10 min)"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             style={{
               width: "100%", boxSizing: "border-box",
-              padding: "10px 12px",
+              padding: "12px 12px",
               background: "#FFFFFF",
               border: "1px solid #211E1E", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
@@ -1857,7 +1857,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             rows={3}
             style={{
               width: "100%", boxSizing: "border-box",
-              padding: "10px 12px",
+              padding: "12px 12px",
               background: "#FFFFFF",
               border: "1px solid #211E1E", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
@@ -1871,10 +1871,10 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 8,
         }}>How urgent?</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {URGENCIES.map((u) => (
             <button key={u.id} onClick={() => setUrgency(u.id)} style={{
-              padding: "6px 10px",
+              padding: "8px 12px",
               background: urgency === u.id ? "#211E1E" : "#FFFFFF",
               color: urgency === u.id ? "#FFFFFF" : "#211E1E",
               border: "1px solid #211E1E", borderRadius: 4,
@@ -1882,7 +1882,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
               fontWeight: 700, fontSize: 11,
               letterSpacing: "0.02em",
               cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 6,
+              display: "flex", alignItems: "center", gap: 8,
             }}>
               {u.label}
             </button>
@@ -1893,7 +1893,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           onClick={send}
           disabled={!canSend}
           style={{
-            width: "100%", padding: "11px 16px",
+            width: "100%", padding: "12px 16px",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
             background: canSend ? "#211E1E" : "#E8DFDD",
             color: canSend ? "#FFFFFF" : "#211E1E",
@@ -1913,7 +1913,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
   // Idle state — 2 paths
   return (
     <div className="oncall-card" style={{
-      padding: "24px 26px",
+      padding: "24px 24px",
       background: "#FFFFFF",
       border: "1px solid #211E1E",
       borderRadius: 14,
@@ -1923,10 +1923,10 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
       display: "flex", flexDirection: "column",
     }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "4px 10px",
+          padding: "4px 12px",
           background: "#211E1E", color: "#FFFFFF",
           border: "1px solid #211E1E",
           borderRadius: 4,
@@ -1989,8 +1989,8 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
 
       {/* Divider */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        margin: "14px 0",
+        display: "flex", alignItems: "center", gap: 12,
+        margin: "16px 0",
         fontFamily: "var(--font-mono)",
         fontSize: 11, fontWeight: 600, letterSpacing: "0.1em",
         color: "#78684C", textTransform: "uppercase",
@@ -2137,8 +2137,8 @@ function QuestionFlow({ query, onBack, onDone }) {
         marginBottom: 24,
       }}>
         <button onClick={back} style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "7px 12px 7px 10px",
+          display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "8px 12px 8px 12px",
           background: "#FFFFFF", border: "1px solid #211E1E",
           borderRadius: 4, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           fontFamily: "var(--font-mono)",
@@ -2176,7 +2176,7 @@ function QuestionFlow({ query, onBack, onDone }) {
         </button>
 
         {!thinking && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span className="eyebrow" style={{ color: "#211E1E", fontSize: 11 }}>
               Step {step + 1} of {total}
             </span>
@@ -2203,8 +2203,8 @@ function QuestionFlow({ query, onBack, onDone }) {
 
       {/* Conversation header — quiet, no card, S avatar for assistant feel */}
       <div style={{
-        padding: "0 0 18px",
-        marginBottom: 18,
+        padding: "0 0 20px",
+        marginBottom: 20,
         borderBottom: "1px solid rgba(33,30,30,0.14)",
       }}>
         {thinking ? (
@@ -2272,7 +2272,7 @@ function QuestionFlow({ query, onBack, onDone }) {
       {/* Question */}
       {!thinking && question &&
       <div key={step} style={{ animation: "fadeUp .4s var(--ease) both" }}>
-          <div className="eyebrow" style={{ marginBottom: 10, color: "#78684C" }}>
+          <div className="eyebrow" style={{ marginBottom: 12, color: "#78684C" }}>
             Question {step + 1}
           </div>
 
@@ -2285,7 +2285,7 @@ function QuestionFlow({ query, onBack, onDone }) {
           </h2>
 
           {question.type === "choice" &&
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {question.options.map((opt, i) =>
           <ChoiceCard
             key={opt.id}
@@ -2300,7 +2300,7 @@ function QuestionFlow({ query, onBack, onDone }) {
         }
 
           {question.type === "multi" &&
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
               {question.options.map((opt, i) => {
             const arr = Array.isArray(answer) ? answer : [];
             const sel = arr.includes(opt.id);
@@ -2320,7 +2320,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               <button
             onClick={() => setAnswers({ ...answers, [question.id]: ["__none__"] })}
             style={{
-              padding: "10px 16px",
+              padding: "12px 16px",
               border: "1px dashed #211E1E",
               borderRadius: 4,
               background: "transparent",
@@ -2348,7 +2348,7 @@ function QuestionFlow({ query, onBack, onDone }) {
             borderRadius: 14,
             background: "#FFFFFF",
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-            padding: "14px 16px",
+            padding: "16px 16px",
             fontSize: 16, lineHeight: 1.5, color: "#211E1E",
             resize: "vertical",
             transition: "transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), opacity .2s var(--ease)",
@@ -2358,12 +2358,12 @@ function QuestionFlow({ query, onBack, onDone }) {
 
         }
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14, marginTop: 36 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 16, marginTop: 40 }}>
             {step < total - 1 && (
               <button onClick={next} style={{
                 background: "transparent",
                 border: "none",
-                padding: "10px 14px",
+                padding: "12px 16px",
                 fontFamily: "var(--font-mono)",
                 fontWeight: 600, fontSize: 12,
                 letterSpacing: "0.06em", textTransform: "uppercase",
@@ -2381,7 +2381,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               disabled={!canContinue()}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
-                padding: "12px 22px",
+                padding: "12px 24px",
                 background: canContinue() ? "#211E1E" : "#E8E1D0",
                 border: "1px solid #211E1E",
                 borderRadius: 4,
@@ -2446,8 +2446,8 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
   return (
     <div className="page" style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 0" }}>
       <button onClick={onBack} style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        padding: "7px 12px 7px 10px", marginBottom: 24,
+        display: "inline-flex", alignItems: "center", gap: 8,
+        padding: "8px 12px 8px 12px", marginBottom: 24,
         background: "#FFFFFF", border: "1px solid #211E1E",
         borderRadius: 4, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         fontFamily: "var(--font-mono)",
@@ -2463,7 +2463,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
       </button>
 
       {/* Two-column: guides + tickets */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 28, alignItems: "flex-start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 32, alignItems: "flex-start" }}>
         {/* How-to guides */}
         <section>
           <SectionHead
@@ -2471,7 +2471,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
             title="How‑to guides"
             subtitle="Self‑serve fixes that usually work. Walk through one before filing a ticket." />
           
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {guides.map((g, i) =>
             <GuideCard key={g.id} guide={g} index={i} onOpen={() => onOpenGuide(g)} />
             )}
@@ -2485,7 +2485,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
             title="File a ticket"
             subtitle="Pre‑filled from your answers. Pick the best match and send." />
           
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {tickets.map((t, i) =>
             <TicketCard
               key={t.id}
@@ -2501,13 +2501,13 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
           </div>
 
           <div style={{
-            marginTop: 24, padding: "18px 20px",
+            marginTop: 24, padding: "20px 20px",
             background: "#211E1E",
             color: "#FFFFFF",
             border: "1px solid #211E1E",
             borderRadius: 14,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-            display: "flex", gap: 14, alignItems: "center"
+            display: "flex", gap: 16, alignItems: "center"
           }}>
             <div style={{
               width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
@@ -2529,7 +2529,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
               </div>
             </div>
             <button style={{
-              padding: "9px 16px",
+              padding: "8px 16px",
               background: "#F4F0E8",
               border: "1px solid #211E1E",
               borderRadius: 4,
@@ -2585,7 +2585,7 @@ function GuideCard({ guide, index, onOpen }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        padding: "16px 18px",
+        padding: "16px 20px",
         background: "#FFFFFF",
         border: "1px solid #211E1E",
         borderRadius: 10,
@@ -2595,7 +2595,7 @@ function GuideCard({ guide, index, onOpen }) {
         transition: "transform .15s ease, box-shadow .15s ease",
         animation: `fadeUp .5s ${index * 60}ms var(--ease) both`,
       }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
         <div style={{
           width: 40, height: 40, borderRadius: 6, flexShrink: 0,
           background: guide.hot ? "#F4F0E8" : "#F4F0E8",
@@ -2606,9 +2606,9 @@ function GuideCard({ guide, index, onOpen }) {
           <IconBook size={18} stroke={2} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
             <span style={{
-              padding: "2px 7px",
+              padding: "2px 8px",
               background: "#FFFFFF",
               border: "1px solid #211E1E",
               borderRadius: 3,
@@ -2618,7 +2618,7 @@ function GuideCard({ guide, index, onOpen }) {
               color: "#211E1E",
             }}>{guide.tag}</span>
             {guide.hot && <span style={{
-              padding: "2px 7px",
+              padding: "2px 8px",
               background: "#211E1E",
               color: "#FFFFFF",
               border: "1px solid #211E1E",
@@ -2630,11 +2630,11 @@ function GuideCard({ guide, index, onOpen }) {
           </div>
           <div style={{
             fontFamily: "'Archivo', sans-serif",
-            fontSize: 16, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.015em", marginBottom: 6, lineHeight: 1.3,
+            fontSize: 16, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.015em", marginBottom: 8, lineHeight: 1.3,
           }}>
             {guide.title}
           </div>
-          <div style={{ fontSize: 12, color: "#78684C", display: "flex", gap: 14, fontWeight: 500 }}>
+          <div style={{ fontSize: 12, color: "#78684C", display: "flex", gap: 16, fontWeight: 500 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <IconClock size={11} stroke={2} />{guide.time}
             </span>
@@ -2648,7 +2648,7 @@ function GuideCard({ guide, index, onOpen }) {
           display: "grid", placeItems: "center",
           color: "#211E1E",
           transition: "background .15s ease",
-          marginTop: 6,
+          marginTop: 8,
           flexShrink: 0,
         }}>
           <IconArrow size={13} stroke={2.5} />
@@ -2665,7 +2665,7 @@ function RelatedRow({ ticket, index }) {
     ticket.status === "Investigating" ? "#F4F0E8" : "#F4EFE2";
   return (
     <div style={{
-      padding: "12px 14px",
+      padding: "12px 16px",
       background: "#FFFFFF",
       border: "1px solid #211E1E",
       borderTop: index === 0 ? "2px solid #211E1E" : "none",
@@ -2679,7 +2679,7 @@ function RelatedRow({ ticket, index }) {
         fontFamily: "'Archivo', sans-serif",
         fontWeight: 800, letterSpacing: "0.04em",
         color: "#211E1E", minWidth: 64,
-        padding: "3px 6px",
+        padding: "3px 8px",
         background: "#F4F0E8",
         border: "1px solid #211E1E",
         borderRadius: 3,
@@ -2719,7 +2719,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
   const [hover, setHover] = useState(false);
   return (
     <div style={{
-      padding: "20px 22px",
+      padding: "20px 24px",
       background: filed ? "#E8F5EC" : "#FFFFFF",
       border: "1px solid #211E1E",
       borderRadius: 10,
@@ -2727,9 +2727,9 @@ function TicketCard({ ticket, onFile, filed, index }) {
       animation: `fadeUp .5s ${index * 80}ms var(--ease) both`,
       transition: "background .35s ease, box-shadow .35s ease",
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
             <span style={{
               padding: "3px 8px",
               background: filed ? "#0A8A3E" : "#211E1E",
@@ -2763,11 +2763,11 @@ function TicketCard({ ticket, onFile, filed, index }) {
         </div>
       </div>
       <div style={{
-        padding: "10px 12px",
+        padding: "12px 12px",
         background: "#F4F0E8",
         border: "1px solid #211E1E",
         borderRadius: 6,
-        fontSize: 12, marginBottom: 14,
+        fontSize: 12, marginBottom: 16,
       }}>
         <div style={{
           fontFamily: "var(--font-mono)",
@@ -2839,7 +2839,7 @@ function GuideSheet({ guide, onClose }) {
           background: "#F4F0E8",
           borderLeft: "1px solid #211E1E",
           boxShadow: "-12px 0 0 #211E1E",
-          padding: "28px 32px 36px",
+          padding: "32px 32px 40px",
           overflowY: "auto",
           animation: "sheetIn .4s var(--ease) both"
         }}>
@@ -2849,7 +2849,7 @@ function GuideSheet({ guide, onClose }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "5px 10px",
+            padding: "4px 12px",
             background: "#F4F0E8",
             border: "1px solid #211E1E",
             borderRadius: 4,
@@ -2875,11 +2875,11 @@ function GuideSheet({ guide, onClose }) {
         <h1 style={{
           fontFamily: "var(--font-head)",
           fontSize: 32, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.1,
-          margin: "0 0 10px", color: "#211E1E",
+          margin: "0 0 12px", color: "#211E1E",
         }}>
           {guide.title}
         </h1>
-        <p style={{ fontSize: 14, color: "#4A3F2E", lineHeight: 1.55, marginTop: 0, marginBottom: 28 }}>
+        <p style={{ fontSize: 14, color: "#4A3F2E", lineHeight: 1.55, marginTop: 0, marginBottom: 32 }}>
           A short walkthrough. If you get stuck at any step, return to Slice Help and your context is saved.
         </p>
 
@@ -2911,7 +2911,7 @@ function GuideSheet({ guide, onClose }) {
         </ol>
 
         <div style={{
-          marginTop: 28, padding: "18px 20px",
+          marginTop: 32, padding: "20px 20px",
           background: "#FFFFFF",
           border: "1px solid #211E1E",
           borderRadius: 10,
@@ -2926,7 +2926,7 @@ function GuideSheet({ guide, onClose }) {
             Did this resolve it?
           </div>
           <button style={{
-            padding: "8px 14px",
+            padding: "8px 16px",
             background: "#FFFFFF",
             border: "1px solid #211E1E",
             borderRadius: 4,
@@ -2937,7 +2937,7 @@ function GuideSheet({ guide, onClose }) {
             color: "#211E1E", cursor: "pointer",
           }}>No, file ticket</button>
           <button style={{
-            padding: "8px 14px",
+            padding: "8px 16px",
             background: "#F4F0E8",
             border: "1px solid #211E1E",
             borderRadius: 4,
@@ -2946,7 +2946,7 @@ function GuideSheet({ guide, onClose }) {
             fontWeight: 600, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E", cursor: "pointer",
-            display: "inline-flex", alignItems: "center", gap: 6,
+            display: "inline-flex", alignItems: "center", gap: 8,
           }}>
             <IconCheck size={12} stroke={2.8} /> Yes, fixed it
           </button>
@@ -2975,11 +2975,11 @@ function FiledToast({ ticket, onClose, onView }) {
       border: "1px solid #211E1E",
       borderRadius: 10,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-      padding: "18px 20px",
+      padding: "20px 20px",
       animation: "toastIn .4s var(--ease) both",
     }}>
       <style>{`@keyframes toastIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }`}</style>
-      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         <div style={{
           width: 38, height: 38, borderRadius: "50%",
           background: "#0A8A3E",
@@ -3001,12 +3001,12 @@ function FiledToast({ ticket, onClose, onView }) {
           }}>
             {ref}
           </div>
-          <div style={{ fontSize: 13, color: "#4A3F2E", marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: "#4A3F2E", marginTop: 8, lineHeight: 1.5 }}>
             <strong style={{ color: "#211E1E" }}>{ticket.team}</strong> will get back to you shortly. We'll email you as it moves.
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             <button onClick={onView} style={{
-              padding: "7px 12px",
+              padding: "8px 12px",
               background: "#F4F0E8",
               border: "1px solid #211E1E",
               borderRadius: 4,
@@ -3017,7 +3017,7 @@ function FiledToast({ ticket, onClose, onView }) {
               color: "#211E1E", cursor: "pointer",
             }}>View ticket</button>
             <button onClick={onClose} style={{
-              padding: "7px 12px",
+              padding: "8px 12px",
               background: "transparent",
               border: "none",
               fontFamily: "var(--font-mono)",
@@ -3140,7 +3140,14 @@ function App() {
           // Standalone: carry the query string across — dropping it used to
           // strip params like ?guide / ?ticket mid-navigation; the effects
           // that own each param add/remove theirs via replaceState.
-          try { window.history.pushState({ stage: next }, "", withBase(nextPath) + window.location.search); } catch {}
+          // ?ticket= belongs to My Tickets: leaving it must not carry the
+          // number along, or a refresh on Home would reopen that ticket.
+          try {
+            const qs = new URLSearchParams(window.location.search);
+            if (next !== "tickets") qs.delete("ticket");
+            const q = qs.toString();
+            window.history.pushState({ stage: next }, "", withBase(nextPath) + (q ? "?" + q : ""));
+          } catch {}
         }
       }
       return next;
@@ -4200,8 +4207,8 @@ function ItServicesButton() {
       className="back-to-slicedesk"
       style={{
         height: 28,
-        padding: "0 9px",
-        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "0 8px",
+        display: "inline-flex", alignItems: "center", gap: 8,
         background: "rgba(255,255,255,.04)",
         color: "#FFFFFF",
         borderRadius: 999, border: "1px solid rgba(255,255,255,.22)",
@@ -4628,7 +4635,7 @@ function Footer() {
       // to the bottom of the viewport on short pages; paddingTop keeps the
       // footer separated from content on long pages.
       margin: "auto auto 0",
-      padding: "80px 28px 24px",
+      padding: "80px 32px 24px",
       width: "100%", flexShrink: 0,
       display: "flex", justifyContent: "center",
     }}>
@@ -4655,8 +4662,8 @@ function Footer() {
         onClick={pulse}
         aria-label="Say hi to the Slice IT team"
         style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          padding: "4px 10px",
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "4px 12px",
           background: skin.bg,
           border: "1px solid rgba(33,30,30,.18)",
           borderRadius: 999,
@@ -4786,8 +4793,8 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
       }}
       style={{
         textAlign: "left",
-        display: "flex", alignItems: "flex-start", gap: 14,
-        padding: "16px 18px",
+        display: "flex", alignItems: "flex-start", gap: 16,
+        padding: "16px 20px",
         width: "100%",
         background: selected ? "#F4F0E8" : "#FFFFFF",
         border: "1px solid #211E1E",
@@ -4825,7 +4832,7 @@ function MultiChip({ selected, title, onSelect, index }) {
       onClick={onSelect}
       style={{
         display: "inline-flex", alignItems: "center", gap: 8,
-        padding: "10px 16px",
+        padding: "12px 16px",
         background: selected ? "#211E1E" : "#FFFFFF",
         color: selected ? "#FFFFFF" : "#211E1E",
         border: `2px solid ${selected ? "#211E1E" : "#211E1E"}`,
@@ -4877,7 +4884,7 @@ function MultiChip({ selected, title, onSelect, index }) {
 // Progress dots
 function Progress({ current, total }) {
   return (
-    <div style={{display:"flex", gap: 6, alignItems:"center"}}>
+    <div style={{display:"flex", gap: 8, alignItems:"center"}}>
       {Array.from({length: total}).map((_, i) => (
         <div key={i} style={{
           width: i === current ? 28 : 10, height: 10, borderRadius: 999,
@@ -4959,7 +4966,7 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
     <div
       style={{
         margin: "16px 0 0",
-        padding: "14px 18px",
+        padding: "16px 20px",
         background: "#F4F0E8",
         border: "1px solid #211E1E",
         borderRadius: 12,
@@ -5090,7 +5097,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
   return (
     <div className="page" style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <style>{`
-        .np-row { display:flex; align-items:flex-start; gap:14px; width:100%; padding:16px 18px; background:transparent; border:0;
+        .np-row { display:flex; align-items:flex-start; gap:16px; width:100%; padding:16px 20px; background:transparent; border:0;
           border-bottom:1.5px solid #E7E1D4; cursor:pointer; text-align:left; font-family:inherit; color:inherit; position:relative;
           transition:background .14s ease; }
         .np-row:last-child { border-bottom:0; }
@@ -5102,10 +5109,10 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         .np-title { font-family:'Archivo',sans-serif; font-size:14px; font-weight:700; color:#211E1E; letter-spacing:-.005em; }
         .np-row.is-unread .np-title { font-weight:900; }
         .np-ticket { font-size:13px; color:#5A4B28; margin-top:2px; }
-        .np-body { font-size:13px; color:#4A4233; line-height:1.5; margin-top:6px; }
-        .np-body.is-quote { font-style:italic; padding-left:10px; border-left:3px solid #E7E1D4; }
+        .np-body { font-size:13px; color:#4A4233; line-height:1.5; margin-top:8px; }
+        .np-body.is-quote { font-style:italic; padding-left:12px; border-left:3px solid #E7E1D4; }
         .np-tag { display:inline-block; margin-top:8px; font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.06em;
-          text-transform:uppercase; color:#4A3F2E; padding:2px 7px; background:#F4F0E8; border:1px solid #211E1E; border-radius:3px; }
+          text-transform:uppercase; color:#4A3F2E; padding:2px 8px; background:#F4F0E8; border:1px solid #211E1E; border-radius:3px; }
         .np-when { font-size:11px; color:#8A7A4E; font-weight:600; font-family:'Archivo',sans-serif; flex-shrink:0; white-space:nowrap; }
         .np-x { flex-shrink:0; width:26px; height:26px; background:transparent; border:1px solid transparent; border-radius:999px;
           display:grid; place-items:center; cursor:pointer; color:#78684C; }
@@ -5120,7 +5127,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
           </button>
           <button type="button" onClick={markAllRead} disabled={unreadCount === 0}
             style={{
-              padding: "8px 14px", background: unreadCount ? "#FFFFFF" : "#F7F4EF",
+              padding: "8px 16px", background: unreadCount ? "#FFFFFF" : "#F7F4EF",
               border: "1px solid #211E1E", borderRadius: 999, boxShadow: unreadCount ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
               fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 12, letterSpacing: "0.04em", textTransform: "uppercase",
               color: "#211E1E", cursor: unreadCount === 0 ? "default" : "pointer", opacity: unreadCount === 0 ? 0.5 : 1,
@@ -5132,7 +5139,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
 
       <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 80px" }}>
         <h1 style={{ fontFamily: "var(--font-head)", fontSize: 40, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.02, margin: "0 0 8px", color: "#211E1E" }}>Notifications</h1>
-        <p style={{ margin: "0 0 22px", fontSize: 14, color: "#4A3F2E", fontWeight: 500 }}>
+        <p style={{ margin: "0 0 24px", fontSize: 14, color: "#4A3F2E", fontWeight: 500 }}>
           Replies from IT and changes to your tickets — status, approvals and priority. Your own actions never show up here.
         </p>
 
@@ -5148,7 +5155,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
           <TicketsNotice title="Loading notifications…" />
         ) : filtered.length === 0 ? (
           <div style={{ padding: "48px 24px", textAlign: "center", background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14 }}>
-            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: "#211E1E", marginBottom: 6 }}>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: "#211E1E", marginBottom: 8 }}>
               {items.length ? "Nothing here" : "You're all caught up"}
             </div>
             <div style={{ fontSize: 14, color: "#78684C" }}>
@@ -5157,8 +5164,8 @@ function NotificationsPage({ onBack, onOpenTickets }) {
           </div>
         ) : (
           [...grouped.entries()].map(([group, list]) => (
-            <div key={group} style={{ marginBottom: 28 }}>
-              <div className="eyebrow" style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 10 }}>{group}</div>
+            <div key={group} style={{ marginBottom: 32 }}>
+              <div className="eyebrow" style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 12 }}>{group}</div>
               <div style={{ background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 14, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)", overflow: "hidden" }}>
                 {list.map((it) => (
                   <div key={it.id} role="button" tabIndex={0} onClick={() => openIt(it)}
@@ -5718,7 +5725,7 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         <div style={{
-          padding: "16px 22px",
+          padding: "16px 24px",
           borderBottom: "1px solid #211E1E",
           display: "flex", alignItems: "center", gap: 12,
         }}>
@@ -5731,7 +5738,7 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
             }}>{title}</h2>
           </div>
         </div>
-        <div style={{ padding: "18px 22px" }}>{children}</div>
+        <div style={{ padding: "20px 24px" }}>{children}</div>
       </div>
     </div>
   ), document.body);
@@ -5795,7 +5802,7 @@ function PageShell({ title, kicker, subtitle, onClose, children, icon, backLabel
 }
 
 const btnPrimary = {
-  padding: "10px 16px",
+  padding: "12px 16px",
   background: "#211E1E", color: "#FFFFFF",
   border: "1px solid #211E1E", borderRadius: 4,
   boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -5804,7 +5811,7 @@ const btnPrimary = {
   cursor: "pointer",
 };
 const btnSecondary = {
-  padding: "10px 16px",
+  padding: "12px 16px",
   background: "#FFFFFF", color: "#211E1E",
   border: "1px solid #211E1E", borderRadius: 4,
   fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 12,
@@ -6194,8 +6201,8 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
 // Shared tokens so every ticket surface looks the same.
 const TK = {
   ink: '#211E1E', cheese: '#FDC831', cream: '#FFFFFF', muted: '#78684C', red: '#B92323',
-  field: { width: '100%', padding: '10px 12px', border: '1px solid #211E1E', borderRadius: 7, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
-  label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#55503F', marginBottom: 6, marginTop: 14 },
+  field: { width: '100%', padding: '12px 12px', border: '1px solid #211E1E', borderRadius: 7, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
+  label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#55503F', marginBottom: 8, marginTop: 16 },
   card: { background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' },
   // Spread onto a TK.card row to make it feel clickable (lift on hover, press in).
   rowTransition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)',
@@ -6482,7 +6489,7 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
 
   return (
     <div className="rr-shell" style={{ border: '1px solid rgba(33,30,30,.22)', borderRadius: 12, background: '#FFFFFF', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, padding: '5px 7px', borderBottom: '1px solid #EFEAE0', background: '#FBF8F2' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, padding: '4px 8px', borderBottom: '1px solid #EFEAE0', background: '#FBF8F2' }}>
         <TB title="Bold (⌘B)" onClick={() => exec('bold')}><RTIcon d={["M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"]} /></TB>
         <TB title="Italic (⌘I)" onClick={() => exec('italic')}><RTIcon extra={<><line x1="19" x2="10" y1="4" y2="4" /><line x1="14" x2="5" y1="20" y2="20" /><line x1="15" x2="9" y1="4" y2="20" /></>} /></TB>
         <TB title="Underline (⌘U)" onClick={() => exec('underline')}><RTIcon d={["M6 4v6a6 6 0 0 0 12 0V4"]} extra={<line x1="4" x2="20" y1="20" y2="20" />} /></TB>
@@ -6510,7 +6517,7 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
         <div ref={ref} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label={placeholder}
           spellCheck onInput={emit}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); onSubmit && onSubmit(); } }}
-          style={{ minHeight: 110, maxHeight: 300, overflowY: 'auto', padding: '10px 13px', fontSize: 14, lineHeight: 1.5, color: '#211E1E', outline: 'none', wordBreak: 'break-word' }}
+          style={{ minHeight: 110, maxHeight: 300, overflowY: 'auto', padding: '12px 12px', fontSize: 14, lineHeight: 1.5, color: '#211E1E', outline: 'none', wordBreak: 'break-word' }}
         />
       </div>
     </div>
@@ -6601,8 +6608,8 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend 
               onMouseEnter={(e) => { e.currentTarget.style.background = '#F4F0E8'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
-                minHeight: 38, padding: '8px 10px', background: 'transparent', border: 'none', borderRadius: 8,
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
+                minHeight: 38, padding: '8px 12px', background: 'transparent', border: 'none', borderRadius: 8,
                 cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 14, color: '#211E1E',
               }}>
               <span style={{ color: it.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{it.icon}</span>
@@ -6767,7 +6774,7 @@ function AttachmentItem({ name, source, size, isImage, onOpenImage }) {
     const thumb = (
       <>
         <img src={url} alt={name} style={{ display: 'block', maxWidth: 260, maxHeight: 220, objectFit: 'cover' }} />
-        <span style={{ display: 'block', padding: '7px 10px', fontSize: 12, color: '#5C5240', borderTop: '1px solid #F0EADC', background: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+        <span style={{ display: 'block', padding: '8px 12px', fontSize: 12, color: '#5C5240', borderTop: '1px solid #F0EADC', background: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
       </>
     );
     const frame = { display: 'inline-block', border: '1px solid rgba(33,30,30,.16)', borderRadius: 12, overflow: 'hidden', background: '#FFFFFF', maxWidth: 260, padding: 0, cursor: 'zoom-in' };
@@ -6816,9 +6823,9 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
         {(files || []).length > 0 && <span className="tkt-attach-n" aria-label={`${files.length} attached`}>{files.length}</span>}
       </button>
       {(files || []).length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
           {files.map((f, i) => (
-            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 8px 5px 10px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 10, fontSize: 13, color: '#211E1E', maxWidth: 280 }}>
+            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 8px 4px 12px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 10, fontSize: 13, color: '#211E1E', maxWidth: 280 }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
               <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(f.size)}</span>
               {!disabled && (
@@ -6828,7 +6835,7 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
           ))}
         </div>
       )}
-      {err && <p style={{ color: '#B92323', fontSize: 13, marginTop: 6 }}>{err}</p>}
+      {err && <p style={{ color: '#B92323', fontSize: 13, marginTop: 8 }}>{err}</p>}
     </div>
   );
 }
@@ -6884,7 +6891,7 @@ function ComposerField({ id, value, onChange, placeholder, invalid, files, onFil
         </button>
         <span className="cmp-hint">{drag ? 'Drop to attach' : 'or drop / paste a screenshot'}</span>
       </div>
-      {err && <p className="cf-err" role="alert" style={{ margin: '0 12px 10px' }}><RqIcon name="alert" size={13} />{err}</p>}
+      {err && <p className="cf-err" role="alert" style={{ margin: '0 12px 12px' }}><RqIcon name="alert" size={13} />{err}</p>}
     </div>
   );
 }
@@ -7017,7 +7024,7 @@ function TicketStatusBadge({ status, small, label, type }) {
   const tint = isReqPending ? '#F4F0E8' : (STATUS_TINT[s] || '#F1ECE2');
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 7,
+      display: 'inline-flex', alignItems: 'center', gap: 8,
       padding: small ? '3px 10px 3px 8px' : '5px 12px 5px 10px',
       background: tint, color: '#211E1E', border: 'none',
       borderRadius: 999, fontSize: small ? 12 : 13, fontWeight: 600,
@@ -7049,10 +7056,10 @@ function TicketTypeBadge({ type }) {
 // A muted state panel (loading / empty / error) used across the ticket views.
 function TicketsNotice({ title, body, action, onAction }) {
   return (
-    <div style={{ ...TK.card, padding: '32px 26px', textAlign: 'center' }}>
-      <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 16, fontWeight: 800, color: '#211E1E', marginBottom: 6 }}>{title}</div>
+    <div style={{ ...TK.card, padding: '32px 24px', textAlign: 'center' }}>
+      <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 16, fontWeight: 800, color: '#211E1E', marginBottom: 8 }}>{title}</div>
       {body && <div style={{ fontSize: 14, color: '#78684C', lineHeight: 1.5, maxWidth: 460, margin: '0 auto' }}>{body}</div>}
-      {action && <button onClick={onAction} className="btn btn-primary" style={{ marginTop: 18 }}>{action}</button>}
+      {action && <button onClick={onAction} className="btn btn-primary" style={{ marginTop: 20 }}>{action}</button>}
     </div>
   );
 }
@@ -7289,7 +7296,7 @@ function ApprovalPill({ state }) {
   if (!meta) return null;
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 12px 5px 10px',
+      display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 12px',
       background: { pending: '#F4F0E8', approved: '#DFF1E5', rejected: '#FBE3E0' }[String(state || '').toLowerCase()] || '#F1ECE2',
       color: '#211E1E', border: 'none', borderRadius: 999,
       fontSize: 13, fontWeight: 600, fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
@@ -7321,7 +7328,7 @@ function TicketNumber({ value, size = 13 }) {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') copy(e); }}
       title="Copy ticket number"
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         fontSize: size, fontWeight: 700, color: '#211E1E', letterSpacing: '0.01em', userSelect: 'all',
       }}>
@@ -7375,7 +7382,7 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest, on
   return (
     <div className="page" style={{ background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       {!detailOpen && (
-      <div style={{ background: 'var(--bg)', padding: '34px 32px 8px' }}>
+      <div style={{ background: 'var(--bg)', padding: '32px 32px 8px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
           {/* Just the title — the two start buttons below already say what the
               page is for. No Back button: this is a top-level section, the nav
@@ -7395,20 +7402,20 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest, on
               /* View tabs, search on the right of the same row. No full-width
                  rule underneath — the selected tab's charcoal underline
                  (SlideIndicator) is enough. */
-              .tkt-tabsrow { display:flex; align-items:flex-end; gap:16px; margin-top:28px; flex-wrap:wrap; }
-              .tkt-switch { position:relative; display:inline-flex; gap:6px; align-self:stretch; }
+              .tkt-tabsrow { display:flex; align-items:flex-end; gap:16px; margin-top:32px; flex-wrap:wrap; }
+              .tkt-switch { position:relative; display:inline-flex; gap:8px; align-self:stretch; }
               .tkt-switch .tab-slider { background:transparent !important; box-shadow:inset 0 -2px 0 #211E1E !important; border-radius:0 !important; }
-              .tkt-tab { position:relative; z-index:1; justify-content:center; padding:12px 4px 13px; margin:0 8px; cursor:pointer;
+              .tkt-tab { position:relative; z-index:1; justify-content:center; padding:12px 4px 12px; margin:0 8px; cursor:pointer;
                 border:none; background:transparent; color:#78684C;
                 font-family:'Archivo',sans-serif; font-weight:650; font-size:16px; letter-spacing:-0.005em;
                 display:inline-flex; align-items:center; gap:8px; transition: color .16s ease; }
               .tkt-tab:first-child, .tkt-switch > .tab-slider + .tkt-tab { margin-left:0; }
               .tkt-tab.is-idle:hover { color:#211E1E; }
               .tkt-tab.is-active { color:#211E1E; }
-              .tkt-tabsrow > div:last-child { margin-bottom:10px; }
+              .tkt-tabsrow > div:last-child { margin-bottom:12px; }
               /* Header actions — flat, no hard shadows. Secondary is an outline,
                  primary is charcoal with a cheese label like every primary CTA. */
-              .tkt-action { display:inline-flex; align-items:center; gap:9px; height:42px; padding:0 18px 0 12px; cursor:pointer;
+              .tkt-action { display:inline-flex; align-items:center; gap:8px; height:42px; padding:0 20px 0 12px; cursor:pointer;
                 background:#FFFFFF; color:#211E1E; border:1px solid rgba(33,30,30,.22); border-radius:12px;
                 font-family:'Archivo',sans-serif; font-weight:650; font-size:14px; letter-spacing:-0.005em;
                 transition: background .16s ease, border-color .16s ease, box-shadow .16s ease; }
@@ -7623,7 +7630,7 @@ function TicketsTab({ label, active, onClick, badge }) {
       {label}
       {n > 0 && (
         <span aria-label={`${n} unseen update${n === 1 ? '' : 's'}`} style={{
-          minWidth: 20, height: 20, padding: '0 6px', boxSizing: 'border-box',
+          minWidth: 20, height: 20, padding: '0 8px', boxSizing: 'border-box',
           display: 'inline-grid', placeItems: 'center',
           // Same red as the top bar's unread badge: "something needs you".
           background: '#DA3327', color: '#FFFFFF',
@@ -7693,7 +7700,7 @@ function OnBehalfBanner({ ticket }) {
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: 8,
-      padding: '5px 12px 5px 5px', marginBottom: 10,
+      padding: '4px 12px 4px 4px', marginBottom: 12,
       background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 999,
       boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', maxWidth: '100%',
     }}>
@@ -7731,7 +7738,7 @@ function OnBehalfTag({ ticket, size = 11 }) {
   const label = `${prefix} ${name}`;
   return (
     <span title={label} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px 2px 3px',
+      display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px 2px 3px',
       background: '#FFFFFF', border: '1px solid rgba(33,30,30,.18)', borderRadius: 999,
       whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden',
     }}>
@@ -7807,9 +7814,9 @@ function Hl({ text, tokens }) {
 // the real ones land.
 function TicketListSkeleton({ rows = 4 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} aria-busy="true" aria-label="Loading your tickets">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }} aria-busy="true" aria-label="Loading your tickets">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="tkt-skel-row" style={{ ...TK.card, padding: '15px 18px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', animationDelay: `${i * 70}ms` }}>
+        <div key={i} className="tkt-skel-row" style={{ ...TK.card, padding: '16px 20px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', animationDelay: `${i * 70}ms` }}>
           <span className="tkt-skel" style={{ width: 44, height: 44, borderRadius: 10 }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span className="tkt-skel" style={{ width: 150, height: 11 }} />
@@ -8101,12 +8108,12 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   }
   if (st.tickets.length === 0) {
     return (
-      <div style={{ ...TK.card, padding: '34px 28px', textAlign: 'center' }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: '#211E1E', marginBottom: 6 }}>No tickets yet</div>
+      <div style={{ ...TK.card, padding: '32px 32px', textAlign: 'center' }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: '#211E1E', marginBottom: 8 }}>No tickets yet</div>
         <div style={{ fontSize: 14, color: '#78684C', lineHeight: 1.5, maxWidth: 480, margin: '0 auto 20px' }}>
           When something’s broken, report an issue. When you need access to an app or service, raise a request — it’ll go for approval if it needs one.
         </div>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => onReportIssue && onReportIssue()} className="btn btn-outline">Report an issue</button>
           <button onClick={() => onRequest && onRequest()} className="btn btn-primary">Request something</button>
         </div>
@@ -8121,7 +8128,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           have on-behalf tickets). Counts reflect the current search + facet, so
           they also flag matches sitting in the other view. */}
       <style>{`
-        .tkt-forothers { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; padding:12px 14px 12px 16px;
+        .tkt-forothers { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 16px; padding:12px 16px 12px 16px;
           background:#FFFFFF; color:#211E1E; border:1px solid rgba(33,30,30,.12); border-radius:12px;
           animation: tktForOthersIn .28s cubic-bezier(.22,.61,.36,1) both; }
         .tkt-forothers b { display:block; font-family:'Archivo',sans-serif; font-size:14px; font-weight:650; letter-spacing:-.01em; }
@@ -8138,12 +8145,12 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
 
         /* "Requested for others" toggle pill — white when off, cheese when on,
            with a small ✕ hinting the second click clears it. */
-        .tkt-facet { position:relative; display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 10px; cursor:pointer;
+        .tkt-facet { position:relative; display:inline-flex; align-items:center; gap:8px; height:34px; padding:0 12px; cursor:pointer;
           background:transparent; color:#5C5240; border:none; border-radius:8px;
           font-family:'Archivo',sans-serif; font-weight:600; font-size:13px;
           transition: background .16s ease, color .16s ease; }
         .tkt-facet:hover { background:rgba(33,30,30,.06); color:#211E1E; }
-        .tkt-facet-n { flex-shrink:0; min-width:20px; padding:2px 6px; box-sizing:border-box; border-radius:999px;
+        .tkt-facet-n { flex-shrink:0; min-width:20px; padding:2px 8px; box-sizing:border-box; border-radius:999px;
           background:#F4F0E8; color:#211E1E; font:600 11px/1.2 var(--font-mono); text-align:center; }
         .tkt-facet-x { display:grid; place-items:center; width:17px; height:17px; margin-left:2px;
           background:#211E1E; color:#FFFFFF; border-radius:999px; font-size:11px; font-weight:900; line-height:1; }
@@ -8154,7 +8161,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           .tkt-facet-menu { animation:none; }
         }
       `}</style>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div className="tkt-seg has-slider" role="tablist" aria-label="Ticket state">
           <SlideIndicator activeKey={view} radius={8} />
           {[['open', 'Open', openList.length, unseenOpen], ['closed', 'Closed', closedList.length, unseenClosed]].map(([key, label, n, dot]) => {
@@ -8212,7 +8219,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
                 ? `${view === 'open' ? closedList.length : openList.length} ${view === 'open' ? 'closed' : 'open'} ticket${(view === 'open' ? closedList.length : openList.length) === 1 ? '' : 's'} match${(view === 'open' ? closedList.length : openList.length) === 1 ? 'es' : ''} though.`
                 : forOthers ? 'Nothing in the tickets you requested for others, either.' : 'Try fewer words, a ticket number, or an app name.'}
             </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
               {(view === 'open' ? closedList.length : openList.length) > 0 && (
                 <button type="button" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}
                   onClick={() => setView(view === 'open' ? 'closed' : 'open')}>
@@ -8227,7 +8234,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
             </div>
           </div>
         ) : (
-        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 14, color: '#78684C' }}>
+        <div style={{ ...TK.card, padding: '24px 24px', textAlign: 'center', fontSize: 14, color: '#78684C' }}>
           {forOthers
               ? `No ${view} tickets requested for others.` + (view === 'open' && closedList.length ? ` ${closedList.length} closed one${closedList.length === 1 ? '' : 's'} — check the Closed view.` : '')
               : view === 'open'
@@ -8289,11 +8296,11 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
         })}
       </div>
       {shown.length > PAGE_SIZE && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginTop: 18, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 20, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, color: '#78684C', fontWeight: 600 }}>
             Showing {pageStart + 1}–{Math.min(shown.length, pageStart + PAGE_SIZE)} of {shown.length}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button className="tkt-nav-btn is-prev is-wide" onClick={() => goToPage(safePage - 1)} disabled={safePage === 0} aria-label="Previous page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Prev</button>
             <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#55503F', minWidth: 92, textAlign: 'center' }}>
               Page {safePage + 1} of {pageCount}
@@ -8392,7 +8399,7 @@ function ApprovalSummary({ approval, ticket }) {
 
   if (stages.length === 0) {
     return (
-      <div style={{ padding: '12px 14px', fontSize: 13, color: '#55503F' }}>
+      <div style={{ padding: '12px 16px', fontSize: 13, color: '#55503F' }}>
         {status === 'approved' ? 'This request was approved.' : status === 'rejected' ? 'This request was declined.' : 'Waiting for approval — you’ll be notified once it’s decided.'}
       </div>
     );
@@ -8401,7 +8408,7 @@ function ApprovalSummary({ approval, ticket }) {
   return (
     <div>
       {status === 'pending' && stages.length > 1 && (
-        <div style={{ padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#78684C', background: '#F4F0E8', borderBottom: '1px solid #F0EBE0' }}>
+        <div style={{ padding: '8px 16px', fontSize: 12, fontWeight: 700, color: '#78684C', background: '#F4F0E8', borderBottom: '1px solid #F0EBE0' }}>
           {done} of {stages.length} approvals done
         </div>
       )}
@@ -8411,7 +8418,7 @@ function ApprovalSummary({ approval, ticket }) {
         const isCur = key === 'pending';
         const line = approverLine(s, actions, currentApprovers, isCur);
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: i ? '1px solid #F0EBE0' : 'none', background: isCur ? '#F4F0E8' : 'transparent' }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: i ? '1px solid #F0EBE0' : 'none', background: isCur ? '#F4F0E8' : 'transparent' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: meta.dot, border: '1px solid #211E1E', flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name || `Step ${i + 1}`}</span>
@@ -8491,7 +8498,7 @@ function ApprovalsButton({ approval, ticket }) {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <style>{`
-        .appr-btn { display:inline-flex; align-items:center; gap:10px; padding:6px 12px 6px 8px; min-height:38px; box-sizing:border-box;
+        .appr-btn { display:inline-flex; align-items:center; gap:12px; padding:8px 12px 8px 8px; min-height:38px; box-sizing:border-box;
           background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:10px; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); cursor:pointer;
           font-family:inherit; text-align:left; transition:transform .16s cubic-bezier(.22,.61,.36,1), box-shadow .16s cubic-bezier(.22,.61,.36,1); }
         .appr-btn:hover { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
@@ -9213,9 +9220,9 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               {/* Browsers refuse to open a data: URL in a new tab (inline reply images arrive as data URIs). */}
               {!/^data:/i.test(lightbox.url) && (
-                <a href={lightbox.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, background: '#FFFFFF' }}>Open in new tab</a>
+                <a href={lightbox.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '8px 12px', fontSize: 12, background: '#FFFFFF' }}>Open in new tab</a>
               )}
-              <button type="button" onClick={() => setLightbox(null)} className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, background: '#FFFFFF' }}>Close ✕</button>
+              <button type="button" onClick={() => setLightbox(null)} className="btn btn-outline" style={{ padding: '8px 12px', fontSize: 12, background: '#FFFFFF' }}>Close ✕</button>
             </div>
           </div>
           <img className="overlay-panel-in" src={lightbox.url} alt={lightbox.name} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(92vw, 1100px)', maxHeight: '80vh', objectFit: 'contain', borderRadius: 10, border: '1px solid #211E1E', background: '#fff', cursor: 'default' }} />
@@ -9306,7 +9313,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
             {timeline.length - descItem.length === 0 && !st.full && !st.error && (
               <div aria-busy="true" aria-label="Loading the conversation">
                 {[0, 1].map((i) => (
-                  <div key={i} className="tkt-skel-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginTop: i ? 16 : 4, flexDirection: i ? 'row-reverse' : 'row', animationDelay: `${i * 90}ms` }}>
+                  <div key={i} className="tkt-skel-row" style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginTop: i ? 16 : 4, flexDirection: i ? 'row-reverse' : 'row', animationDelay: `${i * 90}ms` }}>
                     <span className="tkt-skel" style={{ width: 32, height: 32, borderRadius: '50%' }} />
                     <span className="tkt-skel" style={{ width: i ? '38%' : '56%', height: 46, borderRadius: 14 }} />
                   </div>
@@ -9379,19 +9386,19 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                       placeholder={`Reply to the ${teamDisplayName(ticketTeamKey(t))}…`} />
 
                     {reopenOnReply && confirmReopen ? (
-                      <div style={{ borderTop: '1px solid #F0EADC', background: '#F4F0E8', padding: '11px 14px' }}>
-                        <div style={{ fontSize: 14, color: '#211E1E', fontWeight: 600, marginBottom: 10, lineHeight: 1.45 }}>
+                      <div style={{ borderTop: '1px solid #F0EADC', background: '#F4F0E8', padding: '12px 16px' }}>
+                        <div style={{ fontSize: 14, color: '#211E1E', fontWeight: 600, marginBottom: 12, lineHeight: 1.45 }}>
                           This ticket is <b>{String(t.status).toLowerCase()}</b>. Sending this reply will <b>reopen</b> it — continue?
                         </div>
-                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                          <button onClick={() => setConfirmReopen(false)} disabled={sending} className="btn btn-outline" style={{ padding: '7px 14px', fontSize: 12 }}>Cancel</button>
-                          <button onClick={() => send()} disabled={sending} className="btn btn-primary" style={{ padding: '7px 14px', fontSize: 12 }}>{sending ? 'Reopening…' : 'Reopen & send reply'}</button>
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                          <button onClick={() => setConfirmReopen(false)} disabled={sending} className="btn btn-outline" style={{ padding: '8px 16px', fontSize: 12 }}>Cancel</button>
+                          <button onClick={() => send()} disabled={sending} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 12 }}>{sending ? 'Reopening…' : 'Reopen & send reply'}</button>
                         </div>
                       </div>
                     ) : (
                       <div className="tkd-reply-foot">
                         <AttachmentPicker files={replyFiles} onChange={setReplyFiles} disabled={sending} />
-                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
                           <span className="tkd-reply-hint">⌘/Ctrl + Enter</span>
                           {/* No "send & resolve / raise priority" on a declined request — there's nothing to resolve. */}
                           <ReplySend ticket={t} sending={sending} reopenOnReply={reopenOnReply} declined={isDeclined}
@@ -9402,7 +9409,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                     )}
                     </div>
                     </div>
-                    {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '10px 0 0 44px' }}>{replyErr}</p>}
+                    {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '12px 0 0 48px' }}>{replyErr}</p>}
                   </>
                 );
               })()}
@@ -9499,7 +9506,7 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
         </div>
       )}
       {shown.length === 0 ? (
-        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 14, color: '#78684C' }}>No approvals match “{query}”.</div>
+        <div style={{ ...TK.card, padding: '24px 24px', textAlign: 'center', fontSize: 14, color: '#78684C' }}>No approvals match “{query}”.</div>
       ) : (
         <div className="tkt-list" role="table" aria-label="Approvals">
           <div className="tkt-list-head" role="row">
@@ -9646,7 +9653,7 @@ function ApprovalDetailView({ id, onBack, onActed }) {
                   <>
                     <label className="apr-label" htmlFor="apr-comment">Comment <span>(optional)</span></label>
                     <textarea id="apr-comment" className="apr-comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a note for the requester or the audit trail…" />
-                    {err && <p style={{ color: '#B92323', fontSize: 13, margin: '10px 0 0' }}>{err}</p>}
+                    {err && <p style={{ color: '#B92323', fontSize: 13, margin: '12px 0 0' }}>{err}</p>}
                     <div className="apr-actions">
                       <button onClick={() => respond('approve')} disabled={busy} className="btn btn-primary">
                         {busy ? 'Saving…' : 'Approve'}
@@ -10623,7 +10630,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           {Array.from({ length: 9 }).map((_, i) => (
             <div key={i} className="cat-tile2 tkt-skel-row" style={{ animationDelay: `${i * 40}ms`, pointerEvents: 'none' }}>
               <span className="tkt-skel" style={{ width: 40, height: 40, borderRadius: 10 }} />
-              <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <span className="tkt-skel" style={{ width: '55%', height: 12 }} />
                 <span className="tkt-skel" style={{ width: '85%', height: 9 }} />
               </span>
@@ -10638,9 +10645,9 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           module key is revoked. Offer a retry + the custom-request escape hatch. */}
       {catErr && (
         <div style={{ padding: '8px 2px' }}>
-          <p style={{ fontSize: 14, color: '#211E1E', margin: '0 0 6px', fontWeight: 700 }}>Couldn’t load the service catalog</p>
+          <p style={{ fontSize: 14, color: '#211E1E', margin: '0 0 8px', fontWeight: 700 }}>Couldn’t load the service catalog</p>
           <p style={{ fontSize: 13, color: '#78684C', margin: '0 0 16px', lineHeight: 1.5 }}>The ticketing system didn’t respond ({catErr}). Retry, or make a custom request and IT will sort out the details.</p>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 12 }}>
             <button className="btn btn-outline" onClick={loadCatalog}>Retry</button>
             <button className="btn btn-primary" onClick={() => { setErr(''); setView('freeform'); }}>Make a custom request</button>
           </div>
@@ -10650,7 +10657,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
       {/* Catalog loaded but empty — nothing published in SliceDesk yet. */}
       {catalog && catalog.length === 0 && !catErr && (
         <div style={{ padding: '8px 2px' }}>
-          <p style={{ fontSize: 14, color: '#211E1E', margin: '0 0 6px', fontWeight: 700 }}>No catalog items yet</p>
+          <p style={{ fontSize: 14, color: '#211E1E', margin: '0 0 8px', fontWeight: 700 }}>No catalog items yet</p>
           <p style={{ fontSize: 13, color: '#78684C', margin: '0 0 16px', lineHeight: 1.5 }}>Your IT team hasn’t published any requestable apps or services in the catalog yet. You can still make a custom request.</p>
           <button className="btn btn-primary" onClick={() => { setErr(''); setView('freeform'); }}>Make a custom request</button>
         </div>
@@ -10681,7 +10688,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           const on = catFilter === key;
           return (
             <button key={key} onClick={() => setCatFilter(key)} style={{
-              padding: '5px 11px', borderRadius: 999, cursor: 'pointer', border: '1px solid #211E1E',
+              padding: '4px 12px', borderRadius: 999, cursor: 'pointer', border: '1px solid #211E1E',
               fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase',
               background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FFFFFF' : '#211E1E',
             }}>{label}</button>
@@ -10768,7 +10775,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             <div className="tkt-empty-search" style={{ ...TK.card }}>
               <div className="tkt-empty-title">Nothing matches “{catQuery}”{catFilter !== 'all' ? ` in ${catFilter}` : ''}</div>
               <div className="tkt-empty-body">Try another word or the app’s name — or just ask for it, and IT will sort out the details.</div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button className="btn btn-primary" onClick={() => openCustom(q)}>Ask IT for “{q}”</button>
                 <button className="btn btn-outline" onClick={() => { setCatQuery(''); if (catSearchRef.current) catSearchRef.current.focus(); }}>Clear search</button>
               </div>
@@ -10956,7 +10963,7 @@ function OfficeLocationField({ value, onChange, beneficiary, invalid, id }) {
           <option value={selId}>{(value && value.name) || 'Office #' + selId}</option>
         )}
       </select>
-      {err && <p style={{ color: '#9A4A00', fontSize: 13, margin: '6px 0 0' }}>{err}</p>}
+      {err && <p style={{ color: '#9A4A00', fontSize: 13, margin: '8px 0 0' }}>{err}</p>}
     </>
   );
 }
@@ -11112,7 +11119,7 @@ function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoF
             <>{[0, 1, 2].map((i) => (
               <div key={i} className="ps-row is-skel" style={{ animationDelay: `${i * 50}ms` }}>
                 <span className="tkt-skel" style={{ width: 28, height: 28, borderRadius: '50%' }} />
-                <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span className="tkt-skel" style={{ width: '45%', height: 10 }} />
                   <span className="tkt-skel" style={{ width: '70%', height: 8 }} />
                 </span>
@@ -11369,7 +11376,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
           the chain below is the thing that's broken — an explanation underneath
           it gets read second, if at all. */}
       {blocked && (
-        <div style={{ display: 'flex', gap: 9, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 1, borderRadius: '50%', background: '#B9232322', color: '#B92323', display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 12 }}>!</span>
           <div style={{ minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#8E1B1B' }}>{forSelfOnly ? 'Your approver’s account isn’t active' : 'Their approver’s account isn’t active'}</p>
@@ -11397,14 +11404,14 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
               ? [{ user_id: 'override', name: override.name, email: override.email, chosen: true }]
               : approvers;
             return (
-              <li key={stage.order} style={{ display: 'flex', gap: 10 }}>
+              <li key={stage.order} style={{ display: 'flex', gap: 12 }}>
                 {multiStage && (
                   <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 12, borderRadius: '50%', background: '#211E1E', color: '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>
                     {i + 1}
                   </span>
                 )}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  {multiStage && <p style={{ fontSize: 12, fontWeight: 700, color: '#55503F', margin: '0 0 5px' }}>{stage.name}</p>}
+                  {multiStage && <p style={{ fontSize: 12, fontWeight: 700, color: '#55503F', margin: '0 0 4px' }}>{stage.name}</p>}
 
                   {changeable && picking ? null : rows.length === 0 ? (
                     // Nobody resolved. On a changeable stage this is the whole
@@ -11422,7 +11429,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                           : 'IT will route this manually.'}
                       </p>
                       {changeable && !picking && (
-                        <div style={{ marginTop: 10 }}>{changeBtn('Choose an approver', () => setPicking(true))}</div>
+                        <div style={{ marginTop: 12 }}>{changeBtn('Choose an approver', () => setPicking(true))}</div>
                       )}
                     </div>
                   ) : rows.map((a) => {
@@ -11439,10 +11446,10 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                         key={a.chosen ? 'chosen-' + (override && override.user_id) : a.user_id}
                         className={'ap-row' + (a.chosen ? ' is-chosen' : '')}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 11,
+                          display: 'flex', alignItems: 'center', gap: 12,
                           border: '1px solid ' + (a.chosen ? '#211E1E' : (a.account_disabled ? '#E39C9C' : (a.unavailable ? '#E2DCD0' : '#E6DFCF'))),
                           background: a.chosen ? '#FFFFFF' : (a.account_disabled ? '#FFFFFF' : (a.unavailable ? '#F4F0E8' : '#FFFFFF')),
-                          borderRadius: 10, padding: '10px 11px',
+                          borderRadius: 10, padding: '12px 12px',
                         }}
                       >
                         <PersonAvatar name={a.name} size={34} off={!!a.account_disabled} self={!!isSelf} />
@@ -11488,7 +11495,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                   {/* The PTO case, said plainly, at the only moment the
                       requester can still do something about it. */}
                   {!showOverride && changeable && anyAway && !picking && (
-                    <p style={{ fontSize: 12, color: '#8A7040', margin: '6px 0 0', lineHeight: 1.45 }}>
+                    <p style={{ fontSize: 12, color: '#8A7040', margin: '8px 0 0', lineHeight: 1.45 }}>
                       They may not get to this for a while — you can send it to someone else.
                     </p>
                   )}
@@ -11517,7 +11524,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
           would otherwise have been asked. */}
       {override && (
         <div className="ap-reason" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0EBE0' }}>
-          <label className="cf-label" style={{ display: 'block', marginBottom: 6 }}>
+          <label className="cf-label" style={{ display: 'block', marginBottom: 8 }}>
             {override.auto ? 'Reason recorded on the ticket' : 'Why are you changing the approver?'}
           </label>
           <textarea
@@ -11528,7 +11535,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
             onChange={(e) => onChange({ ...override, reason: e.target.value })}
             placeholder="e.g. My manager is on leave until 12 September"
           />
-          <p className={reasonError ? 'cf-err' : 'cf-help'} style={{ margin: '6px 0 0' }}>
+          <p className={reasonError ? 'cf-err' : 'cf-help'} style={{ margin: '8px 0 0' }}>
             {reasonError || (override.auto
               ? 'Filled in from what we found. Edit it if you want to add context.'
               : 'The usual approver is told about the change, so keep it accurate.')}
@@ -11777,7 +11784,7 @@ function TalkedToAgentPicker({ value, onChange, note, onNoteChange }) {
           </p>
         </div>
       )}
-      {err && <p style={{ color: '#9A4A00', fontSize: 13, margin: '6px 0 0' }}>{err}</p>}
+      {err && <p style={{ color: '#9A4A00', fontSize: 13, margin: '8px 0 0' }}>{err}</p>}
     </>
   );
 }
@@ -11973,7 +11980,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
 
   const avatar = (label, size, isSelf) => <PersonAvatar name={label} size={size} self={isSelf} />;
   const youTag = (
-    <span style={{ display: 'inline-block', marginLeft: 6, padding: '1px 6px', borderRadius: 999, background: '#F4F0E8', border: '1px solid #211E1E', fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
+    <span style={{ display: 'inline-block', marginLeft: 8, padding: '1px 8px', borderRadius: 999, background: '#F4F0E8', border: '1px solid #211E1E', fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
   );
   const ell = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 
@@ -11981,7 +11988,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   if (collapsed) {
     return (
       <div key="me" className="rfp-swap" style={{ marginBottom: 4 }}>
-        <label style={{ ...TK.label, marginBottom: 9 }}>Requesting for</label>
+        <label style={{ ...TK.label, marginBottom: 8 }}>Requesting for</label>
         {/* flexWrap + the ellipsised middle block keep the button on the row: a
             long name can never push it off, and under ~380px it drops to its own
             line at full size instead of being squashed. */}
@@ -12008,10 +12015,10 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   const n = people.length;
   return (
     <div key="others" className="rfp-swap" style={{ marginBottom: 4 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
         <label style={{ ...TK.label, marginTop: 0, marginBottom: 0 }}>Who is this for?</label>
         {n > 1 && (
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap' }}>
             {n} requests
           </span>
         )}
@@ -12029,7 +12036,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
             const isSelf = selfId && String(p.id) === selfId;
             const only = n === 1;
             return (
-              <div key={p.id} className="rfp-person" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 11px', borderTop: '1px solid #F0EBE0' }}>
+              <div key={p.id} className="rfp-person" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderTop: '1px solid #F0EBE0' }}>
                 {avatar(p.name || p.email, 32, !!isSelf)}
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <p style={{ margin: 0, fontSize: 14, fontWeight: 700, ...ell }}>{p.name || p.email || p.id}{isSelf ? youTag : null}</p>
@@ -12061,7 +12068,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       </div>
 
       {n === 0 ? (
-        <div className="rfp-empty" style={{ border: '1px dashed #C9C0AB', borderRadius: 10, padding: 13, textAlign: 'center', background: '#FCFBF7', marginTop: 9 }}>
+        <div className="rfp-empty" style={{ border: '1px dashed #C9C0AB', borderRadius: 10, padding: 12, textAlign: 'center', background: '#FCFBF7', marginTop: 8 }}>
           <RqIcon name="personAdd" size={22} className="rfp-empty-icon" />
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Nobody chosen yet</p>
           <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: '#78684C' }}>Start typing a name above to find them.</span>
@@ -12331,7 +12338,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
       {/* Hero */}
       <div style={{
         background: "var(--bg)",
-        padding: "44px 32px 8px",
+        padding: "48px 32px 8px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
           <h1 style={{
@@ -12353,7 +12360,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
             borderRadius: 14,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             padding: "8px 8px 8px 20px",
-            display: "flex", alignItems: "center", gap: 14,
+            display: "flex", alignItems: "center", gap: 16,
             maxWidth: 1120,
             transition: "transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s cubic-bezier(.2,.8,.2,1)",
             transformOrigin: "left center",
@@ -12408,7 +12415,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           `}</style>
 
           {/* Popular chips (now with active state) */}
-          <div style={{ marginTop: 18, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, color: "#78684C", fontWeight: 600 }}>Popular:</span>
             {["password reset", "VPN", "new laptop", "Slack", "phishing"].map((p) => {
               const isActive = query === p;
@@ -12425,7 +12432,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
       </div>
 
       {/* Body */}
-      <div ref={resultsRef} style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "44px 32px 120px" }}>
+      <div ref={resultsRef} style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "48px 32px 120px" }}>
         {searching && (
           <SearchResults
             query={q}
@@ -12513,7 +12520,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
   const hasBoth = query && categoryLabel;
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
         <div>
           <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 4 }}>
             {results.length} result{results.length === 1 ? "" : "s"}{hasBoth ? " · filtered" : ""}
@@ -12529,9 +12536,9 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
             <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#4A3F2E" }}>
               in
               <span style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
+                display: "inline-flex", alignItems: "center", gap: 8,
                 background: "#F4F0E8", border: "1px solid #211E1E", borderRadius: 999,
-                padding: "3px 10px 3px 12px", fontWeight: 700, fontSize: 12,
+                padding: "3px 12px 3px 12px", fontWeight: 700, fontSize: 12,
                 fontFamily: "Archivo, sans-serif",
               }}>
                 {categoryLabel}
@@ -12555,7 +12562,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
               { v: "recent", label: "Recently updated" },
             ].map((opt, i) => (
               <button key={opt.v} onClick={() => onChangeSort(opt.v)} style={{
-                padding: "7px 12px",
+                padding: "8px 12px",
                 background: sort === opt.v ? "#211E1E" : "#FFFFFF",
                 color: sort === opt.v ? "#FFFFFF" : "#211E1E",
                 border: "none",
@@ -12565,32 +12572,32 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
               }}>{opt.label}</button>
             ))}
           </div>
-          <button onClick={onClear} className="btn btn-outline" style={{ padding: "8px 14px" }}>Clear</button>
+          <button onClick={onClear} className="btn btn-outline" style={{ padding: "8px 16px" }}>Clear</button>
         </div>
       </div>
 
       {results.length === 0 ? (
         <div style={{
           background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14,
-          padding: "44px 32px",
+          padding: "48px 32px",
           textAlign: "center",
         }}>
           {/* Typographic mark instead of emoji */}
           <div style={{
-            width: 64, height: 64, margin: "0 auto 14px",
+            width: 64, height: 64, margin: "0 auto 16px",
             background: "#F4F0E8", border: "1px solid #211E1E", borderRadius: "50%",
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
             fontFamily: "'Archivo', sans-serif", fontSize: 32, fontWeight: 900, color: "#211E1E",
             lineHeight: 1,
           }}>?</div>
-          <div style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 20, fontWeight: 400, color: "#211E1E", marginBottom: 6 }}>
+          <div style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 20, fontWeight: 400, color: "#211E1E", marginBottom: 8 }}>
             Nothing matched{query ? ` “${query}”` : ""}.
           </div>
-          <div style={{ fontSize: 14, color: "#4A3F2E", marginBottom: 18 }}>
+          <div style={{ fontSize: 14, color: "#4A3F2E", marginBottom: 20 }}>
             Try a broader term, or suggest we write a guide for this.
           </div>
-          <button onClick={onSuggest} className="btn btn-primary" style={{ padding: "10px 18px" }}>Suggest an article →</button>
+          <button onClick={onSuggest} className="btn btn-primary" style={{ padding: "12px 20px" }}>Suggest an article →</button>
         </div>
       ) : (
         <div style={{
@@ -12602,7 +12609,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
           {results.map((r, i) => (
             <div key={r.id} onClick={() => onOpenItem(r)} style={{
               display: "flex", alignItems: "center", gap: 16,
-              padding: "18px 22px",
+              padding: "20px 24px",
               borderBottom: i === results.length - 1 ? "none" : "1.5px solid #E7E1D4",
               cursor: "pointer",
               transition: "background .12s",
@@ -12683,7 +12690,7 @@ function HighlightMatch({ text, query }) {
 
 function SectionTitle({ kicker, title, right }) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
       <div>
         <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 4 }}>
           {kicker}
@@ -12736,23 +12743,23 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
         background: "#F7F4EF",
         border: "1px solid #211E1E", borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-        padding: 28,
+        padding: 32,
       }}>
         {!sent ? (
           <form onSubmit={submit}>
-            <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 6 }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 8 }}>
               Help us write the missing guide
             </div>
-            <h2 style={{ fontFamily: "var(--font-head)", fontSize: 24, fontWeight: 400, margin: "0 0 18px", color: "#211E1E", letterSpacing: "-0.01em" }}>
+            <h2 style={{ fontFamily: "var(--font-head)", fontSize: 24, fontWeight: 400, margin: "0 0 20px", color: "#211E1E", letterSpacing: "-0.01em" }}>
               Suggest an article
             </h2>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", marginBottom: 6, fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What were you searching for?</label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", marginBottom: 8, fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What were you searching for?</label>
             <input value={searched} onChange={(e) => setSearched(e.target.value)} placeholder='e.g. "VPN on personal Mac"' style={inputStyle}/>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", margin: "14px 0 6px", fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What problem are you trying to solve?</label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", margin: "16px 0 8px", fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What problem are you trying to solve?</label>
             <textarea value={what} onChange={(e) => setWhat(e.target.value)} rows={4} placeholder="Describe what you needed the article to cover…" style={{ ...inputStyle, resize: "vertical", minHeight: 88, fontFamily: "'Archivo', sans-serif" }}/>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button type="button" onClick={onClose} className="btn btn-outline" style={{ padding: "10px 16px" }}>Cancel</button>
-              <button type="submit" disabled={!valid} className="btn btn-primary" style={{ padding: "10px 18px", opacity: valid ? 1 : 0.5, cursor: valid ? "pointer" : "not-allowed" }}>Send to IT →</button>
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
+              <button type="button" onClick={onClose} className="btn btn-outline" style={{ padding: "12px 16px" }}>Cancel</button>
+              <button type="submit" disabled={!valid} className="btn btn-primary" style={{ padding: "12px 20px", opacity: valid ? 1 : 0.5, cursor: valid ? "pointer" : "not-allowed" }}>Send to IT →</button>
             </div>
           </form>
         ) : (
@@ -12767,10 +12774,10 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
             <h2 style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 24, fontWeight: 400, margin: "0 0 8px", color: "#211E1E" }}>
               Thanks — we'll get on it.
             </h2>
-            <p style={{ fontSize: 14, color: "#4A3F2E", margin: "0 0 22px" }}>
+            <p style={{ fontSize: 14, color: "#4A3F2E", margin: "0 0 24px" }}>
               You'll hear back when the guide is published (usually within a week).
             </p>
-            <button onClick={onClose} className="btn btn-primary" style={{ padding: "10px 18px" }}>Close</button>
+            <button onClick={onClose} className="btn btn-primary" style={{ padding: "12px 20px" }}>Close</button>
           </div>
         )}
       </div>
@@ -12781,7 +12788,7 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
 
 const inputStyle = {
   width: "100%", boxSizing: "border-box",
-  padding: "10px 14px",
+  padding: "12px 16px",
   fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 500,
   color: "#211E1E",
   background: "#FFFFFF",
@@ -13551,7 +13558,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
         background: "rgba(33,30,30,0.45)", backdropFilter: "blur(6px)",
         animation: "ssIn .25s var(--ease) both",
         display: "flex", alignItems: "flex-start", justifyContent: "center",
-        padding: "60px 24px 40px",
+        padding: "64px 24px 40px",
         overflowY: "auto",
       }}
     >
@@ -13588,7 +13595,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
       >
         {/* Header */}
         <div style={{
-          padding: "20px 28px",
+          padding: "20px 32px",
           borderBottom: "1px solid #211E1E",
           background: "#F4F0E8",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
@@ -13630,7 +13637,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           }}>×</button>
         </div>
 
-        <div style={{ padding: "26px 28px 28px" }}>
+        <div style={{ padding: "24px 32px 32px" }}>
           {phase === "empty" && (
             <>
               {/* Drop zone */}
@@ -13670,7 +13677,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeFile(); }}
                       style={{
                         position: "absolute", top: 10, right: 10,
-                        padding: "6px 10px",
+                        padding: "8px 12px",
                         background: "#FFFFFF",
                         border: "1px solid #211E1E", borderRadius: 4,
                         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -13702,7 +13709,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                       color: dragOver ? "#FFFFFF" : "#211E1E",
                       border: "1px solid #211E1E",
                       display: "grid", placeItems: "center",
-                      margin: "0 auto 14px",
+                      margin: "0 auto 16px",
                       fontFamily: "Archivo, sans-serif",
                       fontSize: 32, fontWeight: 900,
                       transition: "background .2s, color .2s",
@@ -13710,7 +13717,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                     <div style={{
                       fontFamily: "Archivo, sans-serif",
                       fontSize: 16, fontWeight: 800, color: "#211E1E",
-                      marginBottom: 6, letterSpacing: "-0.012em",
+                      marginBottom: 8, letterSpacing: "-0.012em",
                     }}>
                       {dragOver ? "Drop it!" : "Drag a screenshot here"}
                     </div>
@@ -13732,13 +13739,13 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               </label>
 
               {/* Optional note */}
-              <div style={{ marginTop: 18 }}>
+              <div style={{ marginTop: 20 }}>
                 <label style={{
                   display: "block",
                   fontFamily: "var(--font-mono)",
                   fontSize: 11, fontWeight: 600,
                   letterSpacing: "0.06em", textTransform: "uppercase",
-                  color: "#4A3F2E", marginBottom: 6,
+                  color: "#4A3F2E", marginBottom: 8,
                 }}>
                   Optional note <span style={{ fontWeight: 600, color: "#78684C" }}>· what's going wrong?</span>
                 </label>
@@ -13752,7 +13759,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                     background: "#FFFFFF",
                     border: "1px solid #211E1E",
                     borderRadius: 8,
-                    padding: "10px 12px",
+                    padding: "12px 12px",
                     fontFamily: "inherit",
                     fontSize: 14,
                     color: "#211E1E",
@@ -13764,7 +13771,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
 
               {/* Privacy note + CTA */}
               <div style={{
-                marginTop: 18,
+                marginTop: 20,
                 display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
                 flexWrap: "wrap",
               }}>
@@ -13776,7 +13783,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                   disabled={!file}
                   className="ss-action-btn"
                   style={{
-                    padding: "12px 22px",
+                    padding: "12px 24px",
                     background: file ? "#211E1E" : "#E0DCCF",
                     color: file ? "#FFFFFF" : "#78684C",
                     border: `2px solid ${file ? "#211E1E" : "#C9C2B0"}`,
@@ -13825,8 +13832,8 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               phase so they can retry or remove the file. */}
           {error && phase === "empty" && (
             <div style={{
-              marginTop: 14,
-              padding: "10px 14px",
+              marginTop: 16,
+              padding: "12px 16px",
               background: "#FFE8E5",
               border: "1px solid #DA3327",
               borderRadius: 8,
@@ -13837,7 +13844,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               {/* Don't strand them: the screenshot is still the most useful
                   thing they can send, so offer to send it as-is. */}
               {file && (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
                   <button type="button" className="ask-btn is-primary" style={{ minHeight: 34 }}
                     onClick={() => { onFileTicket?.({ file, note }); onClose(); }}>
                     Send it to IT anyway
@@ -13855,7 +13862,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
 
 const kbd = {
   display: "inline-block",
-  padding: "1px 5px",
+  padding: "1px 4px",
   fontFamily: "ui-monospace, SF Mono, Menlo, monospace",
   fontSize: 11,
   background: "#FFFFFF",
@@ -13885,7 +13892,7 @@ function AnalyzingView({ file, progress }) {
         border: "1px solid #211E1E",
         borderRadius: 12,
         overflow: "hidden",
-        marginBottom: 18,
+        marginBottom: 20,
       }}>
         <img
           src={file?.dataUrl}
@@ -13942,7 +13949,7 @@ function AnalyzingView({ file, progress }) {
         fontFamily: "Archivo, sans-serif",
         fontSize: 14, fontWeight: 700,
         color: "#211E1E",
-        display: "flex", alignItems: "center", gap: 10,
+        display: "flex", alignItems: "center", gap: 12,
       }}>
         <span style={{
           width: 8, height: 8, borderRadius: "50%",
@@ -13984,7 +13991,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
         <div>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "3px 10px",
+            padding: "3px 12px",
             background: isHardware ? "#211E1E" : confColor,
             color: "#FFFFFF",
             border: `1.5px solid ${isHardware ? "#211E1E" : confColor}`,
@@ -14023,16 +14030,16 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           border: "1px solid #DA3327",
           borderRadius: 10,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-          padding: "16px 18px",
-          marginBottom: 18,
+          padding: "16px 20px",
+          marginBottom: 20,
         }}>
           <div style={{
             fontFamily: "var(--font-mono)",
             fontSize: 11, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
-            color: "#7A1A14", marginBottom: 6,
+            color: "#7A1A14", marginBottom: 8,
           }}>Hardware repair — IT Team only</div>
-          <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.55, marginBottom: 6 }}>
+          <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.55, marginBottom: 8 }}>
             This looks like physical damage or a hardware failure. Don't try to fix it yourself —
             stop using the device if it's unsafe (battery swelling, smoke, liquid damage), back up
             anything you can still reach, and file a ticket so the <strong>IT Team</strong> can
@@ -14054,8 +14061,8 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
               background: "#FFFFFF",
               border: "1px solid #211E1E",
               borderRadius: 8,
-              padding: "14px 18px",
-              marginBottom: 18,
+              padding: "16px 20px",
+              marginBottom: 20,
             }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
@@ -14071,14 +14078,14 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
 
           {/* Suggested guides — up to 3, real KB rows. Click opens the guide. */}
           {suggestions.length > 0 && (
-            <div style={{ marginBottom: 18 }}>
+            <div style={{ marginBottom: 20 }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
                 fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
-                color: "#4A3F2E", marginBottom: 10,
+                color: "#4A3F2E", marginBottom: 12,
               }}>{suggestions.length === 1 ? "Recommended guide" : "Recommended guides"}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {suggestions.map((g, i) => (
                   <div
                     key={g.id ?? i}
@@ -14091,7 +14098,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                       padding: "12px 16px",
                       cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: 14,
+                      display: "flex", alignItems: "center", gap: 16,
                     }}
                   >
                     <div style={{
@@ -14123,12 +14130,12 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
 
           {/* What to try */}
           {steps.length > 0 && (
-            <div style={{ marginBottom: 22 }}>
+            <div style={{ marginBottom: 24 }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
                 fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
-                color: "#4A3F2E", marginBottom: 10,
+                color: "#4A3F2E", marginBottom: 12,
               }}>Try this in order</div>
               <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
                 {steps.map((s, i) => (
@@ -14160,13 +14167,13 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
 
       {/* Footer actions */}
       <div style={{
-        display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap",
-        paddingTop: 18, borderTop: "1px dashed rgba(33,30,30,0.2)",
+        display: "flex", gap: 12, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap",
+        paddingTop: 20, borderTop: "1px dashed rgba(33,30,30,0.2)",
       }}>
         <button
           onClick={onRetry}
           style={{
-            padding: "10px 16px",
+            padding: "12px 16px",
             background: "transparent",
             border: "1px solid #211E1E", borderRadius: 4,
             fontFamily: "var(--font-mono)",
@@ -14177,12 +14184,12 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
         >
           ↺ Try a different screenshot
         </button>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <button
             onClick={onFileTicket}
             className="ss-action-btn"
             style={{
-              padding: "11px 18px",
+              padding: "12px 20px",
               background: isHardware ? "#211E1E" : "#FFFFFF",
               color: isHardware ? "#FFFFFF" : "#211E1E",
               border: "1px solid #211E1E", borderRadius: 4,
@@ -14200,7 +14207,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
               onClick={onOpenGuide}
               className="ss-action-btn"
               style={{
-                padding: "11px 18px",
+                padding: "12px 20px",
                 background: "#211E1E",
                 color: "#FFFFFF",
                 border: "1px solid #211E1E", borderRadius: 4,
@@ -14209,7 +14216,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                 fontWeight: 600, fontSize: 13,
                 letterSpacing: "0.04em", textTransform: "uppercase",
                 cursor: "pointer",
-                display: "inline-flex", alignItems: "center", gap: 6,
+                display: "inline-flex", alignItems: "center", gap: 8,
               }}
             >
               Walk me through the fix →
@@ -14233,8 +14240,8 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
       className="ss-action-btn"
       style={{
         width: "100%",
-        display: "flex", alignItems: "center", gap: 14,
-        padding: "14px 18px",
+        display: "flex", alignItems: "center", gap: 16,
+        padding: "16px 20px",
         background: "#FFFFFF",
         border: "1px dashed #211E1E",
         borderRadius: 12,
@@ -14271,7 +14278,7 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
         fontSize: 11, fontWeight: 600,
         letterSpacing: "0.06em", textTransform: "uppercase",
         color: "#4A3F2E",
-        display: "inline-flex", alignItems: "center", gap: 6,
+        display: "inline-flex", alignItems: "center", gap: 8,
         flexShrink: 0,
       }}>
         Open <span style={{ fontSize: 14 }}>→</span>
@@ -14343,7 +14350,7 @@ function renderMarkdown(md, opts = {}) {
             flush();
             const alt = text.slice(j + 2, close);
             const src = text.slice(close + 2, urlEnd);
-            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: 'calc(100% - 20px)', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 10, margin: '14px 0 14px 20px', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
+            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: 'calc(100% - 20px)', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 10, margin: '16px 0 16px 20px', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
             j = urlEnd + 1; continue;
           }
         }
@@ -14383,7 +14390,7 @@ function renderMarkdown(md, opts = {}) {
         const end = text.indexOf('`', j + 1);
         if (end !== -1) {
           flush();
-          nodes.push(<code key={key++} style={{ background: '#F7F4EF', padding: '1px 6px', borderRadius: 4, fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace', fontSize: '0.92em' }}>{text.slice(j + 1, end)}</code>);
+          nodes.push(<code key={key++} style={{ background: '#F7F4EF', padding: '1px 8px', borderRadius: 4, fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace', fontSize: '0.92em' }}>{text.slice(j + 1, end)}</code>);
           j = end + 1; continue;
         }
       }
@@ -14442,7 +14449,7 @@ function renderMarkdown(md, opts = {}) {
           padding: '16px 20px', borderRadius: 8,
           fontSize: 13, lineHeight: 1.5,
           fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-          overflowX: 'auto', margin: '0 0 18px',
+          overflowX: 'auto', margin: '0 0 20px',
         }}>{code.join('\n')}</pre>
       );
       continue;
@@ -14483,7 +14490,7 @@ function renderMarkdown(md, opts = {}) {
       out.push(
         <blockquote key={key++} style={{
           borderLeft: '4px solid rgba(33,30,30,.18)',
-          paddingLeft: 16, margin: '0 0 18px',
+          paddingLeft: 16, margin: '0 0 20px',
           color: '#4A3F2E', fontStyle: 'italic',
         }}>{inline(quote.join(' '))}</blockquote>
       );
@@ -14493,8 +14500,8 @@ function renderMarkdown(md, opts = {}) {
     if (line.match(/^[-*]\s+/)) {
       const items = [];
       while (i < lines.length && lines[i].match(/^[-*]\s+/)) { items.push(lines[i].replace(/^[-*]\s+/, '')); i++; }
-      out.push(<ul key={key++} style={{ margin: '0 0 18px', paddingLeft: 24 }}>
-        {items.map((it, k) => <li key={k} style={{ marginBottom: 6 }}>{inline(it)}</li>)}
+      out.push(<ul key={key++} style={{ margin: '0 0 20px', paddingLeft: 24 }}>
+        {items.map((it, k) => <li key={k} style={{ marginBottom: 8 }}>{inline(it)}</li>)}
       </ul>);
       continue;
     }
@@ -14535,21 +14542,21 @@ function renderMarkdown(md, opts = {}) {
         }
       }
       const subList = (subs) => subs.length > 0 && (
-        <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+        <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
           {subs.map((sb, m) => <li key={m} style={{ marginBottom: 3 }}>{inline(sb)}</li>)}
         </ul>
       );
       if (stepStyle === 'cards') {
         // Compact card-style steps for chat answers.
-        out.push(<ol key={key++} style={{ listStyle: 'none', padding: 0, margin: '0 0 14px', display: 'block' }}>
+        out.push(<ol key={key++} style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', display: 'block' }}>
           {items.map((it, k) => (
             <li key={k} style={{
               display: 'grid',
               gridTemplateColumns: '28px 1fr',
-              gap: 10,
+              gap: 12,
               alignItems: 'start',
-              padding: '10px 14px',
-              marginBottom: 6,
+              padding: '12px 16px',
+              marginBottom: 8,
               background: '#FFFFFF',
               border: '1px solid #211E1E',
               borderRadius: 8,
@@ -14575,8 +14582,8 @@ function renderMarkdown(md, opts = {}) {
           ))}
         </ol>);
       } else {
-        out.push(<ol key={key++} start={start} style={{ margin: '0 0 18px', paddingLeft: 24 }}>
-          {items.map((it, k) => <li key={k} style={{ marginBottom: 6 }}>{inline(it.text)}{subList(it.subs)}</li>)}
+        out.push(<ol key={key++} start={start} style={{ margin: '0 0 20px', paddingLeft: 24 }}>
+          {items.map((it, k) => <li key={k} style={{ marginBottom: 8 }}>{inline(it.text)}{subList(it.subs)}</li>)}
         </ol>);
       }
       continue;
@@ -14585,7 +14592,7 @@ function renderMarkdown(md, opts = {}) {
     const para = [line];
     i++;
     while (i < lines.length && lines[i].trim() && !lines[i].match(/^(#{1,3}\s|>|[-*]\s|\d+\.\s|```)/)) { para.push(lines[i]); i++; }
-    out.push(<p key={key++} style={{ margin: '0 0 14px' }}>{inline(para.join(' '))}</p>);
+    out.push(<p key={key++} style={{ margin: '0 0 16px' }}>{inline(para.join(' '))}</p>);
   }
 
   return out;
@@ -14877,7 +14884,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     background: active ? '#211E1E' : '#FFFFFF',
     color: active ? '#FFFFFF' : '#211E1E',
     border: '1px solid #211E1E',
-    padding: '12px 22px',
+    padding: '12px 24px',
     borderRadius: 8,
     fontWeight: 800,
     fontFamily: "'Archivo', sans-serif",
@@ -14960,7 +14967,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         .guide-tool:hover .guide-tool-label,
         .guide-tool:focus-visible .guide-tool-label,
         .guide-tool[aria-expanded="true"] .guide-tool-label {
-          max-width: 96px; opacity: 1; margin-left: 7px;
+          max-width: 96px; opacity: 1; margin-left: 8px;
         }
         .guide-menu-item { transition: background .12s ease; }
         .guide-menu-item:hover, .guide-menu-item:focus-visible { background: #F4F0E8; }
@@ -15090,7 +15097,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               maxHeight: 280, overflowY: 'auto', zIndex: 120,
             }}>
               {searchHits.length === 0 ? (
-                <div style={{ padding: '9px 12px', fontSize: 13, color: '#78684C', fontWeight: 600 }}>No matching guides.</div>
+                <div style={{ padding: '8px 12px', fontSize: 13, color: '#78684C', fontWeight: 600 }}>No matching guides.</div>
               ) : searchHits.map((g) => (
                 <button key={g.id} className="guide-menu-item"
                   onClick={() => { setSearchQ(''); onOpenGuide && onOpenGuide({ id: g.id, title: g.title, category: g.category }); }}
@@ -15169,7 +15176,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                   <button key={f} className="guide-menu-item" onClick={() => exportGuide(f)}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left',
-                      padding: '9px 14px', fontSize: 13,
+                      padding: '8px 16px', fontSize: 13,
                       fontFamily: "'Archivo', sans-serif", fontWeight: 600,
                       background: 'transparent', border: 'none', cursor: 'pointer', color: '#211E1E',
                     }}>
@@ -15203,7 +15210,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           {loading && <p style={{ color: '#888', margin: 0 }}>Loading…</p>}
           {error && (
             <div>
-              <p style={{ color: '#888', fontStyle: 'italic', margin: '0 0 18px' }}>{error}</p>
+              <p style={{ color: '#888', fontStyle: 'italic', margin: '0 0 20px' }}>{error}</p>
               <button onClick={() => onFileTicket && onFileTicket({ source: 'guide', team: 'IT Team' })} style={{
                 background: '#211E1E', color: '#FFFFFF',
                 border: 'none', padding: '12px 24px',
@@ -15233,7 +15240,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             }}>
               <span style={{ fontFamily: "var(--font-head)",
                 display: 'block', fontSize: 32, fontWeight: 400, letterSpacing: "-0.01em",
-                lineHeight: 1.2, paddingBottom: 14,
+                lineHeight: 1.2, paddingBottom: 16,
                 // Kept visible while pinned: it is the only thing separating
                 // the header from the body scrolling underneath.
                 borderBottom: '1px solid #E5E7EB', color: '#211E1E',
@@ -15403,7 +15410,7 @@ function ImageLightbox({ images, index, onClose }) {
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
           maxWidth: 'calc(100vw - 40px)',
-          padding: '8px 14px',
+          padding: '8px 16px',
           background: 'rgba(0,0,0,0.55)',
           color: '#FFFFFF',
           fontFamily: "'Archivo', sans-serif",
@@ -15478,7 +15485,7 @@ function FeedbackPanel({
 
   return (
     <div className="feedback-panel" style={{
-      marginTop: 28, padding: "20px 24px",
+      marginTop: 32, padding: "20px 24px",
       background: "#FFFFFF",
       border: "1px solid #211E1E",
       borderRadius: 14,
@@ -15487,7 +15494,7 @@ function FeedbackPanel({
       <style>{`
         .fb-btn {
           display: inline-flex; align-items: center; gap: 8px;
-          padding: 10px 18px;
+          padding: 12px 20px;
           background: #FFFFFF; color: #211E1E;
           border: 1px solid #211E1E; border-radius: 8px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 2px 6px rgba(33,30,30,0.05);
@@ -15533,7 +15540,7 @@ function FeedbackPanel({
         }
 
         .fb-reason {
-          padding: 6px 12px;
+          padding: 8px 12px;
           background: #FFFFFF; color: #211E1E;
           border: 1px solid #211E1E; border-radius: 999px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
@@ -15551,7 +15558,7 @@ function FeedbackPanel({
         .fb-reason.is-on:hover { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .fb-textarea {
           width: 100%;
-          padding: 10px 12px;
+          padding: 12px 12px;
           background: #FFFFFF;
           border: 1px solid #211E1E;
           border-radius: 8px;
@@ -15564,7 +15571,7 @@ function FeedbackPanel({
         }
         .fb-textarea:focus { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 0 0 3px rgba(33,30,30,.08); }
         .fb-submit {
-          padding: 10px 22px;
+          padding: 12px 24px;
           background: #211E1E; color: #FFFFFF;
           border: 1px solid #211E1E; border-radius: 8px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.10);
@@ -15581,7 +15588,7 @@ function FeedbackPanel({
         }
         .fb-submit:active { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); transition-duration: .08s; }
         .fb-ticket {
-          padding: 10px 22px;
+          padding: 12px 24px;
           background: #211E1E; color: #FFFFFF;
           border: 1px solid #211E1E; border-radius: 8px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.16);
@@ -15606,7 +15613,7 @@ function FeedbackPanel({
         .fb-expand { animation: fbSlide .25s cubic-bezier(.22,.61,.36,1) both; }
         .fb-related {
           display: inline-flex; align-items: center;
-          padding: 8px 14px;
+          padding: 8px 16px;
           background: #F4F0E8; color: #211E1E;
           border: 1px solid #211E1E; border-radius: 999px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
@@ -15631,7 +15638,7 @@ function FeedbackPanel({
         }
       `}</style>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={{
           fontWeight: 800, fontSize: 16, fontFamily: "'Archivo', sans-serif",
           color: "#211E1E", letterSpacing: "-0.005em",
@@ -15639,7 +15646,7 @@ function FeedbackPanel({
         {state === "positive" && (
           <span style={{
             color: "#0A6B30", fontWeight: 700, fontSize: 14,
-            display: "inline-flex", alignItems: "center", gap: 6,
+            display: "inline-flex", alignItems: "center", gap: 8,
             fontFamily: "'Archivo', sans-serif",
           }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -15662,7 +15669,7 @@ function FeedbackPanel({
       </div>
 
       {state === "negative" && (
-        <div className="fb-expand" style={{ marginTop: 18, paddingTop: 18, borderTop: "1px dashed rgba(33,30,30,0.18)" }}>
+        <div className="fb-expand" style={{ marginTop: 20, paddingTop: 20, borderTop: "1px dashed rgba(33,30,30,0.18)" }}>
           {relatedGuides && relatedGuides.length > 0 && onOpenGuide && (
             <div style={{ marginBottom: 16 }}>
               <div style={{
@@ -15679,13 +15686,13 @@ function FeedbackPanel({
                     onClick={() => onOpenGuide(g)}
                   >
                     <span style={{ fontWeight: 800 }}>{g.title}</span>
-                    <span aria-hidden style={{ marginLeft: 6, opacity: 0.7 }}>→</span>
+                    <span aria-hidden style={{ marginLeft: 8, opacity: 0.7 }}>→</span>
                   </button>
                 ))}
               </div>
             </div>
           )}
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 16 }}>
             <div style={{
               fontFamily: "'Archivo', sans-serif",
               fontSize: 14, fontWeight: 800, color: "#211E1E",
@@ -15696,7 +15703,7 @@ function FeedbackPanel({
             </div>
           </div>
 
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 16 }}>
             <div style={{
               fontFamily: "var(--font-mono)",
               fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
@@ -15723,7 +15730,7 @@ function FeedbackPanel({
               placeholder="What were you trying to do? What happened instead?" rows={3} />
           </div>
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
             <button type="button" className="fb-submit" onClick={submitDetails}>Send feedback</button>
             <button type="button" className="fb-ticket"
               onClick={() => { submitDetails(); onFileTicket && onFileTicket({ reasons: [...picked], note: note.trim() }); }}>
@@ -15739,9 +15746,9 @@ function FeedbackPanel({
 
       {state === "sent" && (
         <div className="fb-expand" style={{
-          marginTop: 18, paddingTop: 18,
+          marginTop: 20, paddingTop: 20,
           borderTop: "1px dashed rgba(33,30,30,0.18)",
-          display: "flex", alignItems: "center", gap: 10,
+          display: "flex", alignItems: "center", gap: 12,
         }}>
           <div style={{
             width: 28, height: 28, borderRadius: "50%",
@@ -15879,7 +15886,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         background: '#FFFFFF',
         border: '1px solid #211E1E',
         borderRadius: 8,
-        padding: '8px 14px',
+        padding: '8px 16px',
         fontFamily: "'Archivo', sans-serif",
         fontSize: 13, fontWeight: 700,
         color: '#211E1E',
@@ -15915,8 +15922,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           <div>
             <div style={{
               background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
-              padding: '24px 28px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
-              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '24px 32px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
+              display: 'flex', alignItems: 'center', gap: 16,
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
@@ -15952,10 +15959,10 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           return (
             <div style={{
               background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 14,
-              padding: '22px 26px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 28,
+              padding: '24px 24px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
             }}>
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+                display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12,
               }}>
                 <div style={{
                   width: 26, height: 26, borderRadius: '50%',
@@ -15991,7 +15998,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                   style={{
                     marginLeft: 'auto',
                     display: 'inline-flex', alignItems: 'center', gap: 8,
-                    padding: '11px 20px',
+                    padding: '12px 20px',
                     background: '#211E1E', color: '#FFFFFF',
                     border: '1px solid #211E1E', borderRadius: 8,
                     boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', cursor: 'pointer',
@@ -16012,7 +16019,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
               fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
               textTransform: 'uppercase', color: '#4A3F2E', marginBottom: 12,
             }}>Top matching guides</div>
-            <div style={{ display: 'grid', gap: 14, marginBottom: 28 }}>
+            <div style={{ display: 'grid', gap: 16, marginBottom: 32 }}>
               {citations.map((c, i) => {
                 const Icon = categoryIconFor(c.category);
                 return (
@@ -16025,7 +16032,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                       background: '#FFFFFF',
                       border: '1px solid #211E1E',
                       borderRadius: 14,
-                      padding: '20px 22px',
+                      padding: '20px 24px',
                       boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
                       cursor: 'pointer',
                       fontFamily: "'Archivo', sans-serif",
@@ -16084,7 +16091,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         {!loading && suggestions && suggestions.length > 0 && (
           <div style={{
             background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
-            padding: '20px 22px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 28,
+            padding: '20px 24px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
           }}>
             <div style={{
               fontFamily: "var(--font-mono)",
@@ -16094,7 +16101,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
             }}>
               ✨ Did you mean…?
             </div>
-            <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 14, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 16, lineHeight: 1.5 }}>
               {citations.length === 0
                 ? "We didn't find a direct guide for that, but these might still help:"
                 : "Other guides that might be useful here:"}
@@ -16131,15 +16138,15 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         {!loading && citations.length === 0 && (!suggestions || suggestions.length === 0) && (
           <div style={{
             background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
-            padding: '24px 28px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 28,
+            padding: '24px 32px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
           }}>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>No matching guides yet.</div>
-            <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 14 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>No matching guides yet.</div>
+            <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 16 }}>
               Either the knowledge base doesn't cover this topic yet, or try rephrasing. You can also file a ticket so IT can both fix your issue and add a guide.
             </div>
             <button onClick={() => onFileTicket && onFileTicket({ source: 'search' })} style={{
               background: '#211E1E', color: '#FFFFFF',
-              border: 'none', padding: '11px 22px',
+              border: 'none', padding: '12px 24px',
               borderRadius: 8, fontWeight: 800,
               fontFamily: "'Archivo', sans-serif", fontSize: 14, cursor: 'pointer',
             }}>File a ticket</button>
