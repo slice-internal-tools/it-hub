@@ -608,8 +608,101 @@ function HelpMark() {
   );
 }
 
+// First-visit tour: hand-drawn margin notes (wide screens only) — the box
+// takes questions for every team, app access lives in its second tab, and
+// My Tickets is where requests are tracked. Shown once per person (stored
+// per user in this browser); "Got it" dismisses it early. ?tour=1 replays it.
+const TOUR_KEY = () => 'slicehelp.tour.v1:' + String((typeof window !== 'undefined' && window.PORTAL_CURRENT_ID) || 'me');
+function useFirstVisitTour() {
+  const [show, setShow] = React.useState(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('tour') === '1') return true;
+      return !window.localStorage.getItem(TOUR_KEY());
+    } catch { return false; }
+  });
+  const [closing, setClosing] = React.useState(false);
+  const markSeen = React.useCallback(() => { try { window.localStorage.setItem(TOUR_KEY(), new Date().toISOString()); } catch {} }, []);
+  // Seen once it has played through (the notes finish drawing ~3.5s in).
+  React.useEffect(() => {
+    if (!show) return undefined;
+    const t = setTimeout(markSeen, 4000);
+    return () => clearTimeout(t);
+  }, [show, markSeen]);
+  const dismiss = React.useCallback(() => {
+    markSeen(); setClosing(true);
+    setTimeout(() => { setShow(false); setClosing(false); }, 280);
+  }, [markSeen]);
+  // The "?" button replays it from the start (a new run key restarts the
+  // draw-in animations).
+  const [run, setRun] = React.useState(0);
+  const replay = React.useCallback(() => { setRun((n) => n + 1); setClosing(false); setShow(true); }, []);
+  return { show, closing, dismiss, replay, run };
+}
+
+// The note under "My Tickets" in the top bar: fixed, measured from the link.
+function TourTicketsNote({ onDone }) {
+  const [pos, setPos] = React.useState(null);
+  React.useLayoutEffect(() => {
+    const place = () => {
+      const link = [...document.querySelectorAll('.topnav-link')].find((b) => /my tickets/i.test(b.textContent || ''));
+      if (!link) { setPos(null); return; }
+      const r = link.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, left: r.left + r.width / 2 });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, []);
+  if (!pos) return null;
+  return ReactDOM.createPortal((
+    <div className="hc-note is-tickets" style={{ top: pos.top, left: pos.left }}>
+      <svg className="hc-note-arrow" viewBox="0 0 140 64" fill="none" aria-hidden="true">
+        <path className="hc-note-line" d="M132 50 C 92 54, 40 40, 10 6" pathLength="1" />
+        <path className="hc-note-head" d="M10 6 L 23 8 M10 6 L 12 19" pathLength="1" />
+      </svg>
+      <span className="hc-note-body">
+        <span className="hc-note-text" aria-hidden="true">Your tickets &amp; approvals<br />live here</span>
+        <button type="button" className="hc-note-done" onClick={onDone}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7.5" /></svg>
+          Got it
+        </button>
+      </span>
+    </div>
+  ), document.body);
+}
+
+function HcNotes({ closing, onDone }) {
+  return (
+    <div className={"hc-tour" + (closing ? " is-closing" : "")}>
+      <div className="hc-note is-left" aria-hidden="true">
+        <span className="hc-note-text">Need an app?<br />Request it here</span>
+        <svg className="hc-note-arrow" viewBox="0 0 130 64" fill="none">
+          <path className="hc-note-line" d="M4 14 C 46 6, 96 18, 120 54" pathLength="1" />
+          <path className="hc-note-head" d="M120 54 L 108 50 M120 54 L 122 41" pathLength="1" />
+        </svg>
+      </div>
+      <div className="hc-note is-right" aria-hidden="true">
+        <span className="hc-note-text">Ask about anything</span>
+        <span className="hc-note-teams">
+          {HELP_TEAMS.map((t) => {
+            const Icon = teamIcon(t.key);
+            return <span key={t.key} className="hc-note-team"><Icon size={13} stroke={2} />{t.label}</span>;
+          })}
+          <span className="hc-note-more">&amp; more</span>
+        </span>
+        <svg className="hc-note-arrow" viewBox="0 0 120 70" fill="none">
+          <path className="hc-note-line" d="M104 6 C 96 40, 60 62, 12 52" pathLength="1" />
+          <path className="hc-note-head" d="M12 52 L 24 46 M12 52 L 23 60" pathLength="1" />
+        </svg>
+      </div>
+      <TourTicketsNote onDone={onDone} />
+    </div>
+  );
+}
+
 function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets, onOpenTicketNumber, onRequestItem, onBrowseCatalog, onCustomRequest, onRequest }) {
   const [q, setQ] = useState("");
+  const tour = useFirstVisitTour();
   // Apps shown in the "Request app access" stack. Session-cached and shared
   // with the ticket list's icon lookup — one /api/catalog fetch between them.
   const { preview: ctaIcons, total: ctaTotal } = useCatalogStackItems();
@@ -883,6 +976,10 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           mode of the box itself is what makes it impossible to miss without
           shouting. */}
       <div className="hc-wrap" style={{ animation: "fadeUp .7s .15s var(--ease) both" }}>
+        {tour.show && <HcNotes key={tour.run} closing={tour.closing} onDone={tour.dismiss} />}
+        {!tour.show && ReactDOM.createPortal(
+          <button type="button" className="tour-help" onClick={tour.replay} aria-label="Show me around" data-tip="Show me around">?</button>,
+          document.body)}
         <div
           className={"hc-shell" + (mode === "access" ? " is-access" : "")}
           onDragOver={(e) => { if (mode !== "ask") return; e.preventDefault(); if (!dragOver) setDragOver(true); }}
@@ -1213,13 +1310,13 @@ const QuickAccess = [
 // picked (so people see it's coming) but never submits: its requests would
 // otherwise land in the IT queue, and HR/Finance matters are private.
 const HELP_TEAMS = [
-  { key: "it",      label: "IT",      prefix: "IT",  icon: "laptop", blurb: "Devices, accounts & access", live: true,
+  { key: "it",      label: "IT",      prefix: "IT",  icon: "laptop", blurb: "Devices, apps & access", live: true,
     subject: "e.g. Access to Figma", details: "Why you need it, and by when…",
     issue: "e.g. Zoom won’t open after the latest update" },
   { key: "hr",      label: "HR",      prefix: "HR",  icon: "people", blurb: "Time off, pay & benefits", live: false,
     subject: "e.g. Employment verification letter", details: "What you need, and by when…",
     issue: "e.g. My payslip is missing overtime" },
-  { key: "finance", label: "Finance", prefix: "FIN", icon: "card",   blurb: "Expenses, cards & invoices", live: false,
+  { key: "finance", label: "Finance", prefix: "FIN", icon: "card",   blurb: "Expenses & invoices", live: false,
     subject: "e.g. Raise my card limit", details: "Amount, cost centre, and by when…",
     issue: "e.g. My expense report was rejected" },
 ];
@@ -1710,7 +1807,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
     return (
       <div style={{
         padding: "24px 26px",
-        background: "#FFFDF4",
+        background: "#FFFFFF",
         border: "1px solid #211E1E",
         borderRadius: 14,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -2301,7 +2398,7 @@ function QuestionFlow({ query, onBack, onDone }) {
                 if(!canContinue()) return;
                 e.currentTarget.style.transform="translate(0, 0)";
                 e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-                e.currentTarget.style.background="#FFD757";
+                e.currentTarget.style.background="#2E2A28";
                 const arr = e.currentTarget.querySelector("[data-arrow]");
                 if (arr) arr.style.transform = "translateX(3px)";
               }}
@@ -2565,7 +2662,7 @@ function RelatedRow({ ticket, index }) {
   const statusColor = ticket.status === "Resolved" || ticket.status === "Approved" || ticket.status === "Shipped" ? "#0A8A3E" :
     ticket.status === "Investigating" ? "#B8860B" : "#4A3F2E";
   const statusBg = ticket.status === "Resolved" || ticket.status === "Approved" || ticket.status === "Shipped" ? "#E8F5EC" :
-    ticket.status === "Investigating" ? "#FFF3C4" : "#F4EFE2";
+    ticket.status === "Investigating" ? "#F4F0E8" : "#F4EFE2";
   return (
     <div style={{
       padding: "12px 14px",
@@ -3489,6 +3586,7 @@ function App() {
         asPage
         initialItemId={catalogReq && catalogReq.itemId}
         initialCustom={catalogReq && catalogReq.custom != null ? catalogReq.custom : null}
+        initialTeam={catalogReq && catalogReq.team}
         initialQuery={catalogReq && catalogReq.query}
         // Back (and Cancel) land on My Tickets — where requests live — rather
         // than wherever the catalog was opened from.
@@ -4490,12 +4588,12 @@ function Footer() {
   const PALETTE = [
     { bg: "#FFFFFF", heart: "#DA3327", spark: "#DA3327" }, // default Slice yellow heart
     { bg: "#F4F0E8", heart: "#DA3327", spark: "#211E1E" }, // mustard pop
-    { bg: "#FFE5A8", heart: "#B92323", spark: "#B92323" }, // cream + cherry
+    { bg: "#F4F0E8", heart: "#B92323", spark: "#B92323" }, // cream + cherry
     { bg: "#C7E8B8", heart: "#0A8A3E", spark: "#0A8A3E" }, // mint + leaf
     { bg: "#BFE0F5", heart: "#1E5FB2", spark: "#1E5FB2" }, // sky + ink
     { bg: "#F4C5DC", heart: "#9B2D6B", spark: "#9B2D6B" }, // bubblegum
     { bg: "#E0CFF5", heart: "#5B2A9B", spark: "#5B2A9B" }, // grape
-    { bg: "#FFB89A", heart: "#B94A0F", spark: "#B94A0F" }, // peach + rust
+    { bg: "#F4F0E8", heart: "#B94A0F", spark: "#B94A0F" }, // peach + rust
   ];
   // Only cycle once they're hammering the button — otherwise stay on default.
   const styleIdx = streak >= 3 ? (streak - 2) % PALETTE.length : 0;
@@ -4985,8 +5083,8 @@ function NotificationsPage({ onBack, onOpenTickets }) {
           border-bottom:1.5px solid #E7E1D4; cursor:pointer; text-align:left; font-family:inherit; color:inherit; position:relative;
           transition:background .14s ease; }
         .np-row:last-child { border-bottom:0; }
-        .np-row:hover { background:#FBF6E9; }
-        .np-row.is-unread { background:#FFF8DC; }
+        .np-row:hover { background:#F4F0E8; }
+        .np-row.is-unread { background:#F4F0E8; }
         .np-row.is-unread:hover { background:#F4F0E8; }
         .np-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
         .np-row .notif-kind { width:40px; height:40px; border-radius:10px; }
@@ -4996,7 +5094,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         .np-body { font-size:13px; color:#4A4233; line-height:1.5; margin-top:6px; }
         .np-body.is-quote { font-style:italic; padding-left:10px; border-left:3px solid #E7E1D4; }
         .np-tag { display:inline-block; margin-top:8px; font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:.06em;
-          text-transform:uppercase; color:#4A3F2E; padding:2px 7px; background:#FFF9E6; border:1px solid #211E1E; border-radius:3px; }
+          text-transform:uppercase; color:#4A3F2E; padding:2px 7px; background:#F4F0E8; border:1px solid #211E1E; border-radius:3px; }
         .np-when { font-size:11px; color:#8A7A4E; font-weight:600; font-family:'Archivo',sans-serif; flex-shrink:0; white-space:nowrap; }
         .np-x { flex-shrink:0; width:26px; height:26px; background:transparent; border:1px solid transparent; border-radius:999px;
           display:grid; place-items:center; cursor:pointer; color:#78684C; }
@@ -6084,7 +6182,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
 
 // Shared tokens so every ticket surface looks the same.
 const TK = {
-  ink: '#211E1E', cheese: '#FDC831', cream: '#FFFDF4', muted: '#78684C', red: '#B92323',
+  ink: '#211E1E', cheese: '#FDC831', cream: '#FFFFFF', muted: '#78684C', red: '#B92323',
   field: { width: '100%', padding: '10px 12px', border: '1px solid #211E1E', borderRadius: 7, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
   label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#55503F', marginBottom: 6, marginTop: 14 },
   card: { background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' },
@@ -6521,7 +6619,7 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend 
 // A stable, readable avatar colour per person, so a long thread shows at a
 // glance who said what (and two IT people never look like one).
 const CONVO_TINTS = [
-  ['#DCE8FA', '#1C4E8C'], ['#DDF1E4', '#0A6E31'], ['#EEE7FB', '#5B3CB0'], ['#FFE9D2', '#9A4A00'],
+  ['#DCE8FA', '#1C4E8C'], ['#DDF1E4', '#0A6E31'], ['#EEE7FB', '#5B3CB0'], ['#F4F0E8', '#9A4A00'],
   ['#E2F4F1', '#0F766E'], ['#FBE4EC', '#9D2B55'], ['#EAEDF1', '#3E4C5E'],
 ];
 function convoTint(name) {
@@ -6888,7 +6986,7 @@ function matchCatalogItem(catalog, text) {
 
 const STATUS_TINT = {
   open: '#ECE7DD', new: '#ECE7DD', in_progress: '#E6EEF9',
-  pending: '#FDEFD9', waiting: '#FDEFD9', on_hold: '#FDEFD9',
+  pending: '#F4F0E8', waiting: '#F4F0E8', on_hold: '#F4F0E8',
   resolved: '#DFF1E5', approved: '#DFF1E5', closed: '#F1ECE2', cancelled: '#F1ECE2', rejected: '#FBE3E0',
 };
 const STATUS_DOT = {
@@ -6905,7 +7003,7 @@ function TicketStatusBadge({ status, small, label, type }) {
   // so a list of tickets reads calm and the dot carries the meaning.
   const s = String(status || '').toLowerCase();
   const dot = isReqPending ? '#E08A1E' : (STATUS_DOT[s] || '#9A8E78');
-  const tint = isReqPending ? '#FDEFD9' : (STATUS_TINT[s] || '#F1ECE2');
+  const tint = isReqPending ? '#F4F0E8' : (STATUS_TINT[s] || '#F1ECE2');
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 7,
@@ -7108,7 +7206,7 @@ const ISSUE_TOPICS = [
   { key: 'network',  label: 'Wi-Fi',           re: /wi-?fi|wireless|internet|network|ethernet|router|no connection|offline|dns\b/, Glyph: IconWifi, bg: '#E2F4F1', fg: '#0F766E' },
   { key: 'email',    label: 'Email',           re: /outlook|e-?mail|\bmail\b|inbox|gmail|calendar|invite/, Glyph: IconMail, bg: '#E6F0FA', fg: '#1D5F99' },
   { key: 'slack',    label: 'Slack',           re: /\bslack\b|huddle/, Glyph: IconSlack, bg: '#F3E6F1', fg: '#6B2367' },
-  { key: 'audio',    label: 'Audio & video',   re: /headset|headphone|\bmic\b|microphone|audio|sound|speaker|jabra|webcam|camera|\bccp\b|zoom call/, Glyph: IconHeadset, bg: '#FFF1DB', fg: '#A15C07' },
+  { key: 'audio',    label: 'Audio & video',   re: /headset|headphone|\bmic\b|microphone|audio|sound|speaker|jabra|webcam|camera|\bccp\b|zoom call/, Glyph: IconHeadset, bg: '#F4F0E8', fg: '#A15C07' },
   { key: 'display',  label: 'Display',         re: /monitor|display|screen|\bdock\b|docking|hdmi|usb-?c|flicker|projector/, Glyph: IconMonitor, bg: '#EAEDF1', fg: '#3E4C5E' },
   { key: 'printer',  label: 'Printer',         re: /printer|print|scanner|scan\b|toner/, Glyph: IconPrinter, bg: '#EDEAE4', fg: '#55503F' },
   { key: 'phone',    label: 'Phone',           re: /iphone|android|mobile|phone|\bipad\b|tablet/, Glyph: IconPhone, bg: '#E8F1E6', fg: '#2F6B2A' },
@@ -7181,7 +7279,7 @@ function ApprovalPill({ state }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 12px 5px 10px',
-      background: { pending: '#FDEFD9', approved: '#DFF1E5', rejected: '#FBE3E0' }[String(state || '').toLowerCase()] || '#F1ECE2',
+      background: { pending: '#F4F0E8', approved: '#DFF1E5', rejected: '#FBE3E0' }[String(state || '').toLowerCase()] || '#F1ECE2',
       color: '#211E1E', border: 'none', borderRadius: 999,
       fontSize: 12.5, fontWeight: 600, fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
       whiteSpace: 'nowrap', lineHeight: 1.2,
@@ -8292,7 +8390,7 @@ function ApprovalSummary({ approval, ticket }) {
   return (
     <div>
       {status === 'pending' && stages.length > 1 && (
-        <div style={{ padding: '9px 14px', fontSize: 11.5, fontWeight: 700, color: '#78684C', background: '#FBF8F0', borderBottom: '1px solid #F0EBE0' }}>
+        <div style={{ padding: '9px 14px', fontSize: 11.5, fontWeight: 700, color: '#78684C', background: '#F4F0E8', borderBottom: '1px solid #F0EBE0' }}>
           {done} of {stages.length} approvals done
         </div>
       )}
@@ -8302,7 +8400,7 @@ function ApprovalSummary({ approval, ticket }) {
         const isCur = key === 'pending';
         const line = approverLine(s, actions, currentApprovers, isCur);
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: i ? '1px solid #F0EBE0' : 'none', background: isCur ? '#FFFBEB' : 'transparent' }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: i ? '1px solid #F0EBE0' : 'none', background: isCur ? '#F4F0E8' : 'transparent' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: meta.dot, border: '1px solid #211E1E', flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name || `Step ${i + 1}`}</span>
@@ -8340,7 +8438,7 @@ function approvalStageStates(approval, ticket) {
 
 const APPROVAL_STEP_ICON = {
   approved: { bg: '#0A8A3E', fg: '#FFFFFF', path: <path d="m6 12.5 4 4 8-9" /> },
-  pending:  { bg: '#FDEFD9', fg: '#211E1E', path: <><circle cx="12" cy="12" r="7.5" /><path d="M12 8v4.2l2.6 1.6" /></> },
+  pending:  { bg: '#F4F0E8', fg: '#211E1E', path: <><circle cx="12" cy="12" r="7.5" /><path d="M12 8v4.2l2.6 1.6" /></> },
   waiting:  { bg: '#FFFFFF', fg: '#8A8275', path: <path d="M8 12h8" /> },
   rejected: { bg: '#B92323', fg: '#FFFFFF', path: <path d="m8 8 8 8M16 8l-8 8" /> },
   skipped:  { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
@@ -8388,7 +8486,7 @@ function ApprovalsButton({ approval, ticket }) {
         .appr-btn:hover { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .appr-btn:active { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .appr-btn:focus-visible { outline:3px solid rgba(33,30,30,.35); outline-offset:2px; }
-        .appr-btn.is-pending { background:#FFFBEB; }
+        .appr-btn.is-pending { background:#F4F0E8; }
         .appr-btn.is-approved { background:#EEF8F1; }
         .appr-btn.is-declined { background:#FDEEEC; }
         .appr-steps { display:flex; align-items:center; }
@@ -8438,9 +8536,9 @@ function ApprovalsButton({ approval, ticket }) {
 // state so "resolved" and "waiting on you" read differently at a glance.
 const TICKET_HERO = {
   open:      { label: 'Open',              line: 'Received — the IT Team will pick it up shortly.',                       bg: '#ECE7DD', dot: '#211E1E' },
-  approval:  { label: 'Waiting for approval', line: 'Your request is with the approver. IT starts as soon as it’s signed off.', bg: '#FDEFD9', dot: '#E08A1E' },
+  approval:  { label: 'Waiting for approval', line: 'Your request is with the approver. IT starts as soon as it’s signed off.', bg: '#F4F0E8', dot: '#E08A1E' },
   progress:  { label: 'In progress',       line: 'The IT Team is working on this.',                                        bg: '#E6EEF9', dot: '#2563B0' },
-  waiting:   { label: 'Waiting on you',    line: 'IT needs something from you — check the conversation below and reply.',  bg: '#FDEFD9', dot: '#E08A1E' },
+  waiting:   { label: 'Waiting on you',    line: 'IT needs something from you — check the conversation below and reply.',  bg: '#F4F0E8', dot: '#E08A1E' },
   hold:      { label: 'On hold',           line: 'Paused for now. The IT Team will update you when it moves again.',       bg: '#F3EFE7', dot: '#E08A1E' },
   resolved:  { label: 'Resolved',          line: 'IT marked this as fixed. Close it if you’re sorted, or reply to reopen.', bg: '#DFF1E5', dot: '#0A8A3E' },
   closed:    { label: 'Closed',            line: 'All done. Reply any time if the problem comes back — it reopens.',       bg: '#F1ECE2', dot: '#9A8E78' },
@@ -9100,7 +9198,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
           padding: 24, gap: 12, cursor: 'zoom-out',
         }}>
           <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: 'min(92vw, 1100px)', cursor: 'default' }}>
-            <span style={{ color: '#FFFDF4', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Archivo', sans-serif" }}>{lightbox.name}</span>
+            <span style={{ color: '#FFFFFF', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Archivo', sans-serif" }}>{lightbox.name}</span>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               {/* Browsers refuse to open a data: URL in a new tab (inline reply images arrive as data URIs). */}
               {!/^data:/i.test(lightbox.url) && (
@@ -9270,7 +9368,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                       placeholder={`Reply to the ${teamDisplayName(ticketTeamKey(t))}…`} />
 
                     {reopenOnReply && confirmReopen ? (
-                      <div style={{ borderTop: '1px solid #F0EADC', background: '#FFF7DD', padding: '11px 14px' }}>
+                      <div style={{ borderTop: '1px solid #F0EADC', background: '#F4F0E8', padding: '11px 14px' }}>
                         <div style={{ fontSize: 13.5, color: '#211E1E', fontWeight: 600, marginBottom: 10, lineHeight: 1.45 }}>
                           This ticket is <b>{String(t.status).toLowerCase()}</b>. Sending this reply will <b>reopen</b> it — continue?
                         </div>
@@ -9585,13 +9683,13 @@ function ApprovalDetailView({ id, onBack, onActed }) {
 // Falls back to a freeform service_request when the catalog is empty/unreachable.
 // initialCustom: open straight on the custom-request form (a string prefills
 // the subject) — the Help box's "Not in the list?" lands here.
-function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initialQuery = '', initialCustom = null, asPage = false }) {
+function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initialQuery = '', initialCustom = null, initialTeam = null, asPage = false }) {
   // Render as a full page (PageShell) or a modal (ModalShell) — same prop API,
   // so the views below don't care which chrome wraps them.
   const Shell = asPage ? PageShell : ModalShell;
   const [view, setView] = React.useState(initialCustom != null ? 'freeform' : 'list'); // list | form | done | freeform
   // Custom requests pick a team first (see HELP_TEAMS). Catalog items are IT's.
-  const [team, setTeam] = React.useState('it');
+  const [team, setTeam] = React.useState(() => (initialTeam && HELP_TEAMS.some((t) => t.key === initialTeam) ? initialTeam : 'it'));
   const [catalog, setCatalog] = React.useState(null); // null = loading
   const [catErr, setCatErr] = React.useState(''); // catalog failed to load
   const [item, setItem] = React.useState(null);
@@ -11301,7 +11399,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                     // Nobody resolved. On a changeable stage this is the whole
                     // reason the feature exists, so lead with the action instead
                     // of hiding it behind a link.
-                    <div style={{ border: '1px dashed #C9A227', borderRadius: 10, background: '#FFFBEB', padding: 12 }}>
+                    <div style={{ border: '1px dashed #C9A227', borderRadius: 10, background: '#F4F0E8', padding: 12 }}>
                       <p style={{ fontSize: 13, color: '#7A5A00', margin: 0, lineHeight: 1.45, fontWeight: 700 }}>
                         {changeable
                           ? (forSelfOnly ? 'We don’t have a manager on file for you.' : 'We don’t have a manager on file for ' + peopleList(forWhom) + '.')
@@ -11331,8 +11429,8 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                         className={'ap-row' + (a.chosen ? ' is-chosen' : '')}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 11,
-                          border: '1px solid ' + (a.chosen ? '#211E1E' : (a.account_disabled ? '#E39C9C' : (a.unavailable ? '#E4C868' : '#E6DFCF'))),
-                          background: a.chosen ? '#FFFDF4' : (a.account_disabled ? '#FFFFFF' : (a.unavailable ? '#FFFBEB' : '#FFFFFF')),
+                          border: '1px solid ' + (a.chosen ? '#211E1E' : (a.account_disabled ? '#E39C9C' : (a.unavailable ? '#E2DCD0' : '#E6DFCF'))),
+                          background: a.chosen ? '#FFFFFF' : (a.account_disabled ? '#FFFFFF' : (a.unavailable ? '#F4F0E8' : '#FFFFFF')),
                           borderRadius: 10, padding: '10px 11px',
                         }}
                       >
@@ -12498,7 +12596,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
               cursor: "pointer",
               transition: "background .12s",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#FFFDF5"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#FFFFFF"; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
               <CategoryDot category={r.category} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -12701,7 +12799,7 @@ const SOURCE_LABELS = {
   manual:     { label: "Manual",        tone: "#4A3F2E", bg: "#F7F4EF" },
   probe:      { label: "Health probe",  tone: "#0A8A3E", bg: "#E8F5EC" },
   statuspage: { label: "Vendor status", tone: "#1E5FB2", bg: "#E5EFFA" },
-  rss:        { label: "Incident feed", tone: "#8A5A14", bg: "#FBF1DD" },
+  rss:        { label: "Incident feed", tone: "#8A5A14", bg: "#F4F0E8" },
   page:       { label: "Page scan",     tone: "#4A3F2E", bg: "#F7F4EF" },
   webhook:    { label: "Live webhook",  tone: "#6D3FB0", bg: "#F0E8FA" },
 };
@@ -14293,7 +14391,7 @@ function renderMarkdown(md, opts = {}) {
           flush();
           const inner = text.slice(j + htmlMatch[0].length, closeIdx);
           if (tag === 'u') nodes.push(<u key={key++}>{inline(inner)}</u>);
-          else if (tag === 'mark') nodes.push(<mark key={key++} style={{ background: '#FEF3C7', padding: '0 2px', borderRadius: 2 }}>{inline(inner)}</mark>);
+          else if (tag === 'mark') nodes.push(<mark key={key++} style={{ background: '#F4F0E8', padding: '0 2px', borderRadius: 2 }}>{inline(inner)}</mark>);
           else if (tag === 's') nodes.push(<s key={key++} style={{ color: '#888' }}>{inline(inner)}</s>);
           j = closeIdx + closeTag.length; continue;
         }
@@ -14854,7 +14952,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           max-width: 96px; opacity: 1; margin-left: 7px;
         }
         .guide-menu-item { transition: background .12s ease; }
-        .guide-menu-item:hover, .guide-menu-item:focus-visible { background: #FDF3D3; }
+        .guide-menu-item:hover, .guide-menu-item:focus-visible { background: #F4F0E8; }
         .guide-back:hover { transform: scale(1.10); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .guide-back:active { transform: scale(0.92); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .guide-back-arrow {
@@ -15393,7 +15491,7 @@ function FeedbackPanel({
            white when the user re-hovers their selection. */
         .fb-btn:not(:disabled):not(.is-yes-on):not(.is-no-on):hover {
           transform: translate(0, 0);
-          background: #FFF9E6;
+          background: #F4F0E8;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.12);
         }
         .fb-btn:not(:disabled):active {
@@ -15435,7 +15533,7 @@ function FeedbackPanel({
         }
         .fb-reason:hover {
           transform: translate(0, 0);
-          background: #FFF9E6;
+          background: #F4F0E8;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-reason.is-on { background: #211E1E; color: #FFFFFF; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
@@ -15498,7 +15596,7 @@ function FeedbackPanel({
         .fb-related {
           display: inline-flex; align-items: center;
           padding: 8px 14px;
-          background: #FFF9E6; color: #211E1E;
+          background: #F4F0E8; color: #211E1E;
           border: 1px solid #211E1E; border-radius: 999px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
@@ -15842,7 +15940,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           const hasTrailer = !!m;
           return (
             <div style={{
-              background: '#FFF9E6', border: '1px solid #211E1E', borderRadius: 14,
+              background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 14,
               padding: '22px 26px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 28,
             }}>
               <div style={{
