@@ -450,7 +450,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 const COPY = {
   concierge: {
     greeting: (ctx) => `${ctx.timeOfDay}, Maya. How can we help?`,
-    heroTitle: ["Welcome to the ", "Slice IT Hub", "."],
+    heroTitle: ["Welcome to the ", "Slice Help", "."],
     heroSub: "Tell us what's going on — we'll triage, suggest a fix, or send the right ticket in seconds.",
     placeholder: "e.g. I can't connect to Wi‑Fi in the 14th floor conference room…",
     privacy: "Everything stays private to Slice IT",
@@ -468,7 +468,7 @@ const COPY = {
   },
   precise: {
     greeting: () => "IT Service Portal",
-    heroTitle: ["", "Slice IT Hub", ""],
+    heroTitle: ["", "Slice Help", ""],
     heroSub: "Describe the issue. We'll classify it, surface fixes, and route if needed.",
     placeholder: "Describe the issue (device, app, symptom, timeframe)…",
     privacy: "Logged to Slice IT only",
@@ -486,7 +486,7 @@ const COPY = {
   },
   playful: {
     greeting: (ctx) => `${ctx.timeOfDay}, Maya ✨ What's bugging you today?`,
-    heroTitle: ["Hey — welcome to the ", "Slice IT Hub", "."],
+    heroTitle: ["Hey — welcome to the ", "Slice Help", "."],
     heroSub: "Tell us what broke. We'll figure out whether it's a quick fix or a full rescue mission.",
     placeholder: "e.g. My laptop sounds like it's trying to take off…",
     privacy: "Pinky promise — stays with IT",
@@ -571,6 +571,41 @@ function useLiveStatus(intervalMs = 30000) {
   }, []);
 
   return { services, lastCheck, error };
+}
+
+// "help?" with a hand-drawn Cheese underline. Drawn once on load like a
+// marker (pressure swell, a lighter second stroke under it, faint ink
+// texture); the word pulses as the stroke lands and the "?" settles. Pointing
+// at it redraws it, once per hover. Reduced motion: shown already drawn.
+function HelpMark() {
+  const [run, setRun] = React.useState(0);
+  const busy = React.useRef(true);
+  React.useEffect(() => { const t = setTimeout(() => { busy.current = false; }, 2300); return () => clearTimeout(t); }, []);
+  const replay = () => {
+    if (busy.current) return;
+    busy.current = true;
+    setRun((n) => n + 1);
+    setTimeout(() => { busy.current = false; }, 1700);
+  };
+  const loop = "M4 13 C 42 7, 82 17, 120 11 S 178 7, 196 12";
+  const pass2 = "M22 19 C 66 15, 126 21, 184 16";
+  return (
+    <span className={"hc-help" + (run ? " is-replay" : "")} key={run} onMouseEnter={replay}>
+      help<span className="hc-q">?</span>
+      <svg className="hc-help-loop" viewBox="0 0 200 24" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <filter id="hcInk" x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="4" result="n" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="1.6" />
+          </filter>
+        </defs>
+        <g filter="url(#hcInk)">
+          <path className="hc-loop-a" d={loop} pathLength="1" vectorEffect="non-scaling-stroke" />
+          <path className="hc-loop-b" d={pass2} pathLength="1" vectorEffect="non-scaling-stroke" />
+        </g>
+      </svg>
+    </span>
+  );
 }
 
 function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets, onOpenTicketNumber, onRequestItem, onBrowseCatalog, onCustomRequest, onRequest }) {
@@ -836,16 +871,9 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           animation: "fadeUp .7s .05s var(--ease) both",
           fontFamily: "var(--font-head)",
         }}>
-          How can{" "}
-          <span className="annotate-underline" style={{
-            fontFamily: "var(--font-head)",
-            fontWeight: 400,
-            letterSpacing: "-0.01em",
-            color: "#211E1E",
-          }}>Slice IT</span>
-          {" "}help you?
+          How can we{" "}
+          <HelpMark />
         </h1>
-        <p className="hc-sub">Ask a question, report a problem, or get access to an app.</p>
       </div>
 
       {/* The command box — one surface, two jobs. "Ask IT" is the free-text
@@ -877,7 +905,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             <button type="button" role="tab" id="hc-tab-ask" aria-controls="hc-panel" aria-selected={mode === "ask"}
               className={"hc-tab" + (mode === "ask" ? " is-on" : "")} onClick={() => switchMode("ask")}>
               <IconSpark size={15} stroke={2.2} />
-              <span>Ask IT</span>
+              <span>Ask</span>
             </button>
             <button type="button" role="tab" id="hc-tab-access" aria-controls="hc-panel" aria-selected={mode === "access"}
               className={"hc-tab" + (mode === "access" ? " is-on" : "")} onClick={() => switchMode("access")}>
@@ -913,7 +941,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                 onChange={(e) => { setQ(e.target.value); setInstantHidden(false); }}
                 onKeyDown={onHeroKeyDown}
                 role="combobox"
-                aria-label="Ask IT"
+                aria-label="Ask a question"
                 aria-expanded={showInstant}
                 aria-controls="hero-instant"
                 aria-activedescendant={showInstant ? `hero-instant-${instantActive}` : undefined}
@@ -955,7 +983,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                   {attachError && <span className="hc-error">{attachError}</span>}
                 </div>
                 <div className="hc-foot-right">
-                  <span className="hc-kbd-hint"><span className="kbd">⏎</span> {attached ? "to analyze" : "to send"}</span>
                   <button onClick={() => submit()} disabled={!attached && !q.trim()} className="hc-go">
                     {attached ? "Analyze" : "Ask"}
                     <IconArrow size={15} stroke={2.4} />
@@ -1029,31 +1056,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           <InstantPanel id="hero-instant" rows={instantRows} active={instantActive} onHover={setInstantActive} onPick={pickInstant} />
         )}
 
-        {/* Quick prompts */}
-        {mode === "ask" && (
-          <div className="hc-prompts">
-            <span className="hc-prompts-label">Popular</span>
-            {QUICK_PROMPTS.map((qp) =>
-            <Chip key={qp.label} icon={qp.icon} label={qp.label}
-            onClick={() => onPromptClick(qp)} />
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* IT Command row: Phishing + On-call roster */}
-      <div style={{
-        maxWidth: 1120, margin: "56px auto 0",
-        animation: "fadeUp .8s .3s var(--ease) both",
-      }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 16,
-        }}>
-          <PhishingCard onSubmit={submit} />
-          <OnCallCard onSubmit={submit} onOpenTickets={onOpenTickets} />
-        </div>
       </div>
 
       {/* Open tickets shortcut — renders nothing when nothing is open. */}
@@ -1062,7 +1064,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
       {/* Pinned guides — the user's own pins (shared with SliceDesk Docs). */}
       {pinnedGuides.length > 0 && (
         <div style={{
-          maxWidth: 1120, margin: "72px auto 0",
+          maxWidth: 880, margin: "40px auto 0",
           animation: "fadeUp .8s .3s var(--ease) both"
         }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
@@ -1092,56 +1094,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
         </div>
       )}
 
-      {/* Below fold: quick-access grid */}
-      <div style={{
-        maxWidth: 1120, margin: "96px auto 0",
-        animation: "fadeUp .8s .35s var(--ease) both"
-      }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", margin: 0, letterSpacing: "-0.015em" }}>
-            {t("quickKicker")}
-          </h2>
-          <a href="#" className="pill-link"
-            onClick={(e)=>{ e.preventDefault(); onOpenKnowledge && onOpenKnowledge(); }}>
-            Full knowledge base <span className="pill-link-arrow">→</span>
-          </a>
-        </div>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-          gap: 14
-        }}>
-          {QuickAccess.map((qa, i) => {
-            const Icon = window[qa.icon];
-            const onCardClick = () => {
-              if (qa.action === "guide" && qa.guideTitle) {
-                const norm = (s) => String(s || '').toLowerCase().replace(/[\u2010-\u2015]/g, '-').trim();
-                const match = dbGuides.find((g) => norm(g.title) === norm(qa.guideTitle));
-                if (match && onOpenGuide) { onOpenGuide({ id: match.id, title: match.title, category: match.category }); return; }
-              }
-              if (qa.action === "knowledge" && onOpenKnowledge) onOpenKnowledge();
-              else if (qa.action === "status" && onOpenStatus) onOpenStatus();
-              else if (qa.action === 'guide' && onOpenKnowledge) onOpenKnowledge();
-            };
-            return (
-              <Card key={qa.title} interactive onClick={onCardClick} style={{ padding: 20 }}>
-                <div className="qa-icon" style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: "oklch(97% 0.01 280)",
-                  display: "grid", placeItems: "center",
-                  color: "var(--ink-2)",
-                  marginBottom: 14
-                }}>
-                  <Icon size={18} stroke={1.75} />
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", marginBottom: 4, letterSpacing: "-0.012em" }}>{qa.title}</div>
-                <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.45 }}>{qa.body}</div>
-              </Card>);
-
-          })}
-        </div>
-      </div>
-
       {/* Browser extension — sits above System status: it's the one thing on
           the page that isn't a task, but it's what keeps people from having to
           come back here to check on a ticket. Chrome installs from the Web
@@ -1149,7 +1101,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           (public/companion/), which is also where its update manifest lives —
           Mozilla signs self-distributed add-ons but does not host them. */}
       <div style={{
-        maxWidth: 1120, margin: "72px auto 0",
+        maxWidth: 880, margin: "40px auto 0",
         animation: "fadeUp .8s .38s var(--ease) both"
       }}>
         <CompanionPromo />
@@ -1204,68 +1156,37 @@ function CompanionPromo() {
   const items = COMPANION_DOWNLOADS.map((b) => ({ ...b, key: /firefox/i.test(b.name) ? 'firefox' : 'chrome' }))
     .sort((a, b) => (a.key === rec ? -1 : b.key === rec ? 1 : 0));
   return (
-    <section className="surface companion-promo" aria-labelledby="companion-title">
+    <section className="companion-promo" aria-labelledby="companion-title">
       <style>{`
-        .companion-promo { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:28px; align-items:center; padding:26px 28px; }
-        .companion-mark { width:44px; height:44px; border-radius:12px; display:grid; place-items:center; flex:none;
-          background:#211E1E; color:#FDC831; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
-        .companion-title { margin:0; font-family:'Archivo',sans-serif; font-size:24px; font-weight:800; letter-spacing:-.025em; color:#211E1E; line-height:1.1; }
-        .companion-lede { margin:6px 0 0; font-size:13.5px; color:#5C4916; font-weight:500; line-height:1.5; }
-        .companion-perks { list-style:none; margin:16px 0 0; padding:0; display:grid; gap:8px; }
-        .companion-perks li { display:flex; align-items:flex-start; gap:9px; font-size:13px; color:#211E1E; font-weight:600; line-height:1.4; }
-        .companion-perks .tick { width:18px; height:18px; flex:none; border-radius:50%; display:grid; place-items:center;
-          background:#D4F4D4; border:1px solid #211E1E; color:#0A6E31; margin-top:1px; }
-        .companion-actions { display:grid; gap:10px; }
-        .companion-btn { display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid #211E1E; border-radius:12px;
-          background:#FFFFFF; color:#211E1E; text-decoration:none; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
-          transition:transform .18s cubic-bezier(.22,.61,.36,1), box-shadow .18s cubic-bezier(.22,.61,.36,1), background .16s ease; }
-        .companion-btn:hover { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 10px 20px rgba(33,30,30,.12); }
-        .companion-btn:active { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
-        .companion-btn:focus-visible { outline:3px solid rgba(33,30,30,.35); outline-offset:2px; }
-        .companion-btn.is-rec { background:#FDC831; }
-        .companion-btn-logo { width:40px; height:40px; border-radius:10px; flex:none; display:grid; place-items:center;
-          background:#FFFFFF; border:1px solid #211E1E; }
-        .companion-btn-logo img { transition:transform .22s cubic-bezier(.34,1.56,.64,1); }
-        .companion-btn:hover .companion-btn-logo img { transform:scale(1.1) rotate(-4deg); }
-        .companion-btn-name { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:'Archivo',sans-serif; font-size:15px; font-weight:800; letter-spacing:-.01em; }
-        .companion-btn-sub { display:block; font-size:12px; color:#5C4916; font-weight:500; margin-top:2px; }
-        .companion-btn.is-rec .companion-btn-sub { color:#3D3011; }
-        .companion-rec { padding:1px 7px; border-radius:999px; background:#211E1E; color:#FDC831; font-size:9.5px; font-weight:600;
-          letter-spacing:.06em; text-transform:uppercase; font-family:var(--font-mono);}
-        .companion-btn-go { margin-left:auto; flex:none; transition:transform .16s ease; }
-        .companion-btn:hover .companion-btn-go { transform:translateX(3px); }
-        @media (max-width: 820px) { .companion-promo { grid-template-columns:1fr; gap:20px; padding:22px 20px; } }
-        @media (prefers-reduced-motion: reduce) { .companion-btn, .companion-btn-logo img, .companion-btn-go { transition:none; } }
+        .companion-promo { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:18px 20px; background:#FFFFFF;
+          border:1px solid rgba(33,30,30,.22); border-radius:18px; }
+        .companion-mark { width:40px; height:40px; border-radius:12px; display:grid; place-items:center; flex:none; background:#211E1E; color:#FFFFFF; }
+        .companion-text { flex:1 1 260px; min-width:0; }
+        .companion-title { margin:0; font:400 19px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
+        .companion-lede { margin:3px 0 0; font-size:13px; color:#78684C; line-height:1.45; }
+        .companion-actions { display:flex; gap:8px; flex-wrap:wrap; }
+        .companion-btn { display:inline-flex; align-items:center; gap:8px; height:38px; padding:0 14px 0 10px; border:1px solid #211E1E; border-radius:999px;
+          background:#FFFFFF; color:#211E1E; text-decoration:none; font-size:13px; font-weight:600; transition:background-color .15s ease; }
+        .companion-btn:hover { background:#F4F0E8; }
+        .companion-btn.is-rec { background:#F4F0E8; }
+        .companion-btn.is-rec:hover { background:#F5BC1A; }
+        .companion-btn:focus-visible { outline:2px solid #211E1E; outline-offset:2px; }
+        .companion-btn img { display:block; }
       `}</style>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span className="companion-mark" aria-hidden="true"><IconBolt size={22} stroke={2.2} /></span>
-          <div style={{ minWidth: 0 }}>
-            <h2 id="companion-title" className="companion-title">SliceDesk in your browser</h2>
-            <p className="companion-lede">The <b>SliceDesk Companion</b> for Chrome and Firefox.</p>
-          </div>
-        </div>
-        <ul className="companion-perks">
-          {COMPANION_PERKS.map((p) => (
-            <li key={p}><span className="tick" aria-hidden="true"><IconCheck size={11} stroke={3} /></span>{p}</li>
-          ))}
-        </ul>
+      <span className="companion-mark" aria-hidden="true"><IconBolt size={20} stroke={2.2} /></span>
+      <div className="companion-text">
+        <h2 id="companion-title" className="companion-title">SliceDesk in your browser</h2>
+        <p className="companion-lede">Your tickets and approvals one click away, with an alert the moment someone replies.</p>
       </div>
       <div className="companion-actions">
         {items.map((b) => (
           <a key={b.key} href={b.href}
             target={b.external ? '_blank' : undefined}
             rel={b.external ? 'noopener noreferrer' : undefined}
+            title={b.body}
             className={'companion-btn' + (b.key === rec ? ' is-rec' : '')}>
-            <span className="companion-btn-logo"><img src={b.logo} alt="" width="26" height="26" style={{ display: 'block' }} /></span>
-            <span style={{ minWidth: 0 }}>
-              <span className="companion-btn-name">
-                {b.cta}
-                {b.key === rec && <span className="companion-rec">Your browser</span>}
-              </span>
-              <span className="companion-btn-sub">{b.body}</span>
-            </span>
-            <span className="companion-btn-go" aria-hidden="true"><IconArrow size={18} stroke={2.6} /></span>
+            <img src={b.logo} alt="" width="20" height="20" />
+            {b.cta}
           </a>
         ))}
       </div>
@@ -1285,6 +1206,84 @@ const QuickAccess = [
 { icon: "IconShield",  action: "guide", guideTitle: "Phishing email — what to do",     title: "Report phishing",           body: "Security" },
 { icon: "IconBook",    action: "knowledge",                                            title: "Browse all guides",         body: "All articles, searchable" }];
 
+
+// ---------- TEAMS ----------
+// Every team that takes requests through Slice Help. Adding a team is one row
+// here; flip `live` once it has its own queue. A team that isn't live can be
+// picked (so people see it's coming) but never submits: its requests would
+// otherwise land in the IT queue, and HR/Finance matters are private.
+const HELP_TEAMS = [
+  { key: "it",      label: "IT",      prefix: "IT",  icon: "laptop", blurb: "Devices, accounts & access", live: true,
+    subject: "e.g. Access to Figma", details: "Why you need it, and by when…",
+    issue: "e.g. Zoom won’t open after the latest update" },
+  { key: "hr",      label: "HR",      prefix: "HR",  icon: "people", blurb: "Time off, pay & benefits", live: false,
+    subject: "e.g. Employment verification letter", details: "What you need, and by when…",
+    issue: "e.g. My payslip is missing overtime" },
+  { key: "finance", label: "Finance", prefix: "FIN", icon: "card",   blurb: "Expenses, cards & invoices", live: false,
+    subject: "e.g. Raise my card limit", details: "Amount, cost centre, and by when…",
+    issue: "e.g. My expense report was rejected" },
+];
+// Monochrome line icons for the team picker (same 24-grid stroke style as the
+// rest of the set).
+const IconPeople = (p) => <IconBase {...p}><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/></IconBase>;
+const IconCard = (p) => <IconBase {...p}><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19"/><path d="M6.5 15h4"/></IconBase>;
+
+const helpTeam = (key) => HELP_TEAMS.find((t) => t.key === key) || HELP_TEAMS[0];
+// Which team owns a ticket: an explicit `team` from the server when there is
+// one, else its number's prefix (IT-90012, HR-00041, FIN-00007). IT otherwise.
+function ticketTeamKey(t) {
+  const explicit = String((t && t.team) || '').toLowerCase();
+  if (explicit && HELP_TEAMS.some((x) => x.key === explicit)) return explicit;
+  const num = String((t && t.ticket_number) || '').toUpperCase();
+  const hit = HELP_TEAMS.find((x) => num.startsWith(x.prefix + '-'));
+  return hit ? hit.key : 'it';
+}
+// "the IT Team" / "the HR team" — for copy like "Reply to …".
+const teamDisplayName = (key) => (key === 'it' ? 'IT Team' : helpTeam(key).label + ' team');
+// Resolved at call time: the icons are declared further down this file.
+const teamIcon = (key) => ({ laptop: IconLaptop, people: IconPeople, card: IconCard })[helpTeam(key).icon] || IconSpark;
+
+function TeamPicker({ value, onChange }) {
+  const refs = React.useRef([]);
+  const idx = Math.max(0, HELP_TEAMS.findIndex((t) => t.key === value));
+  // Radio-group keys: arrows move and select, like native radios.
+  const onKey = (e) => {
+    const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const n = (idx + d + HELP_TEAMS.length) % HELP_TEAMS.length;
+    onChange(HELP_TEAMS[n].key);
+    refs.current[n] && refs.current[n].focus();
+  };
+  const cur = helpTeam(value);
+  const ICON = { laptop: IconLaptop, people: IconPeople, card: IconCard };
+  return (
+    <div className="tp">
+      <div className="cf-head"><span className="cf-label" id="tp-label">Which team is this for?</span></div>
+      <div className="tp-opts" role="radiogroup" aria-labelledby="tp-label" onKeyDown={onKey}
+        style={{ "--n": HELP_TEAMS.length }}>
+        {HELP_TEAMS.map((t, i) => {
+          const Icon = ICON[t.icon] || IconSpark;
+          const on = value === t.key;
+          return (
+            <button key={t.key} ref={(el) => (refs.current[i] = el)} type="button" role="radio"
+              aria-checked={on} tabIndex={on ? 0 : -1} title={t.blurb}
+              className={"tp-opt" + (on ? " is-on" : "") + (t.live ? "" : " is-soon")} onClick={() => onChange(t.key)}>
+              <span className="tp-icon" aria-hidden="true"><Icon size={16} stroke={1.9} /></span>
+              <span className="tp-name">{t.label}</span>
+              {!t.live && <span className="tp-soon">Soon</span>}
+            </button>
+          );
+        })}
+      </div>
+      {!cur.live && (
+        <p className="tp-note" role="note">
+          {cur.label} requests don’t open in Slice Help yet, so this one can’t be sent. Reach {cur.label} the usual way for now.
+        </p>
+      )}
+    </div>
+  );
+}
 
 // ---------- PHISHING REPORT CARD ----------
 function PhishingCard({ onSubmit }) {
@@ -1411,7 +1410,7 @@ function PhishingCard({ onSubmit }) {
             <button key={r.id} onClick={() => setReason(r.id)} style={{
               padding: "5px 10px",
               background: reason === r.id ? "#211E1E" : "#FFFFFF",
-              color: reason === r.id ? "#FDC831" : "#211E1E",
+              color: reason === r.id ? "#FFFFFF" : "#211E1E",
               border: "1px solid #211E1E", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 700, fontSize: 11,
@@ -1428,7 +1427,7 @@ function PhishingCard({ onSubmit }) {
             width: "100%", padding: "11px 16px",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
             background: (sender || subject) ? "#211E1E" : "#E8DFDD",
-            color: (sender || subject) ? "#FDC831" : "#78684C",
+            color: (sender || subject) ? "#FFFFFF" : "#78684C",
             border: "1px solid #211E1E", borderRadius: 4,
             boxShadow: (sender || subject) ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
             fontFamily: "var(--font-mono)",
@@ -1526,7 +1525,7 @@ function PhishingCard({ onSubmit }) {
 // loaded, and nothing at all when there's nothing open, so people with no
 // tickets never see an empty box. Shares myTicketsCache with My Tickets, so
 // coming back to Help paints instantly.
-const OPEN_TICKETS_SHORTCUT_MAX = 3;
+const OPEN_TICKETS_SHORTCUT_MAX = 5;
 function OpenTicketsShortcut({ onOpenTickets }) {
   const [tickets, setTickets] = React.useState(() => myTicketsCache);
   const icons = useCatalogIcons();
@@ -1548,11 +1547,6 @@ function OpenTicketsShortcut({ onOpenTickets }) {
   if (open.length === 0) return null;
   const shown = open.slice(0, OPEN_TICKETS_SHORTCUT_MAX);
   const more = open.length - shown.length;
-  // One plain-language line on where things stand — "who's got the ball".
-  const waitingApproval = open.filter((t) => String(t.approval_status || '').toLowerCase() === 'pending'
-    || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')).length;
-  const waitingOnYou = open.filter((t) => ['waiting', 'on_hold'].includes(String(t.status || '').toLowerCase())).length;
-  const withIt = open.length - waitingApproval - waitingOnYou;
   const openOne = (t) => {
     try { window.__PORTAL_OPEN_TICKET__ = t.ticket_number || t.id; } catch {}
     onOpenTickets && onOpenTickets();
@@ -1563,94 +1557,96 @@ function OpenTicketsShortcut({ onOpenTickets }) {
     const s = String(t.status || '').toLowerCase();
     if (String(t.approval_status || '').toLowerCase() === 'pending'
       || (ticketTypeMeta(t.type).kind === 'request' && s === 'pending')) return { label: 'Awaiting approval', color: '#9A4A00', dot: '#E08A1E' };
-    if (s === 'in_progress') return { label: 'In progress', color: '#7A5A06', dot: '#D9A514' };
+    if (s === 'in_progress') return { label: 'In progress', color: '#1C4E8C', dot: '#2563B0' };
     if (s === 'waiting' || s === 'on_hold' || s === 'pending') return { label: ticketStatusMeta(s).label, color: '#6B5F4A', dot: '#A89A80' };
     return { label: 'Open', color: '#1C4E8C', dot: '#2563B0' };
   };
-  // Same section shape as Shortcuts and System status below it: a heading row,
-  // then a grid of the page's standard interactive surfaces.
+  // Home's one section under the ask box: a heading row (count + "View all"),
+  // then one card of rows. Status pills are the same components My Tickets
+  // uses, so a ticket reads identically on both pages.
   return (
-    <section aria-labelledby="open-tix-title" style={{
-      maxWidth: 1120, margin: "56px auto 0",
-      animation: "fadeUp .8s .32s var(--ease) both",
-    }}>
+    <section aria-labelledby="open-tix-title" className="otx">
       <style>{`
-        .open-tix-headrow { display:flex; align-items:baseline; justify-content:space-between; gap:12px 20px; flex-wrap:wrap; margin-bottom:16px; }
-        .open-tix-title { margin:0; display:flex; align-items:center; gap:8px; font-size:15px; font-weight:600; color:var(--ink); letter-spacing:-.015em; }
-        .open-tix-count { display:inline-grid; place-items:center; min-width:22px; height:22px; padding:0 7px; box-sizing:border-box;
-          background:#211E1E; color:#FDC831; border-radius:999px; font-family:'Archivo',sans-serif; font-size:11.5px; font-weight:900; }
-        .open-tix-sum { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:12.5px; color:#2E2410; font-weight:500; }
-        .open-tix-sum span { display:inline-flex; align-items:center; gap:6px; }
-        .open-tix-sum i { width:7px; height:7px; border-radius:50%; border:1px solid rgba(33,30,30,.35); flex:none; }
-        .open-tix-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; }
-        .open-tix-tile { display:flex; flex-direction:column; gap:12px; padding:18px; text-align:left; font-family:inherit; color:inherit; width:100%; }
-        .open-tix-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
-        .open-tix-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 8px; background:#FFFFFF;
-          border:1px solid currentColor; border-radius:999px; font-family:var(--font-mono); font-size:10.5px; font-weight:600;
-          letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; }
-        .open-tix-chip i { width:7px; height:7px; border-radius:50%; flex:none; }
-        .open-tix-subject { font-size:14px; font-weight:600; color:var(--ink); letter-spacing:-.012em; line-height:1.35;
-          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.7em; }
-        .open-tix-meta { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; margin-top:auto; font-size:12px; color:var(--ink-3); }
-        .open-tix-num { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-weight:700; color:#4A4233; }
-        .open-tix-for { margin-top:-6px; font-size:12px; font-weight:700; color:#5C4916; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .open-tix-more { display:flex; justify-content:flex-end; margin-top:16px; }
-        .open-tix-new { position:absolute; top:-7px; left:-7px; min-width:19px; height:19px; padding:0 5px; box-sizing:border-box; display:grid; place-items:center;
-          background:#DA3327; color:#FFFFFF; border-radius:999px; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:900;
-          box-shadow:0 0 0 2px #FFFFFF; z-index:2; }
+        .otx { max-width:880px; margin:56px auto 0; position:relative; z-index:1; animation:fadeUp .8s .2s var(--ease) both; }
+        .otx-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 4px 14px; }
+        .otx-title { margin:0; display:flex; align-items:center; gap:10px; font:400 22px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
+        .otx-count { display:inline-grid; place-items:center; min-width:22px; height:22px; padding:0 7px; box-sizing:border-box;
+          background:#211E1E; color:#FFFFFF; border-radius:999px; font:600 11px/1 var(--font-mono); }
+        .otx-all { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 4px 0 12px; border-radius:999px;
+          font-size:13px; font-weight:600; color:#4A3F2E; text-decoration:none; transition:color .15s ease, background-color .15s ease; }
+        .otx-all:hover { color:#211E1E; background:rgba(33,30,30,.05); }
+        .otx-all svg { transition:transform .2s var(--ease); }
+        .otx-all:hover svg { transform:translateX(2px); }
+        .otx-card { background:#FFFFFF; border:1px solid rgba(33,30,30,.12); border-radius:18px; padding:6px; }
+        .otx-list { list-style:none; margin:0; padding:0; }
+        .otx-list li + li { border-top:1px solid #F3EFE7; }
+        .otx-list li:hover, .otx-list li:hover + li { border-top-color:transparent; }
+        .otx-row { display:flex; align-items:center; gap:16px; width:100%; min-height:68px; padding:12px 14px; box-sizing:border-box;
+          background:transparent; border:none; border-radius:12px; text-align:left; font-family:inherit; color:inherit; cursor:pointer;
+          transition:background-color .15s ease; }
+        .otx-row:hover, .otx-row:focus-visible { background:#F7F4EF; }
+        .otx-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
+        .otx-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+        .otx-subject { font-size:15px; font-weight:600; color:#211E1E; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .otx-meta { display:flex; align-items:center; flex-wrap:wrap; gap:2px 8px; font-size:12.5px; color:#8A7E68; }
+        .otx-num { font-family:var(--font-mono); font-weight:600; color:#4A3F2E; }
+        .otx-for { font-weight:600; color:#4A3F2E; }
+        .otx-status { flex:none; display:flex; align-items:center; gap:6px; }
+        .otx-go { flex:none; color:#211E1E; opacity:0; transform:translateX(-4px); transition:opacity .15s ease, transform .2s var(--ease); }
+        .otx-row:hover .otx-go, .otx-row:focus-visible .otx-go { opacity:1; transform:none; }
+        .open-tix-new { position:absolute; top:-6px; left:-6px; min-width:18px; height:18px; padding:0 5px; box-sizing:border-box; display:grid; place-items:center;
+          background:#DA3327; color:#FFFFFF; border-radius:999px; font:700 10px/1 'Archivo',sans-serif; box-shadow:0 0 0 2px #FFFFFF; z-index:2; }
+        @media (max-width: 640px) { .otx { margin-top:40px; } .otx-row { gap:12px; padding:12px 10px; } .otx-go { display:none; } }
+        @media (max-width: 520px) { .otx-status { display:none; } }
       `}</style>
-      <div className="open-tix-headrow">
-        <h2 id="open-tix-title" className="open-tix-title">
-          Your open tickets <span className="open-tix-count" aria-label={`${open.length} open`}>{open.length}</span>
+      <div className="otx-head">
+        <h2 id="open-tix-title" className="otx-title">
+          Your open tickets <span className="otx-count" aria-label={`${open.length} open`}>{open.length}</span>
         </h2>
-        <div className="open-tix-sum">
-          {withIt > 0 && <span><i style={{ background: '#2563B0' }} />{withIt} with the IT Team</span>}
-          {waitingApproval > 0 && <span><i style={{ background: '#E08A1E' }} />{waitingApproval} awaiting approval</span>}
-          {waitingOnYou > 0 && <span><i style={{ background: '#A89A80' }} />{waitingOnYou} on hold</span>}
-        </div>
-      </div>
-      <div className="open-tix-grid">
-        {shown.map((t) => {
-          const app = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null;
-          const chip = chipFor(t);
-          return (
-            <button key={t.id} type="button" className="surface surface-interactive open-tix-tile" onClick={() => openOne(t)}
-              aria-label={`Open ${t.ticket_number || 'ticket'}: ${t.subject || ''} (${chip.label})`}>
-              <span className="open-tix-top">
-                <span style={{ position: 'relative', display: 'inline-flex' }}>
-                  <TicketLeadIcon ticket={t} app={app} size={36} />
-                  {byTicket[String(t.id)] > 0 && (
-                    <span className="open-tix-new" title={`${byTicket[String(t.id)]} new update${byTicket[String(t.id)] === 1 ? '' : 's'}`}>
-                      {byTicket[String(t.id)] > 9 ? '9+' : byTicket[String(t.id)]}
-                    </span>
-                  )}
-                </span>
-                <span className="open-tix-chip" style={{ color: chip.color }}><i style={{ background: chip.dot }} />{chip.label}</span>
-              </span>
-              <span className="open-tix-subject">{t.subject || 'Untitled ticket'}</span>
-              <span className="open-tix-meta">
-                <span className="open-tix-num">{t.ticket_number}</span>
-                <span aria-hidden="true">·</span>
-                <span>{ticketTypeMeta(t.type).label}</span>
-                <span aria-hidden="true">·</span>
-                <span>{relativeTime(t.updated_at || t.created_at)}</span>
-              </span>
-              {(() => {
-                // Same rule as OnBehalfTag, as one quiet line so every tile
-                // keeps the same shape.
-                const ob = resolveOnBehalf(t);
-                if (!ob) return null;
-                const label = ob.viewerIsBeneficiary ? `Opened by ${ob.byP && ob.byP.name}` : `For ${ob.forP && ob.forP.name}`;
-                return /undefined|null/.test(label) ? null : <span className="open-tix-for">{label}</span>;
-              })()}
-            </button>
-          );
-        })}
-      </div>
-      <div className="open-tix-more">
-        <a href="#" className="pill-link" onClick={(e) => { e.preventDefault(); onOpenTickets && onOpenTickets(); }}>
-          {more > 0 ? `See ${more} more in My Tickets` : 'All my tickets'} <span className="pill-link-arrow">→</span>
+        <a href="#" className="otx-all" onClick={(e) => { e.preventDefault(); onOpenTickets && onOpenTickets(); }}>
+          {more > 0 ? `View all ${open.length}` : 'View all'}
+          <IconArrow size={14} stroke={2.2} aria-hidden="true" />
         </a>
+      </div>
+      <div className="otx-card">
+        <ul className="otx-list">
+          {shown.map((t) => {
+            const app = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null;
+            const unseen = byTicket[String(t.id)] || 0;
+            const ob = resolveOnBehalf(t);
+            const obLabel = ob ? (ob.viewerIsBeneficiary ? `Opened by ${ob.byP && ob.byP.name}` : `For ${ob.forP && ob.forP.name}`) : null;
+            const a = String(t.approval_status || '').toLowerCase();
+            const showA = a === 'pending' || a === 'rejected';
+            return (
+              <li key={t.id}>
+                <button type="button" className="otx-row" onClick={() => openOne(t)}
+                  aria-label={`Open ${t.ticket_number || 'ticket'}: ${t.subject || ''}`}>
+                  <span style={{ position: 'relative', display: 'inline-flex', flex: 'none' }}>
+                    <TicketLeadIcon ticket={t} app={app} size={38} />
+                    {unseen > 0 && (
+                      <span className="open-tix-new" title={`${unseen} new update${unseen === 1 ? '' : 's'}`}>{unseen > 9 ? '9+' : unseen}</span>
+                    )}
+                  </span>
+                  <span className="otx-main">
+                    <span className="otx-subject">{t.subject || 'Untitled ticket'}</span>
+                    <span className="otx-meta">
+                      <span className="otx-num">{t.ticket_number}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{ticketTypeMeta(t.type).label}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>Updated {relativeTime(t.updated_at || t.created_at)}</span>
+                      {obLabel && !/undefined|null/.test(obLabel) && (<><span aria-hidden="true">·</span><span className="otx-for">{obLabel}</span></>)}
+                    </span>
+                  </span>
+                  <span className="otx-status">
+                    {showA ? <ApprovalPill state={a} /> : <TicketStatusBadge status={t.status} type={t.type} small />}
+                  </span>
+                  <IconArrow size={15} stroke={2.2} className="otx-go" aria-hidden="true" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </section>
   );
@@ -1723,7 +1719,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "4px 10px",
-            background: "#211E1E", color: "#FDC831",
+            background: "#211E1E", color: "#FFFFFF",
             border: "1px solid #211E1E",
             borderRadius: 4,
             fontFamily: "var(--font-mono)",
@@ -1783,7 +1779,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             <button key={u.id} onClick={() => setUrgency(u.id)} style={{
               padding: "6px 10px",
               background: urgency === u.id ? "#211E1E" : "#FFFFFF",
-              color: urgency === u.id ? "#FDC831" : "#211E1E",
+              color: urgency === u.id ? "#FFFFFF" : "#211E1E",
               border: "1px solid #211E1E", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 700, fontSize: 11,
@@ -1802,8 +1798,8 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           style={{
             width: "100%", padding: "11px 16px",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-            background: canSend ? "#FDC831" : "#E8DFDD",
-            color: "#211E1E",
+            background: canSend ? "#211E1E" : "#E8DFDD",
+            color: canSend ? "#FFFFFF" : "#211E1E",
             border: "1px solid #211E1E", borderRadius: 4,
             boxShadow: canSend ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
             fontFamily: "var(--font-mono)",
@@ -1834,7 +1830,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 8,
           padding: "4px 10px",
-          background: "#211E1E", color: "#FDC831",
+          background: "#211E1E", color: "#FFFFFF",
           border: "1px solid #211E1E",
           borderRadius: 4,
           fontFamily: "var(--font-mono)",
@@ -1861,14 +1857,14 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
       <button className="oncall-btn-secondary" onClick={() => onOpenTickets ? onOpenTickets() : setStage("form")}>
         <div className="oncall-ticket-icon" style={{
           width: 32, height: 32, borderRadius: 8,
-          background: "#FFF9E6",
+          background: "#F4F0E8",
           border: "1px solid #211E1E",
           display: "grid", placeItems: "center", flexShrink: 0,
         }}>
           {/* Real ticket icon — admit-ticket / coupon style with serrated edge */}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a2 2 0 0 0 0 4V15.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5z"
-              fill="#FDC831" stroke="#211E1E" strokeWidth="1.8" strokeLinejoin="round"/>
+              fill="#211E1E" stroke="#211E1E" strokeWidth="1.8" strokeLinejoin="round"/>
             <path d="M14 7v10" stroke="#211E1E" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1.5 2.5"/>
             <circle cx="9" cy="11" r="0.7" fill="#211E1E"/>
             <circle cx="9" cy="13.5" r="0.7" fill="#211E1E"/>
@@ -1955,7 +1951,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         </div>
         <div style={{
           padding: "4px 8px",
-          background: "#211E1E", color: "#FDC831",
+          background: "#211E1E", color: "#FFFFFF",
           borderRadius: 4,
           fontFamily: "'Archivo', sans-serif",
           fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em",
@@ -2057,7 +2053,7 @@ function QuestionFlow({ query, onBack, onDone }) {
         onMouseEnter={(e)=>{
           e.currentTarget.style.transform="translate(0, 0)";
           e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-          e.currentTarget.style.background="#FFF9E6";
+          e.currentTarget.style.background="#F4F0E8";
           const arr = e.currentTarget.querySelector("[data-arrow]");
           if (arr) arr.style.transform = "translateX(-3px)";
         }}
@@ -2119,7 +2115,7 @@ function QuestionFlow({ query, onBack, onDone }) {
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",
-                background: "#FDC831", color: "#211E1E",
+                background: "#F4F0E8", color: "#211E1E",
                 display: "grid", placeItems: "center", flexShrink: 0,
                 fontSize: 11, fontWeight: 900,
                 fontFamily: "'Archivo', sans-serif",
@@ -2138,7 +2134,7 @@ function QuestionFlow({ query, onBack, onDone }) {
           }}>
             <div style={{
               width: 28, height: 28, borderRadius: "50%",
-              background: "#FDC831", color: "#211E1E",
+              background: "#F4F0E8", color: "#211E1E",
               display: "grid", placeItems: "center", flexShrink: 0,
               fontSize: 11, fontWeight: 900,
               fontFamily: "'Archivo', sans-serif",
@@ -2153,7 +2149,7 @@ function QuestionFlow({ query, onBack, onDone }) {
                 Looks like a{" "}
                 <span style={{
                   fontWeight: 800, color: "#211E1E",
-                  borderBottom: "1px solid #FDC831",
+                  borderBottom: "1px solid rgba(33,30,30,.18)",
                   paddingBottom: 1,
                 }}>
                   {route.category.toLowerCase()}
@@ -2289,14 +2285,14 @@ function QuestionFlow({ query, onBack, onDone }) {
               style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
                 padding: "12px 22px",
-                background: canContinue() ? "#FDC831" : "#E8E1D0",
+                background: canContinue() ? "#211E1E" : "#E8E1D0",
                 border: "1px solid #211E1E",
                 borderRadius: 4,
                 boxShadow: canContinue() ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                 fontFamily: "var(--font-mono)",
                 fontWeight: 600, fontSize: 13,
                 letterSpacing: "0.04em", textTransform: "uppercase",
-                color: "#211E1E",
+                color: canContinue() ? "#FFFFFF" : "#211E1E",
                 cursor: canContinue() ? "pointer" : "not-allowed",
                 opacity: canContinue() ? 1 : 0.5,
                 transition: "transform .15s ease, box-shadow .15s ease, background .15s",
@@ -2313,7 +2309,7 @@ function QuestionFlow({ query, onBack, onDone }) {
                 if(!canContinue()) return;
                 e.currentTarget.style.transform="none";
                 e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-                e.currentTarget.style.background="#FDC831";
+                e.currentTarget.style.background="#211E1E";
                 const arr = e.currentTarget.querySelector("[data-arrow]");
                 if (arr) arr.style.transform = "translateX(0)";
               }}
@@ -2418,9 +2414,9 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
           }}>
             <div style={{
               width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
-              background: "#FDC831", color: "#211E1E",
+              background: "#F4F0E8", color: "#211E1E",
               display: "grid", placeItems: "center",
-              border: "1px solid #FDC831",
+              border: "1px solid rgba(33,30,30,.18)",
             }}>
               <IconSlack size={18} stroke={2} />
             </div>
@@ -2437,7 +2433,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
             </div>
             <button style={{
               padding: "9px 16px",
-              background: "#FDC831",
+              background: "#F4F0E8",
               border: "1px solid #211E1E",
               borderRadius: 4,
               boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -2467,7 +2463,7 @@ function SectionHead({ kicker, title, subtitle, style }) {
         fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.08em",
         color: "#211E1E", fontWeight: 600, marginBottom: 8,
         padding: "3px 8px",
-        background: "#FDC831",
+        background: "#F4F0E8",
         border: "1px solid #211E1E",
         borderRadius: 4,
       }}>{kicker}</div>
@@ -2505,7 +2501,7 @@ function GuideCard({ guide, index, onOpen }) {
       <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
         <div style={{
           width: 40, height: 40, borderRadius: 6, flexShrink: 0,
-          background: guide.hot ? "#FDC831" : "#FFF9E6",
+          background: guide.hot ? "#F4F0E8" : "#F4F0E8",
           border: "1px solid #211E1E",
           color: "#211E1E",
           display: "grid", placeItems: "center"
@@ -2527,7 +2523,7 @@ function GuideCard({ guide, index, onOpen }) {
             {guide.hot && <span style={{
               padding: "2px 7px",
               background: "#211E1E",
-              color: "#FDC831",
+              color: "#FFFFFF",
               border: "1px solid #211E1E",
               borderRadius: 3,
               fontFamily: "var(--font-mono)",
@@ -2550,7 +2546,7 @@ function GuideCard({ guide, index, onOpen }) {
         </div>
         <div style={{
           width: 28, height: 28, borderRadius: "50%",
-          background: hover ? "#FDC831" : "transparent",
+          background: hover ? "#F4F0E8" : "transparent",
           border: "1px solid #211E1E",
           display: "grid", placeItems: "center",
           color: "#211E1E",
@@ -2587,7 +2583,7 @@ function RelatedRow({ ticket, index }) {
         fontWeight: 800, letterSpacing: "0.04em",
         color: "#211E1E", minWidth: 64,
         padding: "3px 6px",
-        background: "#FFF9E6",
+        background: "#F4F0E8",
         border: "1px solid #211E1E",
         borderRadius: 3,
         textAlign: "center",
@@ -2612,7 +2608,7 @@ function RelatedRow({ ticket, index }) {
         fontWeight: 800, letterSpacing: "0.02em",
         color: "#211E1E",
         padding: "3px 8px",
-        background: "#FDC831",
+        background: "#F4F0E8",
         border: "1px solid #211E1E",
         borderRadius: 3,
       }}>
@@ -2649,7 +2645,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
             }}>{ticket.priority}</span>
             {ticket.hot && <span style={{
               padding: "3px 8px",
-              background: "#FDC831",
+              background: "#F4F0E8",
               color: "#211E1E",
               border: "1px solid #211E1E",
               borderRadius: 3,
@@ -2671,7 +2667,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
       </div>
       <div style={{
         padding: "10px 12px",
-        background: "#FFF9E6",
+        background: "#F4F0E8",
         border: "1px solid #211E1E",
         borderRadius: 6,
         fontSize: 12, marginBottom: 14,
@@ -2692,8 +2688,8 @@ function TicketCard({ ticket, onFile, filed, index }) {
           width: "100%",
           padding: "12px 16px",
           display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-          background: filed ? "#0A8A3E" : "#FDC831",
-          color: filed ? "#FFFFFF" : "#211E1E",
+          background: filed ? "#0A8A3E" : "#211E1E",
+          color: "#FFFFFF",
           border: "1px solid #211E1E",
           borderRadius: 4,
           boxShadow: filed ? "none" : (hover ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"),
@@ -2743,7 +2739,7 @@ function GuideSheet({ guide, onClose }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(580px, 100%)", height: "100%",
-          background: "#FFF9E6",
+          background: "#F4F0E8",
           borderLeft: "1px solid #211E1E",
           boxShadow: "-12px 0 0 #211E1E",
           padding: "28px 32px 36px",
@@ -2757,7 +2753,7 @@ function GuideSheet({ guide, onClose }) {
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "5px 10px",
-            background: "#FDC831",
+            background: "#F4F0E8",
             border: "1px solid #211E1E",
             borderRadius: 4,
             fontFamily: "var(--font-mono)",
@@ -2787,7 +2783,7 @@ function GuideSheet({ guide, onClose }) {
           {guide.title}
         </h1>
         <p style={{ fontSize: 14, color: "#4A3F2E", lineHeight: 1.55, marginTop: 0, marginBottom: 28 }}>
-          A short walkthrough. If you get stuck at any step, return to the IT Hub and your context is saved.
+          A short walkthrough. If you get stuck at any step, return to Slice Help and your context is saved.
         </p>
 
         <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -2803,7 +2799,7 @@ function GuideSheet({ guide, onClose }) {
           }}>
               <div style={{
               width: 30, height: 30, borderRadius: "50%",
-              background: "#FDC831",
+              background: "#F4F0E8",
               border: "1px solid #211E1E",
               color: "#211E1E",
               display: "grid", placeItems: "center",
@@ -2845,7 +2841,7 @@ function GuideSheet({ guide, onClose }) {
           }}>No, file ticket</button>
           <button style={{
             padding: "8px 14px",
-            background: "#FDC831",
+            background: "#F4F0E8",
             border: "1px solid #211E1E",
             borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -2914,7 +2910,7 @@ function FiledToast({ ticket, onClose, onView }) {
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
             <button onClick={onView} style={{
               padding: "7px 12px",
-              background: "#FDC831",
+              background: "#F4F0E8",
               border: "1px solid #211E1E",
               borderRadius: 4,
               boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -3256,7 +3252,7 @@ function App() {
     const blocks = [/[.!?]$/.test(firstQ) ? firstQ : firstQ + '.'];
     if (triage.length) blocks.push(triage.map((p) => `${p.label} — ${p.answer}`).join('\n'));
     if (more.length) blocks.push('More detail:\n' + more.map((m) => '- ' + m).join('\n'));
-    if (tried.length) blocks.push('The IT Hub suggested these guides, but they didn’t solve it:\n' + tried.map((g) => '- ' + g).join('\n'));
+    if (tried.length) blocks.push('Slice Help suggested these guides, but they didn’t solve it:\n' + tried.map((g) => '- ' + g).join('\n'));
     if (reasons.length) blocks.push('What didn’t work: ' + reasons.join(', ') + '.');
     const det = detectAccessRequest([firstQ, ...more].join('. '));
     setTicketDraft({
@@ -3473,7 +3469,8 @@ function App() {
         initialTab={ticketsTab}
         onBack={goHome}
         onReportIssue={() => setTicketDraft({ subject: "", description: "", type: "incident", priority: "medium" })}
-        onRequest={() => openCatalog()} />
+        onRequest={() => openCatalog()}
+        onRequestItem={(id) => openCatalog({ itemId: id })} />
       }
 
       {stage === "report" && ticketDraft &&
@@ -3913,6 +3910,10 @@ const PILL_SWELL_AT = 0.4;  // when the landing swell starts
 const PILL_SWELL_PX = 6;    // how far the neighbours get pushed
 const PILL_INTRO_DELAY_MS = 350; // first load: beat before the ring selects the section
 const pillEase = (t) => 1 - Math.pow(1 - t, 4);
+// The brand already reads "Slice Help", so the Help tab shows as Home. The
+// label is display-only; "Help" stays the routing key.
+const NAV_LABEL = { Help: "Home" };
+
 function TopnavPill({ activeKey }) {
   const ref = React.useRef(null);
   const painted = React.useRef(null); // { l, r } last drawn
@@ -4035,13 +4036,13 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
   };
 
   return (
-    <nav className={"topnav" + (scrolled ? " is-scrolled" : "")} aria-label="IT Hub">
-      <button onClick={() => { setPick((n) => n + 1); onHome && onHome(); }} className="topnav-brand" aria-label="IT Hub home">
-        <img src={withBase("/assets/slice-wordmark-yellow.svg")} alt="Slice" width="48" height="35" />
-        <span>IT Hub</span>
+    <nav className={"topnav" + (scrolled ? " is-scrolled" : "")} aria-label="Slice Help">
+      <button onClick={() => { setPick((n) => n + 1); onHome && onHome(); }} className="topnav-brand" aria-label="Slice Help home">
+        <img src={withBase("/assets/slice-wordmark-white.svg")} alt="Slice" width="48" height="35" />
+        <span>Help</span>
       </button>
 
-      <div ref={trackRef} className="topnav-links has-slider" role="tablist" aria-label="IT Hub sections"
+      <div ref={trackRef} className="topnav-links has-slider" role="tablist" aria-label="Slice Help sections"
         onMouseLeave={() => setGlide(null)}>
         <span aria-hidden="true" className={"topnav-glide" + (glide ? " is-on" : "")}
           style={glide ? { width: glide.w, height: glide.h, transform: `translate(${glide.x}px, ${glide.y}px)` } : undefined} />
@@ -4052,12 +4053,12 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
           const n = l === "My Tickets" ? unreadTickets : 0;
           return (
             <button key={l} type="button" role="tab" aria-selected={isActive} aria-current={isActive ? "page" : undefined}
-              title={l} aria-label={n > 0 ? `${l} (${n} with unread updates)` : l}
+              title={NAV_LABEL[l] || l} aria-label={n > 0 ? `${NAV_LABEL[l] || l} (${n} with unread updates)` : (NAV_LABEL[l] || l)}
               className={"topnav-link" + (isActive ? " is-active" : "")}
               onMouseEnter={isActive ? () => setGlide(null) : pointAt} onFocus={isActive ? undefined : pointAt}
               onClick={() => { setGlide(null); setPick((n) => n + 1); setActiveLocal(l); onNavigate && onNavigate(l); }}>
               <Icon size={15} stroke={2} />
-              <span className="topnav-lbl">{l}</span>
+              <span className="topnav-lbl">{NAV_LABEL[l] || l}</span>
               {n > 0 && <span className="topnav-badge">{n > 9 ? "9+" : n}</span>}
             </button>
           );
@@ -4487,8 +4488,8 @@ function Footer() {
   // Palette of pill backgrounds that read against black text + heart.
   // Order is hand-picked to feel like a celebration cycling through the brand.
   const PALETTE = [
-    { bg: "#FFFFFF", heart: "#FDC831", spark: "#FDC831" }, // default Slice yellow heart
-    { bg: "#FDC831", heart: "#FFFFFF", spark: "#211E1E" }, // mustard pop
+    { bg: "#FFFFFF", heart: "#DA3327", spark: "#DA3327" }, // default Slice yellow heart
+    { bg: "#F4F0E8", heart: "#DA3327", spark: "#211E1E" }, // mustard pop
     { bg: "#FFE5A8", heart: "#B92323", spark: "#B92323" }, // cream + cherry
     { bg: "#C7E8B8", heart: "#0A8A3E", spark: "#0A8A3E" }, // mint + leaf
     { bg: "#BFE0F5", heart: "#1E5FB2", spark: "#1E5FB2" }, // sky + ink
@@ -4653,7 +4654,7 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
         if (selected) return;
         e.currentTarget.style.transform = "translate(0, 0)";
         e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-        e.currentTarget.style.background = "#FFF9E6";
+        e.currentTarget.style.background = "#F4F0E8";
       }}
       onMouseLeave={(e) => {
         if (selected) return;
@@ -4679,7 +4680,7 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
         display: "flex", alignItems: "flex-start", gap: 14,
         padding: "16px 18px",
         width: "100%",
-        background: selected ? "#FDC831" : "#FFFFFF",
+        background: selected ? "#F4F0E8" : "#FFFFFF",
         border: "1px solid #211E1E",
         borderRadius: 14,
         cursor: "pointer",
@@ -4698,7 +4699,7 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
         transition: "transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), opacity .2s var(--ease)",
         marginTop: 1, flexShrink: 0,
       }}>
-        {selected && <IconCheck size={12} stroke={3} style={{color: "#FDC831"}} />}
+        {selected && <IconCheck size={12} stroke={3} style={{color: "#FFFFFF"}} />}
       </div>
       <div style={{flex: 1}}>
         <div style={{fontSize: 14.5, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.012em"}}>{title}</div>
@@ -4717,7 +4718,7 @@ function MultiChip({ selected, title, onSelect, index }) {
         display: "inline-flex", alignItems: "center", gap: 8,
         padding: "10px 16px",
         background: selected ? "#211E1E" : "#FFFFFF",
-        color: selected ? "#FDC831" : "#211E1E",
+        color: selected ? "#FFFFFF" : "#211E1E",
         border: `2px solid ${selected ? "#211E1E" : "#211E1E"}`,
         borderRadius: 4,
         fontSize: 13, fontWeight: 700,
@@ -4733,7 +4734,7 @@ function MultiChip({ selected, title, onSelect, index }) {
         if (selected) return;
         e.currentTarget.style.transform = "translate(0, 0)";
         e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-        e.currentTarget.style.background = "#FFF9E6";
+        e.currentTarget.style.background = "#F4F0E8";
       }}
       onMouseLeave={(e) => {
         if (selected) return;
@@ -4850,7 +4851,7 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
       style={{
         margin: "16px 0 0",
         padding: "14px 18px",
-        background: "#FFF9E6",
+        background: "#F4F0E8",
         border: "1px solid #211E1E",
         borderRadius: 12,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -4865,7 +4866,7 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
         style={{
           flexShrink: 0,
           width: 28, height: 28, borderRadius: 8,
-          background: "#FDC831",
+          background: "#F4F0E8",
           border: "1px solid #211E1E",
           display: "grid", placeItems: "center",
           fontSize: 14,
@@ -4930,8 +4931,8 @@ function GlobalKeyframes() {
         75% { transform: scaleX(1) translateY(1px) rotate(0.8deg); }
       }
       @keyframes pizzaPulse {
-        0%, 100% { transform: scale(1) rotate(0deg); box-shadow: 0 0 0 0 rgba(253,200,49,0); }
-        50%      { transform: scale(1.06) rotate(-3deg); box-shadow: 0 0 0 4px rgba(253,200,49,0.35); }
+        0%, 100% { transform: scale(1) rotate(0deg); box-shadow: 0 0 0 0 rgba(33,30,30,.08); }
+        50%      { transform: scale(1.06) rotate(-3deg); box-shadow: 0 0 0 4px rgba(33,30,30,.1); }
       }
     `}</style>
   );
@@ -4986,7 +4987,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         .np-row:last-child { border-bottom:0; }
         .np-row:hover { background:#FBF6E9; }
         .np-row.is-unread { background:#FFF8DC; }
-        .np-row.is-unread:hover { background:#FFF1C2; }
+        .np-row.is-unread:hover { background:#F4F0E8; }
         .np-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
         .np-row .notif-kind { width:40px; height:40px; border-radius:10px; }
         .np-title { font-family:'Archivo',sans-serif; font-size:14px; font-weight:700; color:#211E1E; letter-spacing:-.005em; }
@@ -5006,7 +5007,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <button onClick={onBack} className="kb-back-btn">
             <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>
-            Back to IT Hub
+            Back to Slice Help
           </button>
           <button type="button" onClick={markAllRead} disabled={unreadCount === 0}
             style={{
@@ -5742,7 +5743,8 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, com
       {compact
         ? <span className="rqx-k">{label}</span>
         : <div className={labelStyle ? undefined : 'rep-label'} style={labelStyle}>{label}</div>}
-      <div className={'rep-urgency' + (compact ? ' is-compact' : '')} role="radiogroup" aria-label={label}>
+      <div className={'rep-urgency' + (compact ? ' is-compact has-slider' : '')} role="radiogroup" aria-label={label}>
+        {compact && <SlideIndicator activeKey={value} radius={8} />}
         {URGENCY_OPTIONS.map((o) => (
           <button key={o.value} type="button" role="radio" aria-checked={value === o.value}
             data-level={o.value} title={o.hint}
@@ -5777,12 +5779,38 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, com
   );
 }
 
+// An unsent "Report an issue" survives a reload or a wander to another page.
+const REPORT_DRAFT_KEY = "slicehelp.reportDraft.v1";
+function readReportDraft() {
+  try {
+    const j = JSON.parse(window.localStorage.getItem(REPORT_DRAFT_KEY) || "null");
+    return j && ((j.subject || "").trim() || (j.description || "").trim()) ? j : null;
+  } catch { return null; }
+}
+function writeReportDraft(d) {
+  try {
+    if (!d || (!(d.subject || "").trim() && !(d.description || "").trim())) window.localStorage.removeItem(REPORT_DRAFT_KEY);
+    else window.localStorage.setItem(REPORT_DRAFT_KEY, JSON.stringify(d));
+  } catch {}
+}
+
 function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrowseCatalog }) {
   const Shell = asPage ? PageShell : ModalShell;
-  const [subject, setSubject] = React.useState(draft.subject || "");
-  const [description, setDescription] = React.useState(draft.description || "");
-  const [type, setType] = React.useState(draft.type || "incident");
-  const [priority, setPriority] = React.useState(draft.priority || "medium");
+  // A pre-filled draft (chat, a guide, the screenshot flow) always wins over a
+  // saved one; only a blank "Report an issue" picks up where you left off.
+  const [restored, setRestored] = React.useState(() => {
+    const given = (draft.subject && draft.subject.trim()) || (draft.description && draft.description.trim());
+    return given ? null : readReportDraft();
+  });
+  const [subject, setSubject] = React.useState(draft.subject || (restored && restored.subject) || "");
+  const [description, setDescription] = React.useState(draft.description || (restored && restored.description) || "");
+  const [type, setType] = React.useState(draft.type || (restored && restored.type) || "incident");
+  const [priority, setPriority] = React.useState(draft.priority || (restored && restored.priority) || "medium");
+  const [team, setTeam] = React.useState(() => {
+    const k = (restored && restored.team) || 'it';
+    return HELP_TEAMS.some((t) => t.key === k) ? k : 'it';
+  });
+  const teamInfo = helpTeam(team);
   // A draft can arrive with files already attached (the screenshot flow).
   const [attachFiles, setAttachFiles] = React.useState(() => (Array.isArray(draft.files) ? draft.files.filter(Boolean) : []));
   const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
@@ -5801,6 +5829,23 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
   // pre-filled from chat / a guide.
   const prefilled = !!((draft.subject && draft.subject.trim()) || (draft.description && draft.description.trim()));
 
+  // Save as you type (fresh reports only), debounced; cleared once sent.
+  React.useEffect(() => {
+    if (prefilled || result) return undefined;
+    const t = setTimeout(() => writeReportDraft({ subject, description, type, priority, team }), 300);
+    return () => clearTimeout(t);
+  }, [prefilled, result, subject, description, type, priority, team]);
+  const discardDraft = () => {
+    writeReportDraft(null); setRestored(null);
+    setSubject(''); setDescription(''); setType('incident'); setPriority('medium'); setTeam('it');
+    setTimeout(() => subjectRef.current && subjectRef.current.focus(), 30);
+  };
+
+  // "Access to Figma" is a request, not an issue: the catalog adds the right
+  // approver automatically, so point there instead of filing it blind.
+  const looks = detectAccessRequest(subject + ' ' + description);
+  const showCatalogNudge = team === 'it' && !!onBrowseCatalog && (type === 'service_request' || (looks.isRequest && !looks.isProblem));
+
   // Screenshots can be dropped anywhere on the form, or pasted (⌘V) while
   // typing — the fastest way to show IT what's on screen.
   const addFiles = (list) => {
@@ -5813,6 +5858,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
       : new File([f], `screenshot-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}${i ? '-' + i : ''}.png`, { type: f.type || 'image/png' }))]);
   };
   const onPaste = (e) => {
+    if (e.defaultPrevented) return; // the text box already took it
     const files = [...((e.clipboardData && e.clipboardData.files) || [])];
     if (files.length) { e.preventDefault(); addFiles(files); }
   };
@@ -5820,10 +5866,12 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
     onDragEnter: (e) => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setDragging(true); } },
     onDragOver: (e) => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); },
     onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); },
-    onDrop: (e) => { if (e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); } },
+    onDrop: (e) => { setDragging(false); if (e.defaultPrevented) return; if (e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); addFiles(e.dataTransfer.files); } },
   };
 
   const submit = async () => {
+    if (busy) return;
+    if (!helpTeam(team).live) return; // never route another team's issue to IT
     if (!subject.trim()) {
       setSubjectErr("Add a short summary so IT knows what this is about.");
       if (subjectRef.current) subjectRef.current.focus();
@@ -5842,6 +5890,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
         try { await uploadAttachments(data.id || data.ticket_number, attachFiles); }
         catch (e) { setAttachWarn("Your ticket was created. " + (e.message || "An attachment didn’t upload.") + " You can add it from the ticket."); }
       }
+      writeReportDraft(null);
       setResult(data);
     } catch (e) {
       setError(e.message || "Couldn't create the ticket.");
@@ -5912,85 +5961,112 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
     );
   }
 
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
+  };
+  const KINDS = [['incident', 'Broken', 'It used to work, or it errors'], ['service_request', 'Need something', 'A setup or a change']];
+
   return (
     <Shell title={prefilled ? "Review & send" : "Report an issue"}
       kicker={asPage ? undefined : (prefilled ? "Pre-filled — edit anything, then send" : "Tell us what's broken")}
-      onClose={onClose} backLabel="Back" maxWidth={asPage ? 820 : 640} centered>
-      <div className={'rep-form' + (dragging ? ' is-dragging' : '')} {...dragProps} onPaste={onPaste}>
+      onClose={onClose} backLabel="Back" maxWidth={asPage ? 1040 : 640} centered bare={asPage}>
+      <div className={'rqx rep-x' + (asPage ? '' : ' is-stacked') + (dragging ? ' is-dragging' : '')}
+        {...dragProps} onPaste={onPaste} onKeyDown={onKeyDown}>
         {dragging && (
           <div className="rep-drop" aria-hidden="true">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V4" /><path d="m6 10 6-6 6 6" /><path d="M4 20h16" /></svg>
             Drop to attach
           </div>
         )}
-        {prefilled && (
-          <div className="rep-prefill">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-            We filled this in from what you told us — change anything, then send.
-          </div>
-        )}
+        <div className="rqx-main">
+          {prefilled && (
+            <div className="rep-banner">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              <span>We filled this in from what you told us — change anything, then send.</span>
+            </div>
+          )}
+          {!prefilled && restored && (
+            <div className="rep-banner">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
+              <span>Picked up your unsent draft.</span>
+              <button type="button" className="rep-banner-btn" onClick={discardDraft}>Start over</button>
+            </div>
+          )}
 
-        <label className="rep-label" htmlFor="rep-subject">What’s wrong?</label>
-        <input id="rep-subject" ref={subjectRef} className={'rep-input rep-input-lg' + (subjectErr ? ' has-error' : '')}
-          value={subject}
-          onChange={(e) => { setSubject(e.target.value); if (subjectErr && e.target.value.trim()) setSubjectErr(''); }}
-          onBlur={() => { if (subjectErr && subject.trim()) setSubjectErr(''); }}
-          placeholder="e.g. Zoom won’t open after the latest update" autoFocus
-          aria-invalid={!!subjectErr} aria-describedby={subjectErr ? 'rep-subject-err' : undefined} />
-        {subjectErr && <div id="rep-subject-err" className="rep-error" role="alert">{subjectErr}</div>}
-        {!subject.trim() && !prefilled && (
-          <div className="rep-shortcuts" aria-label="Common issues">
-            {REPORT_SHORTCUTS.map(({ label, subject: sub, Icon }) => (
-              <button key={label} type="button" className="rep-shortcut"
-                onClick={() => { setSubject(sub); setSubjectErr(''); setTimeout(() => descRef.current && descRef.current.focus(), 30); }}>
-                <Icon size={14} />{label}
+          {!prefilled && <TeamPicker value={team} onChange={(k) => { setTeam(k); setError(''); }} />}
+
+          <FieldBlock k="subject" label="What’s wrong?" required err={subjectErr} htmlFor="rep-subject">
+            <input id="rep-subject" ref={subjectRef} className={'cf-input' + (subjectErr ? ' is-invalid' : '')}
+              value={subject} maxLength={200}
+              onChange={(e) => { setSubject(e.target.value); if (subjectErr && e.target.value.trim()) setSubjectErr(''); }}
+              placeholder={teamInfo.issue || "Describe the problem"} autoFocus
+              aria-invalid={!!subjectErr} />
+            {!subject.trim() && !prefilled && team === 'it' && (
+              <div className="rep-shortcuts" aria-label="Common issues">
+                {REPORT_SHORTCUTS.map(({ label, subject: sub, Icon }) => (
+                  <button key={label} type="button" className="rep-shortcut"
+                    onClick={() => { setSubject(sub); setSubjectErr(''); setTimeout(() => { const el = document.getElementById('rep-desc'); el && el.focus(); }, 30); }}>
+                    <Icon size={14} />{label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </FieldBlock>
+
+          <FieldBlock k="desc" label="Tell us more" htmlFor="rep-desc">
+            <ComposerField id="rep-desc" minHeight={130} maxLength={8000} value={description} onChange={setDescription}
+              placeholder="What happened, what you expected, and anything you’ve already tried."
+              files={attachFiles} onFilesChange={setAttachFiles} disabled={busy} />
+          </FieldBlock>
+
+          {showCatalogNudge && (
+            <div className="rep-nudge-x" role="note">
+              <span>
+                <b>Need access to an app?</b> Request it from the catalog — the right approver is added for you, so it moves faster.
+              </span>
+              <button type="button" className="btn btn-outline rep-nudge-btn" onClick={onBrowseCatalog}>Browse apps</button>
+            </div>
+          )}
+
+          <div className="rqx-extras">
+            <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
+          </div>
+          {error && !asPage && <p className="rq-inline-err" role="alert">{error}</p>}
+        </div>
+
+        <aside className="rqx-side" aria-label="Summary">
+          <div className="rqx-card">
+            <div className="rqx-card-row">
+              <span className="rqx-k">Team</span>
+              <span className="rqx-team">{teamInfo.label}{!teamInfo.live && <span className="tp-soon">Soon</span>}</span>
+            </div>
+            <div className="rqx-card-row">
+              <span className="rqx-k">Kind</span>
+              <div className="rep-kind" role="radiogroup" aria-label="Kind">
+                {KINDS.map(([v, l, h]) => (
+                  <button key={v} type="button" role="radio" aria-checked={type === v} title={h}
+                    className={'rep-kind-opt' + (type === v ? ' is-on' : '')} onClick={() => setType(v)}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div className="rqx-card-row rqx-urgency">
+              <UrgencyPicker value={priority} onChange={setPriority} label="Urgency" compact />
+            </div>
+            {who && (
+              <div className="rqx-card-row">
+                <span className="rqx-k">From</span>
+                <span className="rqx-people"><span className="rqx-person"><PersonAvatar name={who} size={20} self />You</span></span>
+              </div>
+            )}
+            <div className="rqx-cta">
+              {error && asPage && <div className="rqx-err">{error}</div>}
+              <button className="btn btn-primary rqx-submit" onClick={submit} disabled={busy || !teamInfo.live} aria-busy={busy || undefined}>
+                {busy && <span className="tkt-life-spin rq-btn-spin" aria-hidden="true" />}{busy ? busyLabel : !teamInfo.live ? teamInfo.label + ' opens soon' : 'Send to ' + teamInfo.label}
               </button>
-            ))}
+              <button className="rqx-cancel" onClick={onClose} disabled={busy}>Cancel</button>
+            </div>
           </div>
-        )}
-
-        <label className="rep-label" htmlFor="rep-desc">Tell us more <span className="rep-opt">(optional)</span></label>
-        <textarea id="rep-desc" ref={descRef} className="rep-input rep-textarea" value={description} onChange={(e) => setDescription(e.target.value)}
-          placeholder="What happened, what you expected, and anything you’ve already tried. Paste a screenshot here with ⌘V." />
-
-        <div className="rep-label">What kind?</div>
-        <div className="rep-seg" role="radiogroup" aria-label="What kind">
-          {[['incident', 'Something’s broken', 'It used to work, or it errors'], ['service_request', 'I need something', 'Access, a setup, or a change']].map(([v, l, h]) => (
-            <button key={v} type="button" role="radio" aria-checked={type === v} className={'rep-seg-opt' + (type === v ? ' is-on' : '')} onClick={() => setType(v)}>
-              <span className="rep-seg-radio" aria-hidden="true" />
-              <span><span className="rep-seg-title">{l}</span><span className="rep-seg-hint">{h}</span></span>
-            </button>
-          ))}
-        </div>
-        {type === 'service_request' && onBrowseCatalog && (
-          <div className="rep-nudge">
-            Asking for an app or access? It’s faster from the catalog — the right approver is added for you.
-            <button type="button" className="tkt-link" onClick={onBrowseCatalog}>Browse apps & services →</button>
-          </div>
-        )}
-
-        <UrgencyPicker value={priority} onChange={setPriority} />
-
-        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
-
-        <div className="rep-label">Screenshots & files <span className="rep-opt">(optional)</span></div>
-        <div className="rep-attach">
-          <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
-          <span className="rep-attach-hint">or drag them onto this page · paste with ⌘V</span>
-        </div>
-
-        {error && <p className="rep-error" role="alert" style={{ marginTop: 16 }}>{error}</p>}
-
-        <div className={asPage ? 'pg-actions' : 'rep-actions'}>
-          {who && <span className="rep-who">Sending as <b>{who}</b></span>}
-          <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="tkt-life-btn is-send" onClick={submit} disabled={busy} style={{ minWidth: 150 }}>
-            {busy
-              ? <span className="tkt-life-spin" aria-hidden="true" />
-              : <svg className="tkt-send-plane" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7Z" /></svg>}
-            {busy ? busyLabel : 'Send to IT'}
-          </button>
-        </div>
+        </aside>
       </div>
     </Shell>
   );
@@ -6338,14 +6414,37 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
 // tickets (there the plain button drives the reopen-confirm flow instead).
 function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend }) {
   const [open, setOpen] = React.useState(false);
+  const [pos, setPos] = React.useState(null); // where the menu sits (fixed, from the button)
+  const [askCrit, setAskCrit] = React.useState(null); // send opts waiting on the critical confirm
   const wrapRef = React.useRef(null);
+  const menuRef = React.useRef(null);
+  // The menu is portaled to <body> so the reply box (overflow: hidden) can't
+  // clip it. It opens above the button, or below when there's no room above.
+  const place = React.useCallback(() => {
+    const r = wrapRef.current && wrapRef.current.getBoundingClientRect();
+    if (!r) return;
+    const up = r.top > 200;
+    setPos({ right: Math.max(8, window.innerWidth - r.right), ...(up ? { bottom: window.innerHeight - r.top + 8 } : { top: r.bottom + 8 }) });
+  }, []);
   React.useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    if (!open) return undefined;
+    place();
+    const inside = (el) => (wrapRef.current && wrapRef.current.contains(el)) || (menuRef.current && menuRef.current.contains(el));
+    const onDoc = (e) => { if (!inside(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const onMove = () => setOpen(false);
     document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); });
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onMove);
+    const sc = document.querySelector('.page-scroll');
+    sc && sc.addEventListener('scroll', onMove, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onMove);
+      sc && sc.removeEventListener('scroll', onMove);
+    };
+  }, [open, place]);
 
   const pr = String((ticket && ticket.priority) || '').toLowerCase();
   const ArrowUp = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>;
@@ -6356,7 +6455,13 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend 
   // No send options on a reopen or a declined request (nothing to resolve).
   const showMenu = !reopenOnReply && !declined && items.length > 0;
 
-  const choose = (opts) => { setOpen(false); onSend(opts); };
+  // Raising to critical alerts the whole team, so it asks first (same dialog
+  // as the priority control and the request form).
+  const choose = (opts) => {
+    setOpen(false);
+    if (opts && opts.priority === 'critical') { setAskCrit(opts); return; }
+    onSend(opts);
+  };
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', display: 'inline-flex' }}>
@@ -6376,26 +6481,38 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend 
           </button>
         )}
       </div>
-      {showMenu && open && (
-        <div role="menu" style={{
-          position: 'absolute', bottom: 'calc(100% + 6px)', right: 0, minWidth: 250, zIndex: 60,
-          background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', overflow: 'hidden',
+      {showMenu && open && pos && ReactDOM.createPortal((
+        <div ref={menuRef} role="menu" className="send-menu" style={{
+          position: 'fixed', right: pos.right, ...(pos.bottom != null ? { bottom: pos.bottom } : { top: pos.top }), minWidth: 260, zIndex: 80, padding: 4,
+          background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 12,
+          boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 12px 28px -12px rgba(33,30,30,.3)',
         }}>
           {items.map((it, i) => (
             <button key={it.key} role="menuitem" disabled={disabled} onClick={() => choose(it.opts)}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#F7F4EF'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#F4F0E8'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
-                padding: '11px 14px', background: '#FFFFFF', border: 'none',
-                borderBottom: i < items.length - 1 ? '1px solid #EFEAE0' : 'none',
-                cursor: 'pointer', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, color: '#211E1E',
+                minHeight: 38, padding: '8px 10px', background: 'transparent', border: 'none', borderRadius: 8,
+                cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13.5, color: '#211E1E',
               }}>
               <span style={{ color: it.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{it.icon}</span>
               {it.label}
             </button>
           ))}
         </div>
+      ), document.body)}
+      {askCrit && (
+        <ConfirmDialog
+          kicker="Critical"
+          title="Send and raise to critical?"
+          body="Critical alerts the whole IT Team on Slack right away. Use it when you can’t work at all, or many people are affected. For anything else, High still puts it at the top of the queue."
+          tone="danger"
+          icon={<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>}
+          confirmLabel="Send as critical"
+          cancelLabel="Not critical"
+          onConfirm={() => { onSend(askCrit); return true; }}
+          onDone={() => setAskCrit(null)} />
       )}
     </div>
   );
@@ -6445,18 +6562,18 @@ function ConversationDay({ label }) {
 // `files` renders under the bubble — the attachments sent WITH this message,
 // so "here's the screenshot" and the screenshot read as one reply.
 // `onOpenImage` makes inline images in the body open in the lightbox.
-function ConversationMessage({ mine, name, time, stamp, body, children, files, onOpenImage, compact }) {
+function ConversationMessage({ mine, name, time, stamp, body, children, files, onOpenImage, compact, teamName = 'IT Team' }) {
   const isGeneric = !name || /^it team$/i.test(name);
   const initials = mine ? ticketInitials(name) : (isGeneric ? 'IT' : ticketInitials(name));
-  const [bg, fg] = mine ? ['#FDC831', '#211E1E'] : (isGeneric ? ['#211E1E', '#FDC831'] : convoTint(name));
+  const [bg, fg] = mine ? ['#FFFFFF', '#211E1E'] : (isGeneric ? ['#211E1E', '#FFFFFF'] : convoTint(name));
   return (
     <div className={'convo-msg' + (mine ? ' is-mine' : ' is-agent') + (compact ? ' is-compact' : '')}>
-      <span className="convo-avatar" aria-hidden="true" style={compact ? undefined : { background: bg, color: fg }}>{compact ? null : initials}</span>
+      <span className="convo-avatar" aria-hidden="true" style={compact ? undefined : { background: bg, color: fg, ...(mine ? { boxShadow: 'inset 0 0 0 1.5px #211E1E' } : {}) }}>{compact ? null : initials}</span>
       <div className="convo-col">
         {!compact && (
           <div className="convo-head">
             <span className="convo-name">{mine ? 'You' : (name || 'IT Team')}</span>
-            {!mine && !isGeneric && <span className="convo-role">IT Team</span>}
+            {!mine && !isGeneric && <span className="convo-role">{teamName}</span>}
             {time && <time className="convo-time" title={stamp}>{time}</time>}
           </div>
         )}
@@ -6770,12 +6887,12 @@ function matchCatalogItem(catalog, text) {
 }
 
 const STATUS_TINT = {
-  open: '#ECE7DD', new: '#ECE7DD', in_progress: '#FFF1C2',
+  open: '#ECE7DD', new: '#ECE7DD', in_progress: '#E6EEF9',
   pending: '#FDEFD9', waiting: '#FDEFD9', on_hold: '#FDEFD9',
   resolved: '#DFF1E5', approved: '#DFF1E5', closed: '#F1ECE2', cancelled: '#F1ECE2', rejected: '#FBE3E0',
 };
 const STATUS_DOT = {
-  open: '#211E1E', new: '#211E1E', in_progress: '#FDC831',
+  open: '#211E1E', new: '#211E1E', in_progress: '#2563B0',
   pending: '#E08A1E', waiting: '#E08A1E', on_hold: '#E08A1E',
   resolved: '#0A8A3E', approved: '#0A8A3E', closed: '#9A8E78', cancelled: '#9A8E78', rejected: '#DA3327',
 };
@@ -6812,7 +6929,7 @@ function TicketTypeBadge({ type }) {
       display: 'inline-flex', alignItems: 'center',
       padding: '2px 8px',
       background: filled ? '#211E1E' : '#FFFFFF',
-      color: filled ? '#FDC831' : '#211E1E',
+      color: filled ? '#FFFFFF' : '#211E1E',
       border: '1px solid #211E1E', borderRadius: 4,
       fontSize: 10, fontWeight: 600, fontFamily: "var(--font-mono)",
       letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap',
@@ -6912,9 +7029,41 @@ const _selectStackItems = (items) => {
   // `total` drives the "+N" card and the subtitle's count. Three logos are
   // decoration; a real number is the reason to click — it's the only thing
   // on the bar that says how much is actually behind it.
-  return { preview: scored.slice(0, CTA_ICON_COUNT), total: scored.length };
+  return { preview: scored.slice(0, CTA_ICON_COUNT), top: scored.slice(0, 8), total: scored.length };
 };
-const _EMPTY_STACK = { preview: [], total: 0 };
+const _EMPTY_STACK = { preview: [], top: [], total: 0 };
+
+// A small rotating deck of the most-requested apps: three logos fanned out;
+// every couple of seconds the front one slides off and the next app comes in
+// at the back. Pauses while `paused` (the card is hovered/focused) and holds
+// still for prefers-reduced-motion.
+function AppDeck({ apps, paused }) {
+  const [k, setK] = React.useState(0);
+  const n = apps.length;
+  const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  React.useEffect(() => {
+    if (n <= 3 || paused || reduce) return undefined;
+    const t = setInterval(() => setK((x) => x + 1), 2200);
+    return () => clearInterval(t);
+  }, [n, paused, reduce]);
+  if (!n) return null;
+  // Slots: -1 leaving, 0..2 visible (front → back), 3 waiting to come in.
+  // With only four apps the leaving and incoming slot are the same app, so
+  // each app takes the first slot it lands in (visible ones win).
+  const seen = new Set();
+  const slots = n <= 3 ? apps.map((a, i) => ({ a, slot: i }))
+    : [0, 1, 2, -1, 3].map((slot) => ({ a: apps[(((k + slot) % n) + n) % n], slot }))
+      .filter(({ a }) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
+  return (
+    <span className="app-deck" aria-hidden="true">
+      {slots.map(({ a, slot }) => (
+        <span key={a.id} className="app-deck-card" data-slot={slot}>
+          {a.icon_url ? <img src={a.icon_url} alt="" width="56" height="56" decoding="async" /> : <span className="app-deck-letter">{a.name.charAt(0).toUpperCase()}</span>}
+        </span>
+      ))}
+    </span>
+  );
+}
 function useCatalogStackItems() {
   return useCatalogSlice(_selectStackItems, _EMPTY_STACK);
 }
@@ -6929,7 +7078,7 @@ function AppIcon({ name, iconUrl, size = 30, className }) {
   }
   return (
     <span className={className} style={{
-      width: size, height: size, borderRadius: Math.round(size * 0.24), background: '#FBF0CB', border: 'none', boxShadow: '0 0 0 1px rgba(33,30,30,.08)',
+      width: size, height: size, borderRadius: Math.round(size * 0.24), background: '#F4F0E8', border: 'none', boxShadow: '0 0 0 1px rgba(33,30,30,.08)',
       display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif",
       fontSize: Math.round(size * 0.46), color: '#211E1E', flexShrink: 0,
     }}>{String(name || '?').charAt(0).toUpperCase()}</span>
@@ -6983,15 +7132,18 @@ function TicketLeadIcon({ ticket, app, size = 34, className }) {
   // One neutral tile for every non-app ticket — white, hairline, charcoal
   // glyph — so the list reads as one system next to real app logos instead
   // of a patchwork of pastel boxes. The glyph alone says what it's about.
+  const team = ticketTeamKey(ticket);
   const isRequest = ticketTypeMeta(ticket && ticket.type).kind === 'request';
-  const topic = isRequest ? null : issueTopic(ticket);
-  const Glyph = isRequest ? IconSpark : (topic ? topic.Glyph : IconAlert);
+  // Another team's ticket wears that team's icon (HR, Finance…): its topic
+  // glyphs are IT's (Wi-Fi, laptop…), so they'd say the wrong thing.
+  const topic = isRequest || team !== 'it' ? null : issueTopic(ticket);
+  const Glyph = team !== 'it' ? teamIcon(team) : isRequest ? IconSpark : (topic ? topic.Glyph : IconAlert);
   const bg = '#FFFFFF';
   const fg = '#211E1E';
   const flag = !isRequest && topic && size >= 28;
   const flagSize = Math.max(13, Math.round(size * 0.36));
   return (
-    <span className={className} title={topic ? `Issue · ${topic.label}` : undefined} style={{
+    <span className={className} title={team !== 'it' ? helpTeam(team).label : topic ? `Issue · ${topic.label}` : undefined} style={{
       position: 'relative', width: size, height: size, borderRadius: Math.round(size * 0.24), flexShrink: 0, background: bg,
       border: '1px solid rgba(33,30,30,.18)', display: 'grid', placeItems: 'center', boxSizing: 'border-box',
     }}>
@@ -7073,8 +7225,13 @@ function TicketNumber({ value, size = 13 }) {
 }
 
 // ── Full page — tabs over My Tickets + Approvals, plus the two create paths ──
-function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) {
-  const { preview: reqStack, total: reqTotal } = useCatalogStackItems();
+function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest, onRequestItem }) {
+  const { preview: reqStack, top: reqTop, total: reqTotal } = useCatalogStackItems();
+  const [reqHover, setReqHover] = React.useState(false);
+  // An unsent "Report an issue" (see REPORT_DRAFT_KEY) turns the card into
+  // "continue your draft", so half-written reports don't get lost.
+  const [reportDraft] = React.useState(() => readReportDraft());
+  const quickApps = (reqTop || []).slice(0, 3);
   const [tab, setTab] = React.useState(initialTab === 'approvals' ? 'approvals' : 'mine');
   const [query, setQuery] = React.useState('');
   // When a ticket/approval detail is open, hide the page chrome (title, tabs,
@@ -7114,50 +7271,10 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
           {/* Just the title — the two start buttons below already say what the
               page is for. No Back button: this is a top-level section, the nav
               is right there. */}
-          <div className="tkt-head">
-            <div style={{ minWidth: 0 }}>
-              <h1 className="tkt-title">My tickets</h1>
-            </div>
-          </div>
-          {/* The two ways to start something — big, side by side, first thing
-              under the title. They used to be small buttons in the corner and
-              people walked straight past them. */}
-          <div className="tkt-start">
-            <button onClick={() => onReportIssue && onReportIssue()} className="tkt-start-card">
-              <span className="tkt-start-ic" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" />
-                </svg>
-              </span>
-              <span className="tkt-start-text">
-                <span className="tkt-start-title">Report an issue</span>
-                <span className="tkt-start-sub">Something broken, slow or not working</span>
-              </span>
-              <span className="tkt-start-go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></span>
-            </button>
-            <button onClick={() => onRequest && onRequest()} className="tkt-start-card is-request">
-              {reqStack.length > 0 ? (
-                <span className="tkt-start-stack" aria-hidden="true">
-                  {reqStack.slice(0, 3).map((it) => (
-                    <span key={it.id} className="tkt-start-chip" title={it.name}>
-                      {it.icon_url
-                        ? <img src={it.icon_url} alt="" width="48" height="48" decoding="async" />
-                        : String(it.name || '?').charAt(0).toUpperCase()}
-                    </span>
-                  ))}
-                </span>
-              ) : (
-                <span className="tkt-start-ic" aria-hidden="true">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                </span>
-              )}
-              <span className="tkt-start-text">
-                <span className="tkt-start-title">Request something</span>
-                <span className="tkt-start-sub">Apps, access and hardware{reqTotal > 0 ? ` · ${reqTotal} available` : ''}</span>
-              </span>
-              <span className="tkt-start-go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></span>
-            </button>
-          </div>
+          <h1 className="sr-only">My tickets</h1>
+          {/* Tabs lead the page. Under them, on My tickets only, the two ways
+              to start something (Report / Request) — Approvals is for deciding
+              on other people's requests, so the cards would only be noise. */}
           <div className="tkt-tabsrow">
             <style>{`
               /* Segmented switch — one track holds both options, so it reads as a
@@ -7186,17 +7303,17 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
                 background:#FFFFFF; color:#211E1E; border:1px solid rgba(33,30,30,.22); border-radius:12px;
                 font-family:'Archivo',sans-serif; font-weight:650; font-size:14px; letter-spacing:-0.005em;
                 transition: background .16s ease, border-color .16s ease, box-shadow .16s ease; }
-              .tkt-action:hover { background:#FFF6D6; border-color:#211E1E; }
+              .tkt-action:hover { background:#F4F0E8; border-color:rgba(33,30,30,.4); }
               .tkt-action:focus-visible { outline:2px solid #211E1E; outline-offset:2px; }
               .tkt-action.is-primary { background:#211E1E; border-color:#211E1E; color:#FFFFFF; }
-              .tkt-action.is-primary:hover { background:#211E1E; box-shadow:0 0 0 3px rgba(253,200,49,.6); }
+              .tkt-action.is-primary:hover { background:#2E2A28; box-shadow:none; }
               /* Leading marks on the two actions. */
               .tkt-action { padding-left:12px; }
               .tkt-action-glyph { width:26px; height:26px; flex:none; display:grid; place-items:center; border-radius:50%;
                 border:1px solid rgba(33,30,30,.18); background:#F7F4EF; color:#211E1E;
                 transition: transform .3s cubic-bezier(.34,1.56,.64,1), background .18s ease; }
               .tkt-action-issue:hover .tkt-action-glyph { animation: tktGlyphNudge .5s ease both; background:#FFFFFF; }
-              .tkt-action.is-primary .tkt-action-glyph { background:#211E1E; color:#FDC831; }
+              .tkt-action.is-primary .tkt-action-glyph { background:#211E1E; color:#FFFFFF; }
               .tkt-action.is-primary:hover .tkt-action-glyph { transform: rotate(90deg); }
               @keyframes tktGlyphNudge {
                 0% { transform: rotate(0); } 25% { transform: rotate(-12deg) scale(1.08); }
@@ -7230,6 +7347,49 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
                 placeholder={tab === 'approvals' ? 'Search approvals…' : 'Search tickets, apps, numbers…'} />
             </div>
           </div>
+          {tab === 'mine' && <div className="tkt-start">
+            <button onClick={() => onReportIssue && onReportIssue()} className={'tkt-start-card is-report' + (reportDraft ? ' has-draft' : '')}>
+              {/* Same monochrome tiles as the My Tickets menu in the top bar. */}
+              <span className="tkt-start-ic" aria-hidden="true">
+                {reportDraft
+                  ? <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  : <IconAlert size={19} stroke={1.9} />}
+              </span>
+              <span className="tkt-start-text">
+                <span className="tkt-start-title">{reportDraft ? 'Continue your report' : 'Report an issue'}</span>
+                <span className="tkt-start-sub">{reportDraft ? `Draft: “${(reportDraft.subject || reportDraft.description || '').trim()}”` : 'Something broken or not working'}</span>
+              </span>
+              <span className="tkt-start-go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></span>
+            </button>
+            {/* The wide card. The whole card opens the catalog; the quick picks
+                skip the search and open that app's request form directly. A div
+                (not a button) because it holds other buttons. */}
+            <div className="tkt-start-card is-request"
+              onClick={() => onRequest && onRequest()}
+              onMouseEnter={() => setReqHover(true)} onMouseLeave={() => setReqHover(false)}>
+              <button type="button" className="tkt-start-main" onClick={(e) => { e.stopPropagation(); onRequest && onRequest(); }}
+                onFocus={() => setReqHover(true)} onBlur={() => setReqHover(false)}>
+                {reqTop && reqTop.length
+                  ? <AppDeck apps={reqTop} paused={reqHover} />
+                  : <span className="tkt-start-ic" aria-hidden="true"><IconSpark size={19} stroke={1.9} /></span>}
+                <span className="tkt-start-text">
+                  <span className="tkt-start-title">Request something</span>
+                  <span className="tkt-start-sub">Apps, access and hardware{reqTotal > 0 ? ` · ${reqTotal} available` : ''}</span>
+                </span>
+              </button>
+              {onRequestItem && quickApps.length > 0 && (
+                <span className="tkt-quick" role="group" aria-label="Popular apps">
+                  {quickApps.map((a) => (
+                    <button key={a.id} type="button" className="tkt-quick-chip" title={`Request ${a.name}`}
+                      onClick={(e) => { e.stopPropagation(); onRequestItem(a.id); }}>
+                      {a.name}
+                    </button>
+                  ))}
+                </span>
+              )}
+              <span className="tkt-start-go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></span>
+            </div>
+          </div>}
         </div>
       </div>
       )}
@@ -7322,7 +7482,8 @@ function SlideIndicator({ activeKey, radius = 9 }) {
     const track = ref.current && ref.current.parentElement;
     if (!track) return undefined;
     const measure = () => {
-      const tab = track.querySelector('[role="tab"][aria-selected="true"]');
+      // Follows the selected tab, or the checked option in a radio group.
+      const tab = track.querySelector('[role="tab"][aria-selected="true"], [role="radio"][aria-checked="true"]');
       setBox(tab ? { x: tab.offsetLeft, y: tab.offsetTop, w: tab.offsetWidth, h: tab.offsetHeight } : null);
     };
     measure();
@@ -7355,8 +7516,9 @@ function TicketsTab({ label, active, onClick, badge }) {
         <span aria-label={`${n} unseen update${n === 1 ? '' : 's'}`} style={{
           minWidth: 20, height: 20, padding: '0 6px', boxSizing: 'border-box',
           display: 'inline-grid', placeItems: 'center',
-          background: active ? '#211E1E' : '#FDC831', color: active ? '#FDC831' : '#211E1E',
-          borderRadius: 999, fontSize: 11, fontWeight: 500, lineHeight: 1,
+          // Same red as the top bar's unread badge: "something needs you".
+          background: '#DA3327', color: '#FFFFFF',
+          borderRadius: 999, fontSize: 11, fontWeight: 600, lineHeight: 1,
           fontFamily: 'var(--font-mono)',
         }}>{n > 9 ? '9+' : n}</span>
       )}
@@ -7423,12 +7585,12 @@ function OnBehalfBanner({ ticket }) {
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: 8,
       padding: '5px 12px 5px 5px', marginBottom: 10,
-      background: '#FFF9EC', border: '1px solid #211E1E', borderRadius: 999,
+      background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 999,
       boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', maxWidth: '100%',
     }}>
       <span aria-hidden="true" style={{
         width: 21, height: 21, borderRadius: 999, flexShrink: 0, boxSizing: 'border-box',
-        background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center',
+        background: '#F4F0E8', border: '1px solid rgba(33,30,30,.18)', display: 'grid', placeItems: 'center',
         fontFamily: "'Archivo', sans-serif", fontSize: 9, fontWeight: 900, color: '#211E1E', lineHeight: 1,
       }}>{obInitials(person.name)}</span>
       <span style={{ fontSize: 12.5, fontWeight: 600, color: '#55503F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -7467,7 +7629,7 @@ function OnBehalfTag({ ticket, size = 11 }) {
       {/* Initials avatar — the person this ticket is for, at a glance. */}
       <span aria-hidden="true" style={{
         width: 17, height: 17, borderRadius: 999, flexShrink: 0, boxSizing: 'border-box',
-        background: '#FDC831', border: 'none', display: 'grid', placeItems: 'center',
+        background: '#F4F0E8', border: 'none', display: 'grid', placeItems: 'center',
         fontFamily: "'Archivo', sans-serif", fontSize: 7.5, fontWeight: 700, color: '#211E1E', lineHeight: 1,
       }}>{initials}</span>
       <span style={{ fontSize: size, fontWeight: 600, color: '#7A6E58', flexShrink: 0 }}>{prefix}</span>
@@ -7726,6 +7888,8 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   const hasOnBehalf = st.tickets.some(isOnBehalf);
   const onBehalfList = searched.filter(isOnBehalf);
   const forOthersCount = onBehalfList.length;
+  // No separate team filter: each row shows its team (number prefix + icon)
+  // and search matches "HR" / "IT-…" numbers.
   const faceted = searched.filter((t) => isOnBehalf(t) === forOthers);
 
   // Most-recently-active first. The server already orders by updated_at, but we
@@ -7849,17 +8013,17 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           they also flag matches sitting in the other view. */}
       <style>{`
         .tkt-forothers { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; padding:12px 14px 12px 16px;
-          background:#FFF6D6; color:#211E1E; border:1px solid rgba(33,30,30,.14); border-radius:12px;
+          background:#FFFFFF; color:#211E1E; border:1px solid rgba(33,30,30,.12); border-radius:12px;
           animation: tktForOthersIn .28s cubic-bezier(.22,.61,.36,1) both; }
         .tkt-forothers b { display:block; font-family:'Archivo',sans-serif; font-size:14px; font-weight:650; letter-spacing:-.01em; }
         .tkt-forothers-sub { display:block; font-size:12.5px; color:#78684C; margin-top:2px; }
         .tkt-forothers-stack { display:flex; flex:none; }
-        .tkt-forothers-av { width:30px; height:30px; margin-left:-8px; border-radius:50%; display:grid; place-items:center; background:#FDC831; color:#211E1E;
-          border:2px solid #FFF6D6; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:700; }
+        .tkt-forothers-av { width:30px; height:30px; margin-left:-8px; border-radius:50%; display:grid; place-items:center; background:#F4F0E8; color:#211E1E;
+          border:2px solid #FFFFFF; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:700; }
         .tkt-forothers-av:first-child { margin-left:0; }
         .tkt-forothers-back { margin-left:auto; height:34px; padding:0 12px; border-radius:10px; border:1px solid rgba(33,30,30,.22); background:#FFFFFF; color:#211E1E; cursor:pointer;
           font-family:'Archivo',sans-serif; font-weight:650; font-size:13px; }
-        .tkt-forothers-back:hover { border-color:#211E1E; box-shadow:0 0 0 3px rgba(253,200,49,.55); }
+        .tkt-forothers-back:hover { border-color:#211E1E; background:#F4F0E8; }
         @keyframes tktForOthersIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
         @media (prefers-reduced-motion: reduce) { .tkt-forothers { animation:none; } }
 
@@ -7871,9 +8035,9 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           transition: background .16s ease, color .16s ease; }
         .tkt-facet:hover { background:rgba(33,30,30,.06); color:#211E1E; }
         .tkt-facet-n { flex-shrink:0; min-width:20px; padding:2px 6px; box-sizing:border-box; border-radius:999px;
-          background:#FDC831; color:#211E1E; font:600 11px/1.2 var(--font-mono); text-align:center; }
+          background:#F4F0E8; color:#211E1E; font:600 11px/1.2 var(--font-mono); text-align:center; }
         .tkt-facet-x { display:grid; place-items:center; width:17px; height:17px; margin-left:2px;
-          background:#211E1E; color:#FDC831; border-radius:999px; font-size:9.5px; font-weight:900; line-height:1; }
+          background:#211E1E; color:#FFFFFF; border-radius:999px; font-size:9.5px; font-weight:900; line-height:1; }
         .tkt-facet-dot { position:absolute; top:6px; right:4px; width:6px; height:6px; border-radius:999px; background:#E0A800; }
 
         @media (prefers-reduced-motion: reduce) {
@@ -7993,7 +8157,11 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
                 <span className="tkt-row-sep" aria-hidden="true" />
                 <span>{kind.label}</span>
                 <OnBehalfTag ticket={t} />
-                {t.created_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>Opened {relativeTime(t.created_at)}</span></>}
+                {/* Open tickets say when they were opened; closed ones say how and
+                    when they ended ("Resolved 4d ago", "Declined 2d ago"). */}
+                {ticketBucket(t.status) === 'open'
+                  ? (t.created_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>Opened {relativeTime(t.created_at)}</span></>)
+                  : ((t.resolved_at || t.closed_at || t.updated_at) && <><span className="tkt-row-sep" aria-hidden="true" /><span>{String(t.approval_status || '').toLowerCase() === 'rejected' ? 'Declined' : ticketStatusMeta(t.status).label} {relativeTime(t.resolved_at || t.closed_at || t.updated_at)}</span></>)}
               </div>
             </div>
             <div className="tkt-row-status">
@@ -8099,7 +8267,7 @@ function ApprovalSummary({ approval, ticket }) {
   // only for a payload that predates it.
   const STATE = {
     approved:   { label: 'Approved',   dot: '#0A8A3E', txt: '#0A8A3E' },
-    pending:    { label: 'Pending',    dot: '#FDC831', txt: '#211E1E' },
+    pending:    { label: 'Pending',    dot: '#E08A1E', txt: '#211E1E' },
     waiting:    { label: 'Up next',    dot: '#D8D2C4', txt: '#8A8275' },
     rejected:   { label: 'Declined',   dot: '#B92323', txt: '#B92323' },
     skipped:    { label: 'Not needed', dot: '#D8D2C4', txt: '#8A8275' },
@@ -8172,7 +8340,7 @@ function approvalStageStates(approval, ticket) {
 
 const APPROVAL_STEP_ICON = {
   approved: { bg: '#0A8A3E', fg: '#FFFFFF', path: <path d="m6 12.5 4 4 8-9" /> },
-  pending:  { bg: '#FDC831', fg: '#211E1E', path: <><circle cx="12" cy="12" r="7.5" /><path d="M12 8v4.2l2.6 1.6" /></> },
+  pending:  { bg: '#FDEFD9', fg: '#211E1E', path: <><circle cx="12" cy="12" r="7.5" /><path d="M12 8v4.2l2.6 1.6" /></> },
   waiting:  { bg: '#FFFFFF', fg: '#8A8275', path: <path d="M8 12h8" /> },
   rejected: { bg: '#B92323', fg: '#FFFFFF', path: <path d="m8 8 8 8M16 8l-8 8" /> },
   skipped:  { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
@@ -8227,7 +8395,7 @@ function ApprovalsButton({ approval, ticket }) {
         .appr-step { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; border:1.5px solid #211E1E; flex:none; position:relative; }
         .appr-step + .appr-step { margin-left:-5px; }
         .appr-step.is-pending { animation: apprPulse 2s ease-in-out infinite; }
-        @keyframes apprPulse { 0%,100% { box-shadow:0 0 0 0 rgba(253,200,49,.0); } 50% { box-shadow:0 0 0 4px rgba(253,200,49,.45); } }
+        @keyframes apprPulse { 0%,100% { box-shadow:0 0 0 0 rgba(33,30,30,.08); } 50% { box-shadow:0 0 0 4px rgba(33,30,30,.08); } }
         .appr-text { display:flex; flex-direction:column; line-height:1.15; min-width:0; }
         .appr-head { font-family:var(--font-mono); font-size:12px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
         .appr-btn.is-approved .appr-head { color:#0A6E31; }
@@ -8271,7 +8439,7 @@ function ApprovalsButton({ approval, ticket }) {
 const TICKET_HERO = {
   open:      { label: 'Open',              line: 'Received — the IT Team will pick it up shortly.',                       bg: '#ECE7DD', dot: '#211E1E' },
   approval:  { label: 'Waiting for approval', line: 'Your request is with the approver. IT starts as soon as it’s signed off.', bg: '#FDEFD9', dot: '#E08A1E' },
-  progress:  { label: 'In progress',       line: 'The IT Team is working on this.',                                        bg: '#FFF1C2', dot: '#FDC831' },
+  progress:  { label: 'In progress',       line: 'The IT Team is working on this.',                                        bg: '#E6EEF9', dot: '#2563B0' },
   waiting:   { label: 'Waiting on you',    line: 'IT needs something from you — check the conversation below and reply.',  bg: '#FDEFD9', dot: '#E08A1E' },
   hold:      { label: 'On hold',           line: 'Paused for now. The IT Team will update you when it moves again.',       bg: '#F3EFE7', dot: '#E08A1E' },
   resolved:  { label: 'Resolved',          line: 'IT marked this as fixed. Close it if you’re sorted, or reply to reopen.', bg: '#DFF1E5', dot: '#0A8A3E' },
@@ -8369,7 +8537,100 @@ function TicketStatusHero({ t, approvalState, isDeclined, error, approval, child
     </section>
   );
 }
-function TicketDetailsPanel({ t, approvalState, approval, status }) {
+// Priority, editable in place: click the value, pick a level, it saves.
+// Critical pages the whole IT team, so it asks first (same dialog as the
+// request form's urgency picker).
+// Read-only when `onChange` is missing (closed tickets).
+const PRIORITY_LEVELS = [
+  { v: 'low', label: 'Low', n: 1 }, { v: 'medium', label: 'Medium', n: 2 },
+  { v: 'high', label: 'High', n: 3 }, { v: 'critical', label: 'Critical', n: 4 },
+];
+function PrioBars({ n }) {
+  return (
+    <span className="tkd-prio-bars" aria-hidden="true">
+      {[1, 2, 3, 4].map((i) => <i key={i} className={i <= n ? 'is-on p' + n : ''} style={{ height: 4 + i * 3 }} />)}
+    </span>
+  );
+}
+function PriorityControl({ value, onChange }) {
+  const v = String(value || '').toLowerCase() === 'urgent' ? 'critical' : String(value || '').toLowerCase();
+  const cur = PRIORITY_LEVELS.find((l) => l.v === v);
+  const [open, setOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const [askCrit, setAskCrit] = React.useState(false);
+  const [critBusy, setCritBusy] = React.useState(false);
+  const [critErr, setCritErr] = React.useState('');
+  const wrap = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+  const label = (
+    <span className="tkd-prio"><PrioBars n={cur ? cur.n : 0} /><span>{cur ? cur.label : (value || '—')}</span></span>
+  );
+  if (!onChange) return label;
+  const pick = async (lvl) => {
+    if (lvl === v) { setOpen(false); return; }
+    if (lvl === 'critical') { setOpen(false); setCritErr(''); setAskCrit(true); return; }
+    setOpen(false); setBusy(true); setErr('');
+    try { await onChange(lvl); }
+    catch (e) { setErr(e.message || 'Couldn’t change priority.'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <span className="prio-ctl" ref={wrap}>
+      <button type="button" className={'prio-trigger' + (open ? ' is-open' : '')} disabled={busy}
+        aria-haspopup="listbox" aria-expanded={open} title="Change priority"
+        onClick={() => { setOpen((o) => !o); setErr(''); }}>
+        {label}
+        {busy ? <span className="tkt-life-spin prio-spin" aria-hidden="true" />
+          : <svg className="prio-caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>}
+      </button>
+      {open && (
+        <span className="prio-menu" role="listbox" aria-label="Priority">
+          {PRIORITY_LEVELS.map((l) => {
+            return (
+              <button key={l.v} type="button" role="option" aria-selected={l.v === v}
+                className={'prio-opt' + (l.v === v ? ' is-on' : '')} onClick={() => pick(l.v)}>
+                <PrioBars n={l.n} />
+                <span className="prio-opt-text"><span>{l.label}</span></span>
+                {l.v === v && <svg className="prio-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7.5" /></svg>}
+              </button>
+            );
+          })}
+        </span>
+      )}
+      {err && <span className="prio-err" role="alert">{err}</span>}
+      {askCrit && (
+        <ConfirmDialog
+          kicker="Critical"
+          title="Raise this ticket to critical?"
+          body="Critical alerts the whole IT Team on Slack right away. Use it when you can’t work at all, or many people are affected. For anything else, High still puts it at the top of the queue."
+          tone="danger"
+          icon={<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>}
+          confirmLabel="Yes, it’s critical"
+          cancelLabel="Not critical"
+          busy={critBusy}
+          busyLabel="Raising…"
+          error={critErr}
+          onConfirm={async () => {
+            setCritBusy(true); setCritErr('');
+            try { await onChange('critical'); return true; }
+            catch (e) { setCritErr(e.message || 'Couldn’t change priority.'); return false; }
+            finally { setCritBusy(false); }
+          }}
+          onDone={() => { setAskCrit(false); setCritErr(''); }} />
+      )}
+    </span>
+  );
+}
+
+function TicketDetailsPanel({ t, approvalState, approval, status, onPriorityChange }) {
   const pr = String(t.priority || '').toLowerCase();
   const PR = { low: 1, medium: 2, high: 3, urgent: 4, critical: 4 };
   const bars = PR[pr] || 0;
@@ -8384,13 +8645,15 @@ function TicketDetailsPanel({ t, approvalState, approval, status }) {
       <div className="tkd-card tkd-side-card">
         <div className="tkd-side-head">Details</div>
         <dl className="tkd-dl">
+          {(() => {
+            const tk = ticketTeamKey(t);
+            const TIcon = teamIcon(tk);
+            return <Row k="Team"><span className="tkd-team"><TIcon size={14} stroke={1.9} aria-hidden="true" />{helpTeam(tk).label}</span></Row>;
+          })()}
           {t.ticket_number && <Row k="Ticket ID"><TicketNumber value={t.ticket_number} size={13} /></Row>}
           {t.priority && (
             <Row k="Priority">
-              <span className="tkd-prio">
-                <span className="tkd-prio-bars" aria-hidden="true">{[1, 2, 3, 4].map((n) => <i key={n} className={n <= bars ? 'is-on p' + bars : ''} style={{ height: 4 + n * 3 }} />)}</span>
-                <span style={{ textTransform: 'capitalize' }}>{pr}</span>
-              </span>
+              <PriorityControl value={t.priority} onChange={ticketBucket(t.status) === 'open' ? onPriorityChange : null} />
             </Row>
           )}
           {assignee && <Row k="Assigned to">{assignee}</Row>}
@@ -8888,9 +9151,11 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
           <div key={liveNote.key} className="tkt-live-note" role="status">
             <span className="tkt-live-dot" aria-hidden="true" />
             <b>{liveNote.title}</b>
-            {liveNote.more > 0 && <span style={{ opacity: 0.8 }}> +{liveNote.more} more</span>}
-            <span style={{ opacity: 0.7 }}>· just now</span>
-            <button type="button" onClick={() => setLiveNote(null)} aria-label="Dismiss">✕</button>
+            {liveNote.more > 0 && <span className="tkt-live-more">+{liveNote.more} more</span>}
+            <span className="tkt-live-when">just now</span>
+            <button type="button" onClick={() => setLiveNote(null)} aria-label="Dismiss">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+            </button>
           </div>
         )}
       </div>
@@ -8940,7 +9205,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
               </div>
             )}
             {timeline.length === 0 && (st.full || st.error) && (
-              <div className="tab-panel-in" style={{ fontSize: 14, color: '#9A8E78' }}>No replies yet — write the first message below and the IT Team will see it on your ticket.</div>
+              <div className="tab-panel-in" style={{ fontSize: 14, color: '#9A8E78' }}>No replies yet — write the first message below and the {teamDisplayName(ticketTeamKey(t))} will see it on your ticket.</div>
             )}
             {timeline.map((it, idx) => {
               // Day dividers, and grouping: the same person again within a few
@@ -8950,14 +9215,14 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
               const showDay = day && (!prev || convoDay(prev.time) !== day);
               const sameAuthor = prev && !showDay && prev.mine === it.mine && String(prev.name || '') === String(it.name || '')
                 && it.at != null && prev.at != null && it.at - prev.at < 5 * 60 * 1000;
-              const common = { mine: it.mine, time: it.time ? relativeTime(it.time) : '', stamp: convoStamp(it.time), compact: !!sameAuthor };
+              const common = { mine: it.mine, time: it.time ? relativeTime(it.time) : '', stamp: convoStamp(it.time), compact: !!sameAuthor, teamName: teamDisplayName(ticketTeamKey(t)) };
               return (
                 <React.Fragment key={it.tkey}>
                   {showDay && <ConversationDay label={day} />}
                   {it.kind === 'msg' ? (
                     <ConversationMessage {...common} name={it.name} body={it.body} files={it.files} onOpenImage={openImage} />
                   ) : (
-                    <ConversationMessage {...common} name={it.name || 'IT Team'}>
+                    <ConversationMessage {...common} name={it.name || teamDisplayName(ticketTeamKey(t))}>
                       <AttachmentItem name={attName(it.att)} source={attSource(it.att)} size={attSize(it.att)} isImage={isImageAttachment(it.att, attName(it.att))} onOpenImage={openImage} />
                     </ConversationMessage>
                   )}
@@ -9002,7 +9267,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                       onChange={setReply}
                       onSubmit={requestSend}
                       disabled={sending}
-                      placeholder="Reply to the IT Team…" />
+                      placeholder={`Reply to the ${teamDisplayName(ticketTeamKey(t))}…`} />
 
                     {reopenOnReply && confirmReopen ? (
                       <div style={{ borderTop: '1px solid #F0EADC', background: '#FFF7DD', padding: '11px 14px' }}>
@@ -9036,6 +9301,10 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
           </div>
           </div>
           <TicketDetailsPanel t={t} approvalState={approvalState} approval={approval}
+            onPriorityChange={async (priority) => {
+              await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(t.id) + '/priority', { priority });
+              await load();
+            }}
             status={<TicketStatusHero t={t} approvalState={approvalState} isDeclined={isDeclined} error={statusErr} approval={approval}>{closeReopenButtons()}</TicketStatusHero>} />
           </div>
 
@@ -9113,9 +9382,13 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
 
   return (
     <div>
-      <div className="apr-count">
-        <b>{q ? `${shown.length} of ${st.pending.length}` : st.pending.length}</b> request{st.pending.length === 1 ? '' : 's'} waiting on your sign-off
-      </div>
+      {/* The tab's badge already says how many are waiting; a count line only
+          earns its place while searching ("2 of 5"). */}
+      {q && (
+        <div className="apr-count">
+          <b>{`${shown.length} of ${st.pending.length}`}</b> request{st.pending.length === 1 ? '' : 's'} match
+        </div>
+      )}
       {shown.length === 0 ? (
         <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>No approvals match “{query}”.</div>
       ) : (
@@ -9127,7 +9400,8 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
           </div>
           {shown.map((p, i) => (
             <button key={p.request_id} onClick={() => setSelId(p.request_id)} className="tkt-row tkt-row-in" style={{ animationDelay: `${Math.min(i, 8) * 28}ms` }}>
-              <TicketLeadIcon className="tkt-app-icon" ticket={{ type: 'service_request' }} size={40} />
+              {/* Same key tile as the approval page: these are access sign-offs. */}
+              <span className="apr-head-ic tkt-app-icon" aria-hidden="true" style={{ width: 40, height: 40, borderRadius: 10 }}><IconKey size={19} stroke={1.9} /></span>
               <div style={{ minWidth: 0 }}>
                 <div className="tkt-row-title"><span><Hl text={p.subject} tokens={tokens} /></span></div>
                 <div className="tkt-row-meta">
@@ -9186,7 +9460,7 @@ function ApprovalDetailView({ id, onBack, onActed }) {
   const title = d ? ((d.ticket && d.ticket.subject) || (d.catalog_item && ('Request: ' + d.catalog_item.name)) || 'Request') : '';
 
   return (
-    <div className="detail-in">
+    <div className="detail-in apr-page">
       <div className="tkd-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           <button onClick={onBack} className="kb-back-btn">
@@ -9199,20 +9473,24 @@ function ApprovalDetailView({ id, onBack, onActed }) {
       {st.error && <TicketsNotice title="Couldn’t load this request" body={st.error} />}
       {d && (
         <>
-          <div className="tkd-head">
-            <TicketLeadIcon ticket={{ type: 'service_request' }} size={48} />
-            <div style={{ minWidth: 0 }}>
-              <h1 className="tkd-title">{title}</h1>
-              <div className="tkd-meta">
-                <span>Request</span>
-                {d.ticket && <><span className="tkt-row-sep" aria-hidden="true" /><span>from {d.ticket.requester_name || 'Unknown'}</span></>}
-                {d.request && d.request.requested_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>{relativeTime(d.request.requested_at)}</span></>}
-              </div>
-            </div>
-          </div>
-
+          {/* Head inside the main column, like the ticket page, so the title
+              lines up with the card and the back link instead of the page edge.
+              The requested app's own icon when there is one. */}
           <div className="tkd-grid">
             <div className="tkd-main">
+              <div className="tkd-head apr-head">
+                {d.catalog_item && (d.catalog_item.icon_url || d.catalog_item.name)
+                  ? <AppIcon name={d.catalog_item.name} iconUrl={d.catalog_item.icon_url} size={48} />
+                  : <span className="apr-head-ic" aria-hidden="true"><IconKey size={22} stroke={1.9} /></span>}
+                <div style={{ minWidth: 0 }}>
+                  <h1 className="tkd-title">{title}</h1>
+                  <div className="tkd-meta">
+                    <span>Request</span>
+                    {d.ticket && <><span className="tkt-row-sep" aria-hidden="true" /><span>from {d.ticket.requester_name || 'Unknown'}</span></>}
+                    {d.request && d.request.requested_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>{relativeTime(d.request.requested_at)}</span></>}
+                  </div>
+                </div>
+              </div>
               <div className="tkd-card">
                 <div className="tkd-card-label">What’s being requested</div>
                 <div className="apr-item">
@@ -9312,6 +9590,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // so the views below don't care which chrome wraps them.
   const Shell = asPage ? PageShell : ModalShell;
   const [view, setView] = React.useState(initialCustom != null ? 'freeform' : 'list'); // list | form | done | freeform
+  // Custom requests pick a team first (see HELP_TEAMS). Catalog items are IT's.
+  const [team, setTeam] = React.useState('it');
   const [catalog, setCatalog] = React.useState(null); // null = loading
   const [catErr, setCatErr] = React.useState(''); // catalog failed to load
   const [item, setItem] = React.useState(null);
@@ -9787,6 +10067,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
 
   const submitFreeform = async () => {
     if (busy) return;
+    if (!helpTeam(team).live) return; // never route another team's request to IT
     if (!recheckAll()) return;
     setFieldErrs({});
     setBusy(true); setErr(''); setAttachWarn(''); setFailed([]);
@@ -10007,6 +10288,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // panel — who it's for, who approves, the button — pinned beside it, so the
   // form never feels long and Submit is always in view.
   const doSubmit = () => { setErrTick((t) => t + 1); (view === 'form' ? submitCatalog : submitFreeform)(); };
+  const teamBlocked = view === 'freeform' && !helpTeam(team).live;
   const inlineErr = err && !asPage ? <p className="rq-inline-err" role="alert">{err}</p> : null;
   const whoBody = (
     <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
@@ -10040,6 +10322,12 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const sidePanel = ({ approval }) => (
     <aside className="rqx-side" aria-label="Summary">
       <div className="rqx-card">
+        {view === 'freeform' && (
+          <div className="rqx-card-row">
+            <span className="rqx-k">Team</span>
+            <span className="rqx-team">{helpTeam(team).label}{!helpTeam(team).live && <span className="tp-soon">Soon</span>}</span>
+          </div>
+        )}
         <div className="rqx-card-row">
           <span className="rqx-k">For</span>
           <span className="rqx-people">
@@ -10066,8 +10354,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             never scrolled out of reach. */}
         <div className="rqx-cta">
           {err && asPage && <div className="rqx-err">{barError(err)}</div>}
-          <button className="btn btn-primary rqx-submit" onClick={doSubmit} disabled={busy} aria-busy={busy || undefined}>
-            {busy && <span className="tkt-life-spin rq-btn-spin" aria-hidden="true" />}{submitLabel}
+          <button className="btn btn-primary rqx-submit" onClick={doSubmit} disabled={busy || teamBlocked} aria-busy={busy || undefined}>
+            {busy && <span className="tkt-life-spin rq-btn-spin" aria-hidden="true" />}{teamBlocked ? helpTeam(team).label + ' opens soon' : submitLabel}
           </button>
           <button className="rqx-cancel" onClick={onClose} disabled={busy}>Cancel</button>
         </div>
@@ -10108,14 +10396,15 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         onClose={catalog && catalog.length ? () => { setErr(''); setView('list'); } : onClose} backLabel="Back" maxWidth={asPage ? 1040 : 620} centered bare={asPage}>
         <div className={'rqx' + (asPage ? '' : ' is-stacked')}>
           <div className="rqx-main">
+            <TeamPicker value={team} onChange={(k) => { setTeam(k); setErr(''); }} />
             {whoBody}
             <FieldBlock k="__subject" label="What do you need?" required err={fieldErrs.__subject} htmlFor="ff-subject">
               <input id="ff-subject" className={'cf-input' + (fieldErrs.__subject ? ' is-invalid' : '')} value={ffSubject} maxLength={200}
-                onChange={(e) => { setFfSubject(e.target.value); if (fieldErrs.__subject) setFieldErrs({}); }} placeholder="e.g. Access to Figma" autoFocus />
+                onChange={(e) => { setFfSubject(e.target.value); if (fieldErrs.__subject) setFieldErrs({}); }} placeholder={helpTeam(team).subject} autoFocus />
             </FieldBlock>
             <FieldBlock k="__desc" label="Details" htmlFor="ff-desc">
               <ComposerField id="ff-desc" minHeight={100} maxLength={8000} value={ffDesc} onChange={setFfDesc}
-                placeholder="Why you need it, which team, how soon…"
+                placeholder={helpTeam(team).details}
                 files={attachFiles} onFilesChange={setAttachFiles} disabled={busy} />
             </FieldBlock>
             {extrasBody}
@@ -10285,7 +10574,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             <button key={key} onClick={() => setCatFilter(key)} style={{
               padding: '5px 11px', borderRadius: 999, cursor: 'pointer', border: '1px solid #211E1E',
               fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase',
-              background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FDC831' : '#211E1E',
+              background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FFFFFF' : '#211E1E',
             }}>{label}</button>
           );
         };
@@ -11001,7 +11290,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
             return (
               <li key={stage.order} style={{ display: 'flex', gap: 10 }}>
                 {multiStage && (
-                  <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 12, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 900 }}>
+                  <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 12, borderRadius: '50%', background: '#211E1E', color: '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 900 }}>
                     {i + 1}
                   </span>
                 )}
@@ -11575,7 +11864,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
 
   const avatar = (label, size, isSelf) => <PersonAvatar name={label} size={size} self={isSelf} />;
   const youTag = (
-    <span style={{ display: 'inline-block', marginLeft: 6, padding: '1px 6px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
+    <span style={{ display: 'inline-block', marginLeft: 6, padding: '1px 6px', borderRadius: 999, background: '#F4F0E8', border: '1px solid #211E1E', fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
   );
   const ell = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 
@@ -11613,7 +11902,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
         <label style={{ ...TK.label, marginTop: 0, marginBottom: 0 }}>Who is this for?</label>
         {n > 1 && (
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#FDC831', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>
             {n} requests
           </span>
         )}
@@ -12132,14 +12421,14 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
               in
               <span style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
-                background: "#FDC831", border: "1px solid #211E1E", borderRadius: 999,
+                background: "#F4F0E8", border: "1px solid #211E1E", borderRadius: 999,
                 padding: "3px 10px 3px 12px", fontWeight: 700, fontSize: 12,
                 fontFamily: "Archivo, sans-serif",
               }}>
                 {categoryLabel}
                 <button onClick={onClearCategory} aria-label="Remove filter" style={{
                   width: 16, height: 16, padding: 0,
-                  background: "#211E1E", color: "#FDC831",
+                  background: "#211E1E", color: "#FFFFFF",
                   border: "none", borderRadius: "50%",
                   display: "grid", placeItems: "center", cursor: "pointer",
                 }}>
@@ -12159,7 +12448,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
               <button key={opt.v} onClick={() => onChangeSort(opt.v)} style={{
                 padding: "7px 12px",
                 background: sort === opt.v ? "#211E1E" : "#FFFFFF",
-                color: sort === opt.v ? "#FDC831" : "#211E1E",
+                color: sort === opt.v ? "#FFFFFF" : "#211E1E",
                 border: "none",
                 borderLeft: i === 0 ? "none" : "1.5px solid #211E1E",
                 fontFamily: "Archivo, sans-serif", fontSize: 11.5, fontWeight: 700,
@@ -12180,7 +12469,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
           {/* Typographic mark instead of emoji */}
           <div style={{
             width: 64, height: 64, margin: "0 auto 14px",
-            background: "#FDC831", border: "1px solid #211E1E", borderRadius: "50%",
+            background: "#F4F0E8", border: "1px solid #211E1E", borderRadius: "50%",
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
             fontFamily: "'Archivo', sans-serif", fontSize: 36, fontWeight: 900, color: "#211E1E",
@@ -12271,7 +12560,7 @@ function HighlightMatch({ text, query }) {
     <React.Fragment>
       {text.slice(0, idx)}
       <mark style={{
-        background: "#FDC831", color: "#211E1E",
+        background: "#F4F0E8", color: "#211E1E",
         padding: "0 3px", borderRadius: 2,
         border: "1px solid #211E1E",
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -13167,8 +13456,8 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           100% { transform: translateY(104%); opacity: 0; }
         }
         @keyframes pulseBox {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(253,200,49,0.6); }
-          50% { box-shadow: 0 0 0 8px rgba(253,200,49,0); }
+          0%, 100% { box-shadow: 0 0 0 0 rgba(33,30,30,.12); }
+          50% { box-shadow: 0 0 0 8px rgba(33,30,30,.08); }
         }
         .ss-action-btn { transition: transform .15s, box-shadow .15s; }
         .ss-action-btn:hover { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
@@ -13179,7 +13468,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(720px, 100%)",
-          background: "#FFF9E6",
+          background: "#F4F0E8",
           border: "1px solid #211E1E",
           borderRadius: 14,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -13192,13 +13481,13 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
         <div style={{
           padding: "20px 28px",
           borderBottom: "1px solid #211E1E",
-          background: "#FDC831",
+          background: "#F4F0E8",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 8,
-              background: "#211E1E", color: "#FDC831",
+              background: "#211E1E", color: "#FFFFFF",
               border: "1px solid #211E1E",
               display: "grid", placeItems: "center",
               fontFamily: "Archivo, sans-serif",
@@ -13243,7 +13532,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                 onDrop={onDrop}
                 style={{
                   display: "block",
-                  background: dragOver ? "#FDC831" : "#FFFFFF",
+                  background: dragOver ? "#F4F0E8" : "#FFFFFF",
                   border: `2.5px dashed ${dragOver ? "#211E1E" : "rgba(33,30,30,0.4)"}`,
                   borderRadius: 12,
                   padding: file ? "0" : "44px 24px",
@@ -13288,7 +13577,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                       position: "absolute", bottom: 0, left: 0, right: 0,
                       padding: "8px 12px",
                       background: "rgba(33,30,30,0.9)",
-                      color: "#FDC831",
+                      color: "#FFFFFF",
                       fontFamily: "ui-monospace, SF Mono, Menlo, monospace",
                       fontSize: 11.5,
                       textAlign: "left",
@@ -13300,8 +13589,8 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                   <>
                     <div style={{
                       width: 56, height: 56, borderRadius: 12,
-                      background: dragOver ? "#211E1E" : "#FDC831",
-                      color: dragOver ? "#FDC831" : "#211E1E",
+                      background: dragOver ? "#211E1E" : "#F4F0E8",
+                      color: dragOver ? "#FFFFFF" : "#211E1E",
                       border: "1px solid #211E1E",
                       display: "grid", placeItems: "center",
                       margin: "0 auto 14px",
@@ -13380,7 +13669,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                   style={{
                     padding: "12px 22px",
                     background: file ? "#211E1E" : "#E0DCCF",
-                    color: file ? "#FDC831" : "#78684C",
+                    color: file ? "#FFFFFF" : "#78684C",
                     border: `2px solid ${file ? "#211E1E" : "#C9C2B0"}`,
                     borderRadius: 4,
                     boxShadow: file ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
@@ -13504,8 +13793,8 @@ function AnalyzingView({ file, progress }) {
         <div style={{
           position: "absolute", left: 0, right: 0,
           height: 3,
-          background: "linear-gradient(90deg, transparent, #FDC831, transparent)",
-          boxShadow: "0 0 16px #FDC831",
+          background: "linear-gradient(90deg, transparent, rgba(33,30,30,.55), transparent)",
+          boxShadow: "0 0 16px rgba(33,30,30,.25)",
           animation: "scanLine 1.6s linear infinite",
         }}/>
         {/* Corner markers */}
@@ -13517,7 +13806,7 @@ function AnalyzingView({ file, progress }) {
             position: "absolute",
             ...pos,
             width: 14, height: 14,
-            border: "1px solid #FDC831",
+            border: "1px solid rgba(33,30,30,.18)",
             borderRadius: 2,
           }}/>
         ))}
@@ -13687,7 +13976,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                     onClick={() => onOpenSpecificGuide && onOpenSpecificGuide(g)}
                     className="ss-action-btn"
                     style={{
-                      background: i === 0 ? "#FDC831" : "#FFFFFF",
+                      background: i === 0 ? "#F4F0E8" : "#FFFFFF",
                       border: "1px solid #211E1E",
                       borderRadius: 10,
                       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -13698,7 +13987,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                   >
                     <div style={{
                       width: 36, height: 36, borderRadius: 8,
-                      background: "#211E1E", color: "#FDC831",
+                      background: "#211E1E", color: "#FFFFFF",
                       border: "1px solid #211E1E",
                       display: "grid", placeItems: "center",
                       fontFamily: "Archivo, sans-serif",
@@ -13786,7 +14075,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
             style={{
               padding: "11px 18px",
               background: isHardware ? "#211E1E" : "#FFFFFF",
-              color: isHardware ? "#FDC831" : "#211E1E",
+              color: isHardware ? "#FFFFFF" : "#211E1E",
               border: "1px solid #211E1E", borderRadius: 4,
               boxShadow: isHardware ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               fontFamily: "var(--font-mono)",
@@ -13804,7 +14093,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
               style={{
                 padding: "11px 18px",
                 background: "#211E1E",
-                color: "#FDC831",
+                color: "#FFFFFF",
                 border: "1px solid #211E1E", borderRadius: 4,
                 boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                 fontFamily: "var(--font-mono)",
@@ -13848,7 +14137,7 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
     >
       <div style={{
         width: 40, height: 40, borderRadius: 8,
-        background: "#FDC831",
+        background: "#F4F0E8",
         border: "1px solid #211E1E",
         color: "#211E1E",
         display: "grid", placeItems: "center",
@@ -14040,7 +14329,7 @@ function renderMarkdown(md, opts = {}) {
       i++;
       out.push(
         <pre key={key++} style={{
-          background: '#211E1E', color: '#FDC831',
+          background: '#211E1E', color: '#FFFFFF',
           padding: '16px 20px', borderRadius: 8,
           fontSize: 13, lineHeight: 1.5,
           fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
@@ -14084,7 +14373,7 @@ function renderMarkdown(md, opts = {}) {
       while (i < lines.length && lines[i].startsWith('>')) { quote.push(lines[i].replace(/^>\s?/, '')); i++; }
       out.push(
         <blockquote key={key++} style={{
-          borderLeft: '4px solid #FDC831',
+          borderLeft: '4px solid rgba(33,30,30,.18)',
           paddingLeft: 16, margin: '0 0 18px',
           color: '#4A3F2E', fontStyle: 'italic',
         }}>{inline(quote.join(' '))}</blockquote>
@@ -14161,7 +14450,7 @@ function renderMarkdown(md, opts = {}) {
             }}>
               <div style={{
                 width: 22, height: 22, borderRadius: '50%',
-                background: '#FDC831', border: '1px solid #211E1E',
+                background: '#F4F0E8', border: '1px solid #211E1E',
                 color: '#211E1E',
                 display: 'grid', placeItems: 'center',
                 fontFamily: "'Archivo', sans-serif",
@@ -14477,7 +14766,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
 
   const fbBtn = (active) => ({
     background: active ? '#211E1E' : '#FFFFFF',
-    color: active ? '#FDC831' : '#211E1E',
+    color: active ? '#FFFFFF' : '#211E1E',
     border: '1px solid #211E1E',
     padding: '12px 22px',
     borderRadius: 8,
@@ -14495,7 +14784,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     minWidth: 34, height: 34, padding: '0 8px', flexShrink: 0,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: active ? '#211E1E' : '#FFFFFF',
-    color: active ? '#FDC831' : '#211E1E',
+    color: active ? '#FFFFFF' : '#211E1E',
     border: '1px solid ' + (active ? '#211E1E' : 'rgba(33,30,30,.22)'), borderRadius: 10,
     cursor: 'pointer', boxSizing: 'border-box',
   });
@@ -14807,7 +15096,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             <div>
               <p style={{ color: '#888', fontStyle: 'italic', margin: '0 0 18px' }}>{error}</p>
               <button onClick={() => onFileTicket && onFileTicket({ source: 'guide', team: 'IT Team' })} style={{
-                background: '#211E1E', color: '#FDC831',
+                background: '#211E1E', color: '#FFFFFF',
                 border: 'none', padding: '12px 24px',
                 borderRadius: 8, fontWeight: 800,
                 fontFamily: 'inherit', fontSize: 14, cursor: 'pointer',
@@ -15020,7 +15309,7 @@ function ImageLightbox({ images, index, onClose }) {
           {total > 1 && (
             <span style={{
               fontWeight: 700, fontSize: 12, letterSpacing: '0.04em',
-              color: '#FDC831',
+              color: '#FFFFFF',
             }}>{i + 1} / {total}</span>
           )}
         </div>
@@ -15121,9 +15410,9 @@ function FeedbackPanel({
 
         /* Active states — both have explicit hover rules so the dark fill +
            bright text combination stays intact when re-hovered. */
-        .fb-btn.is-yes-on { background: #211E1E; color: #FDC831; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); opacity: 1; }
+        .fb-btn.is-yes-on { background: #211E1E; color: #FFFFFF; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); opacity: 1; }
         .fb-btn.is-yes-on:not(:disabled):hover {
-          background: #000000; color: #FDC831;
+          background: #000000; color: #211E1E;
           transform: translate(0, 0);
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.18);
         }
@@ -15149,7 +15438,7 @@ function FeedbackPanel({
           background: #FFF9E6;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
-        .fb-reason.is-on { background: #211E1E; color: #FDC831; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
+        .fb-reason.is-on { background: #211E1E; color: #FFFFFF; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .fb-reason.is-on:hover { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .fb-textarea {
           width: 100%;
@@ -15164,7 +15453,7 @@ function FeedbackPanel({
           outline: none; box-sizing: border-box;
           transition: box-shadow .15s ease;
         }
-        .fb-textarea:focus { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 0 0 3px rgba(253,200,49,0.25); }
+        .fb-textarea:focus { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 0 0 3px rgba(33,30,30,.08); }
         .fb-submit {
           padding: 10px 22px;
           background: #211E1E; color: #FFFFFF;
@@ -15184,7 +15473,7 @@ function FeedbackPanel({
         .fb-submit:active { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); transition-duration: .08s; }
         .fb-ticket {
           padding: 10px 22px;
-          background: #211E1E; color: #FDC831;
+          background: #211E1E; color: #FFFFFF;
           border: 1px solid #211E1E; border-radius: 8px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.16);
           font-family:var(--font-mono);
@@ -15223,7 +15512,7 @@ function FeedbackPanel({
         }
         .fb-related:hover {
           transform: translate(0, 0);
-          background: #FDC831;
+          background: #F4F0E8;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-related:active {
@@ -15407,7 +15696,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
   return (
     <div className="page" style={{
-      background: '#FDC831',
+      background: '#F4F0E8',
       display: 'flex', flexDirection: 'column',
     }}>
       <style>{`
@@ -15522,7 +15811,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
-                background: '#FDC831', color: '#211E1E',
+                background: '#F4F0E8', color: '#211E1E',
                 display: 'grid', placeItems: 'center', flexShrink: 0,
                 fontSize: 11, fontWeight: 900,
                 fontFamily: "'Archivo', sans-serif",
@@ -15561,7 +15850,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
               }}>
                 <div style={{
                   width: 26, height: 26, borderRadius: '50%',
-                  background: '#FDC831', border: '1px solid #211E1E',
+                  background: '#F4F0E8', border: '1px solid #211E1E',
                   display: 'grid', placeItems: 'center',
                   fontFamily: "'Archivo', sans-serif",
                   fontSize: 11, fontWeight: 900, color: '#211E1E',
@@ -15594,7 +15883,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     marginLeft: 'auto',
                     display: 'inline-flex', alignItems: 'center', gap: 8,
                     padding: '11px 20px',
-                    background: '#211E1E', color: '#FDC831',
+                    background: '#211E1E', color: '#FFFFFF',
                     border: '1px solid #211E1E', borderRadius: 8,
                     boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', cursor: 'pointer',
                     fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 13.5,
@@ -15640,7 +15929,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                   >
                     <div className="card-icon" style={{
                       width: 40, height: 40, borderRadius: 10,
-                      background: '#FDC831', border: '1px solid #211E1E',
+                      background: '#F4F0E8', border: '1px solid #211E1E',
                       display: 'grid', placeItems: 'center', flexShrink: 0,
                       marginTop: 2,
                     }}>
@@ -15740,7 +16029,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
               Either the knowledge base doesn't cover this topic yet, or try rephrasing. You can also file a ticket so IT can both fix your issue and add a guide.
             </div>
             <button onClick={() => onFileTicket && onFileTicket({ source: 'search' })} style={{
-              background: '#211E1E', color: '#FDC831',
+              background: '#211E1E', color: '#FFFFFF',
               border: 'none', padding: '11px 22px',
               borderRadius: 8, fontWeight: 800,
               fontFamily: "'Archivo', sans-serif", fontSize: 14, cursor: 'pointer',
@@ -16493,7 +16782,7 @@ function AskPage({ query, onBack, onOpenGuide, onRequestItem, onBrowseCatalog, o
               <div className="ask-solved">
                 <span className="ask-solved-ic"><IconCheck size={18} stroke={3} /></span>
                 <div><b>Glad that sorted it.</b><div className="ask-muted">Thanks — that helps us keep the best answers on top.</div></div>
-                <button type="button" className="ask-btn" onClick={onBack}>Back to IT Hub</button>
+                <button type="button" className="ask-btn" onClick={onBack}>Back to Slice Help</button>
               </div>
             ) : outcome === 'help' ? (
               <div className="ask-help">
