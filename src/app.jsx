@@ -3213,12 +3213,23 @@ function App() {
   // rewrites the address bar, then land on the Tickets page — MyTicketsView picks
   // it up and opens it. Survives login: main.jsx keeps ?ticket through the SSO
   // ?next= round-trip, so the user returns straight to the ticket after signing in.
+  // Read ?ticket during App's FIRST RENDER, not in an effect: child effects
+  // run before parent effects, and MyTicketsView's address-bar sync strips
+  // ?ticket on its own mount — by the time an effect here ran, the number was
+  // already gone and the link landed on the list instead of the ticket.
+  const [deepTicket] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const tnum = new URLSearchParams(window.location.search).get("ticket");
+      if (tnum) window.__PORTAL_OPEN_TICKET__ = tnum;
+      return tnum || null;
+    } catch { return null; }
+  });
   React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    const tnum = new URLSearchParams(window.location.search).get("ticket");
-    if (!tnum) return;
-    window.__PORTAL_OPEN_TICKET__ = tnum;
-    openTickets("mine");
+    if (!deepTicket) return;
+    // Only switch stage when the link didn't already land on /tickets — a
+    // remount there would make the list consume the handoff twice.
+    if (stage !== "tickets") openTickets("mine");
   }, []);
   // Deep-link: land on the request page when `?item=N` came in on a non-/request
   // path (e.g. /portal/?item=5). setStage pushes the /request path; the modal's
