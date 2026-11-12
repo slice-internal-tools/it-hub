@@ -12878,15 +12878,8 @@ function StatusPage({ onBack }) {
   const groups = payload?.groups || [];
   const allServices = React.useMemo(() => groups.flatMap((g) => g.services || []), [groups]);
   const incidents = payload?.incidents || [];
-  const openIncidentList = incidents.filter((i) => i.state !== 'resolved');
-  // Keep a resolved incident visible as "recently resolved" for one hour after
-  // it's fixed, then it drops off the public page. The 1s clock tick below
-  // re-renders, so it disappears on its own ~1h later with no refetch. The timer
-  // starts at resolution — an incident that's still open never auto-hides.
-  const RESOLVED_GRACE_MS = 60 * 60 * 1000;
-  const recentlyResolved = incidents.filter(
-    (i) => i.state === 'resolved' && i.resolved_at && (Date.now() - new Date(i.resolved_at).getTime()) <= RESOLVED_GRACE_MS,
-  );
+  // Incidents aren't listed on this page (open or resolved): the service
+  // table is the whole page, and each app's row shows its live state.
 
   const operationalCount = allServices.filter((s) => s.state === 'operational').length;
   const degraded = allServices.filter((s) => s.state === 'degraded');
@@ -13024,30 +13017,6 @@ function StatusPage({ onBack }) {
             />
           ))}
         </div>
-
-        {/* Active incidents — under the service list, which is the page's main read */}
-        {openIncidentList.length > 0 && (
-          <React.Fragment>
-            <SectionTitle kicker="Active right now" title="Open incidents" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 48 }}>
-              {openIncidentList.map((inc) => (
-                <IncidentCard key={inc.id} incident={inc} open />
-              ))}
-            </div>
-          </React.Fragment>
-        )}
-
-        {/* Recently resolved — shown for one hour after the fix, then auto-hidden */}
-        {recentlyResolved.length > 0 && (
-          <React.Fragment>
-            <SectionTitle kicker="Just fixed" title="Recently resolved" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 48 }}>
-              {recentlyResolved.map((inc) => (
-                <IncidentCard key={inc.id} incident={inc} />
-              ))}
-            </div>
-          </React.Fragment>
-        )}
 
       </div>
 
