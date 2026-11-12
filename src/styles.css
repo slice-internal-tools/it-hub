@@ -4062,3 +4062,4 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 .cmp-attach:focus-visible, .tkt-nav-btn:focus-visible, .rep-shortcut:focus-visible, .kb-popular-chip:focus-visible, .tkt-quick-chip:focus-visible {
   outline: 2px solid var(--b-ink) !important; outline-offset: 2px !important; }
 @media (prefers-reduced-motion: reduce) { .btn-primary, .btn-outline, .hc-go, .hc-ghost, .tkt-life-btn, .kb-back-btn { transition: none !important; } }
+.kb-companion { margin-top: 16px; }

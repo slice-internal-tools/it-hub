@@ -1191,19 +1191,10 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
         </div>
       )}
 
-      {/* Browser extension — sits above System status: it's the one thing on
-          the page that isn't a task, but it's what keeps people from having to
-          come back here to check on a ticket. Chrome installs from the Web
-          Store. Firefox installs the SIGNED file served by this Portal
-          (public/companion/), which is also where its update manifest lives —
-          Mozilla signs self-distributed add-ons but does not host them. */}
-      <div style={{
-        maxWidth: 880, margin: "40px auto 0",
-        animation: "fadeUp .8s .38s var(--ease) both"
-      }}>
-        <CompanionPromo />
-      </div>
-
+      {/* The browser-extension promo (CompanionPromo) was taken off Home to
+          keep it to asking + your tickets; the component and its download
+          links stay below for wherever it moves next. */}
+      <div style={{ height: 56 }} aria-hidden="true" />
 
     </div>);
 
@@ -12482,6 +12473,10 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           </div>
           <button onClick={() => setSuggestOpen(true)} className="btn btn-primary kb-missing-btn">Suggest an article</button>
         </div>
+
+        {/* The browser extension, at the very end of Knowledge (moved off
+            Home): tickets and approvals one click away from any page. */}
+        <div className="kb-companion"><CompanionPromo /></div>
         </React.Fragment>
         )}
       </div>
