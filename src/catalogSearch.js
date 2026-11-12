@@ -285,26 +285,28 @@ function scoreItem(item, query, opts = {}) {
   // One unmatched token out of several is tolerated but heavily penalised —
   // people do type a stray word ("adobe photoshop licence"), and dropping to
   // zero results is worse than a demoted-but-present answer.
+  let coverageFactor = 1;
   if (matched < tokens.length) {
     const coverage = matched / tokens.length;
     if (coverage < 0.5) return 0;
-    score = Math.round(score * coverage * 0.5);
+    coverageFactor = coverage * 0.5;
+    score = Math.round(score * coverageFactor);
   }
 
   // Name-word coverage: prefer the item whose name the query covers most
   // completely. "1pass" matches both "1Password" and "1Password Groups" as a
   // prefix, but it covers all of the former and only half of the latter — so
   // the base app ranks first and a more-requested but less-specific item
-  // (a longer "… Groups"/variant) can't leapfrog it on popularity alone. This
-  // is the "shorter name wins ties" intent, but strong enough to actually beat
-  // the popularity nudge below. Zero when the match came from a tag, keyword,
-  // or description, so those paths are unaffected.
+  // (a longer "… Groups"/variant) can't leapfrog it on popularity alone. Kept
+  // as a bounded tiebreak: scaled by the same partial-match coverage factor so
+  // it can't re-inflate a penalised score, and only tokens >= 2 chars count (a
+  // 1-char prefix matches every name word). Zero when no name word is hit.
   if (idx.nameWords.length) {
     let hitWords = 0;
     for (const w of idx.nameWords) {
-      if (tokens.some((t) => w === t || w.startsWith(t))) hitWords++;
+      if (tokens.some((t) => t.length >= 2 && (w === t || w.startsWith(t)))) hitWords++;
     }
-    if (hitWords) score += Math.round(100 * (hitWords / idx.nameWords.length));
+    if (hitWords) score += Math.round(100 * (hitWords / idx.nameWords.length) * coverageFactor);
   }
 
   // Popularity as a nudge, not a lever: enough to separate two items that
@@ -500,16 +502,22 @@ function matchFromText(items, text, opts = {}) {
 
     // Name-word coverage (mirrors scoreItem): a base app ("1Password") outranks
     // a longer derived one ("1Password Groups") on a prefix match instead of
-    // losing to it on popularity. Zero for tag/keyword/description matches.
+    // losing to it on popularity. Kept strictly as a SORT tiebreak — added to
+    // `score` (which decides order) but NOT to `base`, which is what reaches
+    // confidenceOf. So the bonus can never push an item across a confidence
+    // band: a crafted ticket subject can't name-cover its way to a 'strong'
+    // (auto-preselected) suggestion. Tokens < 2 chars are ignored (a 1-char
+    // prefix matches every name word).
+    const base = best;
     if (idx.nameWords.length) {
       let hitWords = 0;
       for (const w of idx.nameWords) {
-        if (terms.some((t) => w === t || w.startsWith(t))) hitWords++;
+        if (terms.some((t) => t.length >= 2 && (w === t || w.startsWith(t)))) hitWords++;
       }
       if (hitWords) best += Math.round(100 * (hitWords / idx.nameWords.length));
     }
 
-    scored.push({ item, score: best });
+    scored.push({ item, score: best, base });
   }
 
   scored.sort((a, b) => {
@@ -523,12 +531,12 @@ function matchFromText(items, text, opts = {}) {
   const limited = scored.slice(0, opts.limit || 6);
   return {
     terms,
-    candidates: limited.map(({ item, score }, i) => {
+    candidates: limited.map(({ item, score, base }, i) => {
       const { __idx, ...rest } = item;
       return {
         ...rest,
         _score: Math.round(score),
-        _confidence: confidenceOf(score, i === 0 ? (limited[1]?.score || 0) : 0),
+        _confidence: confidenceOf(base, i === 0 ? (limited[1]?.base || 0) : 0),
       };
     }),
   };
