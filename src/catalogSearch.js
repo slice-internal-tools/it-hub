@@ -291,6 +291,22 @@ function scoreItem(item, query, opts = {}) {
     score = Math.round(score * coverage * 0.5);
   }
 
+  // Name-word coverage: prefer the item whose name the query covers most
+  // completely. "1pass" matches both "1Password" and "1Password Groups" as a
+  // prefix, but it covers all of the former and only half of the latter — so
+  // the base app ranks first and a more-requested but less-specific item
+  // (a longer "… Groups"/variant) can't leapfrog it on popularity alone. This
+  // is the "shorter name wins ties" intent, but strong enough to actually beat
+  // the popularity nudge below. Zero when the match came from a tag, keyword,
+  // or description, so those paths are unaffected.
+  if (idx.nameWords.length) {
+    let hitWords = 0;
+    for (const w of idx.nameWords) {
+      if (tokens.some((t) => w === t || w.startsWith(t))) hitWords++;
+    }
+    if (hitWords) score += Math.round(100 * (hitWords / idx.nameWords.length));
+  }
+
   // Popularity as a nudge, not a lever: enough to separate two items that
   // scored identically, never enough to move one past a better text match.
   const pop = Number(item.request_count) || 0;
@@ -481,6 +497,17 @@ function matchFromText(items, text, opts = {}) {
     let hits = 0;
     for (const tok of terms) if (scoreToken(idx, tok) >= W.NAME_WORD_PREFIX) hits++;
     if (hits > 1) best += 60 * Math.min(hits - 1, 2);
+
+    // Name-word coverage (mirrors scoreItem): a base app ("1Password") outranks
+    // a longer derived one ("1Password Groups") on a prefix match instead of
+    // losing to it on popularity. Zero for tag/keyword/description matches.
+    if (idx.nameWords.length) {
+      let hitWords = 0;
+      for (const w of idx.nameWords) {
+        if (terms.some((t) => w === t || w.startsWith(t))) hitWords++;
+      }
+      if (hitWords) best += Math.round(100 * (hitWords / idx.nameWords.length));
+    }
 
     scored.push({ item, score: best });
   }

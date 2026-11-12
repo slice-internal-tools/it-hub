@@ -15884,7 +15884,22 @@ function buildInstantRows({ text, catalog, guides, services }) {
   const det = detectAccessRequest(q);
   if (!det.isProblem && Array.isArray(catalog) && catalog.length) {
     const m = matchCatalogItem(catalog, q);
-    const apps = m.candidates.filter((c) => c._confidence === 'strong' || (c._confidence === 'likely' && det.isRequest)).slice(0, 3);
+    // Always show the TOP-ranked match, even if a near-tie demoted it to 'likely'.
+    // confidenceOf() only hands 'likely' to candidate[0] when a runner-up scores within
+    // 120 of it — but the runner-up itself is never compared, so it keeps 'strong'. Gating
+    // list visibility on that flips the result: the better match (demoted) gets hidden while
+    // the worse sibling (still 'strong') shows in its place — e.g. "sho" surfaced Shortcut
+    // instead of Shopify, "1pass" surfaced 1Password Groups instead of 1Password. The
+    // 'likely' downgrade must still gate AUTO-OPEN (matchCatalogItem.strong) — dropping
+    // someone into the wrong request form is worse — but it must not gate the suggestion
+    // list. matchFromText already floors candidates at NAME_WORD_PREFIX, so a top 'likely'
+    // is a solid partial match, not noise. Lower-ranked rows still need 'strong' (or a
+    // request phrasing) to appear.
+    const apps = m.candidates.filter((c, i) =>
+      c._confidence === 'strong'
+      || (i === 0 && c._confidence === 'likely')
+      || (c._confidence === 'likely' && det.isRequest),
+    ).slice(0, 3);
     for (const a of apps) rows.push({ kind: 'app', key: 'a:' + a.id, item: a });
   }
   for (const g of matchGuidesByTitle(guides, q, 3)) rows.push({ kind: 'guide', key: 'g:' + g.id, guide: g });
