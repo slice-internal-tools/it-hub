@@ -5823,16 +5823,6 @@ const btnSecondary = {
 // the clarifying answers, the assistant's suggestion + guides) so the user just
 // reviews and sends — no re-typing. Posts to /api/tickets (→ hub proxy → ticket
 // module 101) with the signed-in user as requester.
-// Common problems, one click from a blank report — fills the subject so the
-// person only has to describe what they see.
-const REPORT_SHORTCUTS = [
-  { label: "Wi‑Fi isn't working", subject: "Wi-Fi isn't working", Icon: IconWifi },
-  { label: 'VPN won’t connect', subject: "VPN won't connect", Icon: IconShield },
-  { label: 'Can’t log in', subject: "Can't log in", Icon: IconKey },
-  { label: 'Laptop running slow', subject: 'Laptop running slow', Icon: IconLaptop },
-  { label: 'Email problem', subject: 'Email isn’t working', Icon: IconMail },
-  { label: 'Screen / accessory', subject: 'Monitor or accessory not working', Icon: IconPlug },
-];
 const URGENCY_OPTIONS = [
   { value: 'low', label: 'Low', hint: 'Whenever you can', dot: '#0A8A3E' },
   { value: 'medium', label: 'Medium', hint: 'Soon, but I can work', dot: '#B8860B' },
@@ -6117,16 +6107,6 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
               onChange={(e) => { setSubject(e.target.value); if (subjectErr && e.target.value.trim()) setSubjectErr(''); }}
               placeholder={teamInfo.issue || "Describe the problem"} autoFocus
               aria-invalid={!!subjectErr} />
-            {!subject.trim() && !prefilled && team === 'it' && (
-              <div className="rep-shortcuts" aria-label="Common issues">
-                {REPORT_SHORTCUTS.map(({ label, subject: sub, Icon }) => (
-                  <button key={label} type="button" className="rep-shortcut"
-                    onClick={() => { setSubject(sub); setSubjectErr(''); setTimeout(() => { const el = document.getElementById('rep-desc'); el && el.focus(); }, 30); }}>
-                    <Icon size={14} />{label}
-                  </button>
-                ))}
-              </div>
-            )}
           </FieldBlock>
 
           <FieldBlock k="desc" label="Tell us more" htmlFor="rep-desc">
