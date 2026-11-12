@@ -521,14 +521,18 @@ function matchFromText(items, text, opts = {}) {
     return String(a.item.name || '').localeCompare(String(b.item.name || ''));
   });
 
-  const limited = scored.slice(0, opts.limit || 6);
   // Confidence compares the top item's RAW score against the highest competing
-  // RAW score — not whatever landed at index 1 after the tiebreak sort, which
-  // (being ordered by `sort`) could carry a lower `score` and overstate the gap.
+  // RAW score across ALL matches — computed over the full sorted set BEFORE the
+  // display truncation. Otherwise a high-raw competitor that the coverage
+  // tiebreak (or sheer volume) pushed past `limit` is invisible to the
+  // ambiguity gate, letting a crafted subject crowd the real runner-up out of
+  // the top N and manufacture a 'strong'. `scored` is sorted, so index 0 is the
+  // top item and the loop takes the max raw over everything else.
   let runnerUp = 0;
-  for (let k = 1; k < limited.length; k++) {
-    if (limited[k].score > runnerUp) runnerUp = limited[k].score;
+  for (let k = 1; k < scored.length; k++) {
+    if (scored[k].score > runnerUp) runnerUp = scored[k].score;
   }
+  const limited = scored.slice(0, opts.limit || 6);
   return {
     terms,
     candidates: limited.map(({ item, score }, i) => {
