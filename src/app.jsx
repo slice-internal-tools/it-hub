@@ -2838,7 +2838,7 @@ function GuideSheet({ guide, onClose }) {
           width: "min(580px, 100%)", height: "100%",
           background: "#F4F0E8",
           borderLeft: "1px solid #211E1E",
-          boxShadow: "-12px 0 0 #211E1E",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06)",
           padding: "32px 32px 40px",
           overflowY: "auto",
           animation: "sheetIn .4s var(--ease) both"
@@ -6601,7 +6601,7 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend 
         <div ref={menuRef} role="menu" className="send-menu" style={{
           position: 'fixed', right: pos.right, ...(pos.bottom != null ? { bottom: pos.bottom } : { top: pos.top }), minWidth: 260, zIndex: 80, padding: 4,
           background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 12,
-          boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 12px 28px -12px rgba(33,30,30,.3)',
+          boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 16px 40px -12px rgba(33,30,30,.3)',
         }}>
           {items.map((it, i) => (
             <button key={it.key} role="menuitem" disabled={disabled} onClick={() => choose(it.opts)}
@@ -13910,7 +13910,7 @@ function AnalyzingView({ file, progress }) {
           position: "absolute", left: 0, right: 0,
           height: 3,
           background: "linear-gradient(90deg, transparent, rgba(33,30,30,.55), transparent)",
-          boxShadow: "0 0 16px rgba(33,30,30,.25)",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           animation: "scanLine 1.6s linear infinite",
         }}/>
         {/* Corner markers */}
@@ -14350,7 +14350,7 @@ function renderMarkdown(md, opts = {}) {
             flush();
             const alt = text.slice(j + 2, close);
             const src = text.slice(close + 2, urlEnd);
-            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: 'calc(100% - 20px)', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 12, margin: '16px 0 16px 20px', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
+            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: 'calc(100% - 20px)', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 12, margin: '16px 0 16px 20px', boxShadow: '0 1px 2px rgba(33,30,30,.06)', cursor: 'zoom-in' }} />);
             j = urlEnd + 1; continue;
           }
         }
@@ -14373,7 +14373,7 @@ function renderMarkdown(md, opts = {}) {
           // breathing room. Explicit `data-align="right"` still right-aligns.
           const margin = align === 'right' ? '14px 0 14px auto' : '14px 0 14px 20px';
           const cappedMaxWidth = align === 'right' ? '100%' : 'calc(100% - 20px)';
-          nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: cappedMaxWidth, maxHeight: '70vh', width: w || 'auto', height: 'auto', borderRadius: 12, margin, boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
+          nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: cappedMaxWidth, maxHeight: '70vh', width: w || 'auto', height: 'auto', borderRadius: 12, margin, boxShadow: '0 1px 2px rgba(33,30,30,.06)', cursor: 'zoom-in' }} />);
           j += imgHtml[0].length; continue;
         }
       }
@@ -15375,7 +15375,7 @@ function ImageLightbox({ images, index, onClose }) {
           maxWidth: zoomed ? '180vw' : '92vw',
           maxHeight: zoomed ? '180vh' : '90vh',
           borderRadius: 8,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)',
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.06), 0 1px 2px rgba(33,30,30,.06), 0 16px 40px -12px rgba(33,30,30,.3)',
           cursor: zoomed ? 'zoom-out' : 'zoom-in',
           transition: 'max-width .25s var(--ease, cubic-bezier(.22,.61,.36,1)), max-height .25s var(--ease, cubic-bezier(.22,.61,.36,1))',
           userSelect: 'none',
@@ -15489,7 +15489,7 @@ function FeedbackPanel({
       background: "#FFFFFF",
       border: "1px solid #211E1E",
       borderRadius: 16,
-      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 14px rgba(33,30,30,0.06)",
+      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
     }}>
       <style>{`
         .fb-btn {
@@ -15497,7 +15497,7 @@ function FeedbackPanel({
           padding: 12px 20px;
           background: #FFFFFF; color: #211E1E;
           border: 1px solid #211E1E; border-radius: 8px;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 2px 6px rgba(33,30,30,0.05);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
           font-weight: 800; font-size: 14px;
           cursor: pointer;
@@ -15510,7 +15510,7 @@ function FeedbackPanel({
         .fb-btn:not(:disabled):not(.is-yes-on):not(.is-no-on):hover {
           transform: translate(0, 0);
           background: #F4F0E8;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.12);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-btn:not(:disabled):active {
           transform: translate(0, 0);
@@ -15530,13 +15530,13 @@ function FeedbackPanel({
         .fb-btn.is-yes-on:not(:disabled):hover {
           background: #000000; color: #211E1E;
           transform: translate(0, 0);
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.18);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-btn.is-no-on  { background: #211E1E; color: #FFFFFF; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); opacity: 1; }
         .fb-btn.is-no-on:not(:disabled):hover {
           background: #211E1E; color: #FFFFFF;
           transform: translate(0, 0);
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.22);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
 
         .fb-reason {
@@ -15569,12 +15569,12 @@ function FeedbackPanel({
           outline: none; box-sizing: border-box;
           transition: box-shadow .15s ease;
         }
-        .fb-textarea:focus { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 0 0 3px rgba(33,30,30,.08); }
+        .fb-textarea:focus { box-shadow: 0 0 0 3px rgba(33,30,30,.08), 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .fb-submit {
           padding: 12px 24px;
           background: #211E1E; color: #FFFFFF;
           border: 1px solid #211E1E; border-radius: 8px;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.10);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family:var(--font-mono);
           font-weight:600; font-size: 14px;
           letter-spacing: 0.04em; text-transform: uppercase;
@@ -15584,14 +15584,14 @@ function FeedbackPanel({
         .fb-submit:hover {
           transform: translate(0, 0);
           background: #000;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 10px 20px rgba(33,30,30,0.16);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-submit:active { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); transition-duration: .08s; }
         .fb-ticket {
           padding: 12px 24px;
           background: #211E1E; color: #FFFFFF;
           border: 1px solid #211E1E; border-radius: 8px;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.16);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family:var(--font-mono);
           font-weight:600; font-size: 14px;
           letter-spacing: 0.04em; text-transform: uppercase;
@@ -15601,7 +15601,7 @@ function FeedbackPanel({
         .fb-ticket:hover {
           transform: translate(0, 0);
           background: #211E1E;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 10px 20px rgba(33,30,30,0.22);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-ticket:active { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); transition-duration: .08s; }
         @keyframes fbSlide {
