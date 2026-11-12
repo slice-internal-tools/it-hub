@@ -1266,7 +1266,7 @@ function CompanionPromo() {
           background:#FFFFFF; color:#211E1E; text-decoration:none; font-size:13px; font-weight:600; transition:background-color .15s ease; }
         .companion-btn:hover { background:#F4F0E8; }
         .companion-btn.is-rec { background:#F4F0E8; }
-        .companion-btn.is-rec:hover { background:#F5BC1A; }
+        .companion-btn.is-rec:hover { background:#FDC831; }
         .companion-btn:focus-visible { outline:2px solid #211E1E; outline-offset:2px; }
         .companion-btn img { display:block; }
       `}</style>
@@ -1440,7 +1440,7 @@ function PhishingCard({ onSubmit }) {
     return (
       <div style={{
         padding: "24px 24px",
-        background: "#FFF0EE",
+        background: "#FFF4F2",
         border: "1px solid #B92323",
         borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -1523,7 +1523,7 @@ function PhishingCard({ onSubmit }) {
           style={{
             width: "100%", padding: "12px 16px",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-            background: (sender || subject) ? "#211E1E" : "#E8DFDD",
+            background: (sender || subject) ? "#211E1E" : "#E2DCD0",
             color: (sender || subject) ? "#FFFFFF" : "#78684C",
             border: "1px solid #211E1E", borderRadius: 4,
             boxShadow: (sender || subject) ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
@@ -1655,7 +1655,7 @@ function OpenTicketsShortcut({ onOpenTickets }) {
     if (String(t.approval_status || '').toLowerCase() === 'pending'
       || (ticketTypeMeta(t.type).kind === 'request' && s === 'pending')) return { label: 'Awaiting approval', color: '#9A4A00', dot: '#E08A1E' };
     if (s === 'in_progress') return { label: 'In progress', color: '#1C4E8C', dot: '#2563B0' };
-    if (s === 'waiting' || s === 'on_hold' || s === 'pending') return { label: ticketStatusMeta(s).label, color: '#6B5F4A', dot: '#A89A80' };
+    if (s === 'waiting' || s === 'on_hold' || s === 'pending') return { label: ticketStatusMeta(s).label, color: '#78684C', dot: '#A89C84' };
     return { label: 'Open', color: '#1C4E8C', dot: '#2563B0' };
   };
   // Home's one section under the ask box: a heading row (count + "View all"),
@@ -1676,7 +1676,7 @@ function OpenTicketsShortcut({ onOpenTickets }) {
         .otx-all:hover svg { transform:translateX(2px); }
         .otx-card { background:#FFFFFF; border:1px solid rgba(33,30,30,.12); border-radius:16px; padding:8px; }
         .otx-list { list-style:none; margin:0; padding:0; }
-        .otx-list li + li { border-top:1px solid #F3EFE7; }
+        .otx-list li + li { border-top:1px solid #F4F0E8; }
         .otx-list li:hover, .otx-list li:hover + li { border-top-color:transparent; }
         .otx-row { display:flex; align-items:center; gap:16px; width:100%; min-height:68px; padding:12px 16px; box-sizing:border-box;
           background:transparent; border:none; border-radius:12px; text-align:left; font-family:inherit; color:inherit; cursor:pointer;
@@ -1685,7 +1685,7 @@ function OpenTicketsShortcut({ onOpenTickets }) {
         .otx-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
         .otx-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
         .otx-subject { font-size:16px; font-weight:600; color:#211E1E; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .otx-meta { display:flex; align-items:center; flex-wrap:wrap; gap:2px 8px; font-size:13px; color:#8A7E68; }
+        .otx-meta { display:flex; align-items:center; flex-wrap:wrap; gap:2px 8px; font-size:13px; color:#9A8E78; }
         .otx-num { font-family:var(--font-mono); font-weight:600; color:#4A3F2E; }
         .otx-for { font-weight:600; color:#4A3F2E; }
         .otx-status { flex:none; display:flex; align-items:center; gap:8px; }
@@ -1895,7 +1895,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           style={{
             width: "100%", padding: "12px 16px",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-            background: canSend ? "#211E1E" : "#E8DFDD",
+            background: canSend ? "#211E1E" : "#E2DCD0",
             color: canSend ? "#FFFFFF" : "#211E1E",
             border: "1px solid #211E1E", borderRadius: 4,
             boxShadow: canSend ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
@@ -2382,7 +2382,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
                 padding: "12px 24px",
-                background: canContinue() ? "#211E1E" : "#E8E1D0",
+                background: canContinue() ? "#211E1E" : "#EFE8DA",
                 border: "1px solid #211E1E",
                 borderRadius: 4,
                 boxShadow: canContinue() ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -2661,8 +2661,8 @@ function GuideCard({ guide, index, onOpen }) {
 function RelatedRow({ ticket, index }) {
   const statusColor = ticket.status === "Resolved" || ticket.status === "Approved" || ticket.status === "Shipped" ? "#0A8A3E" :
     ticket.status === "Investigating" ? "#B8860B" : "#4A3F2E";
-  const statusBg = ticket.status === "Resolved" || ticket.status === "Approved" || ticket.status === "Shipped" ? "#E8F5EC" :
-    ticket.status === "Investigating" ? "#F4F0E8" : "#F4EFE2";
+  const statusBg = ticket.status === "Resolved" || ticket.status === "Approved" || ticket.status === "Shipped" ? "#E7F5EC" :
+    ticket.status === "Investigating" ? "#F4F0E8" : "#EFE8DA";
   return (
     <div style={{
       padding: "12px 16px",
@@ -2720,7 +2720,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
   return (
     <div style={{
       padding: "20px 24px",
-      background: filed ? "#E8F5EC" : "#FFFFFF",
+      background: filed ? "#E7F5EC" : "#FFFFFF",
       border: "1px solid #211E1E",
       borderRadius: 12,
       boxShadow: filed ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -4608,7 +4608,7 @@ function Footer() {
     { bg: "#F4F0E8", heart: "#DA3327", spark: "#211E1E" }, // mustard pop
     { bg: "#F4F0E8", heart: "#B92323", spark: "#B92323" }, // cream + cherry
     { bg: "#C7E8B8", heart: "#0A8A3E", spark: "#0A8A3E" }, // mint + leaf
-    { bg: "#BFE0F5", heart: "#1E5FB2", spark: "#1E5FB2" }, // sky + ink
+    { bg: "#BFE0F5", heart: "#2563B0", spark: "#2563B0" }, // sky + ink
     { bg: "#F4C5DC", heart: "#9B2D6B", spark: "#9B2D6B" }, // bubblegum
     { bg: "#E0CFF5", heart: "#5B2A9B", spark: "#5B2A9B" }, // grape
     { bg: "#F4F0E8", heart: "#B94A0F", spark: "#B94A0F" }, // peach + rust
@@ -4716,7 +4716,7 @@ function Footer() {
             }}
           >
             <path d="M12 20.5s-8.5-5-8.5-11.2A4.8 4.8 0 0 1 12 5.3a4.8 4.8 0 0 1 8.5 4c0 6.2-8.5 11.2-8.5 11.2Z"
-              fill={skin.heart} stroke="#000000" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+              fill={skin.heart} stroke="#211E1E" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
         </span>
       </button>
@@ -4755,7 +4755,7 @@ function Chip({ icon, label, onClick }) {
   const Icon = window[icon];
   return (
     <button onClick={onClick} className="chip-flat">
-      <Icon size={14} stroke={2.5} style={{color: "#000000"}} />
+      <Icon size={14} stroke={2.5} style={{color: "#211E1E"}} />
       {label}
     </button>
   );
@@ -5098,7 +5098,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
     <div className="page" style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <style>{`
         .np-row { display:flex; align-items:flex-start; gap:16px; width:100%; padding:16px 20px; background:transparent; border:0;
-          border-bottom:1.5px solid #E7E1D4; cursor:pointer; text-align:left; font-family:inherit; color:inherit; position:relative;
+          border-bottom:1.5px solid #E2DCD0; cursor:pointer; text-align:left; font-family:inherit; color:inherit; position:relative;
           transition:background .14s ease; }
         .np-row:last-child { border-bottom:0; }
         .np-row:hover { background:#F4F0E8; }
@@ -5109,8 +5109,8 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         .np-title { font-family:'Archivo',sans-serif; font-size:14px; font-weight:700; color:#211E1E; letter-spacing:-.005em; }
         .np-row.is-unread .np-title { font-weight:900; }
         .np-ticket { font-size:13px; color:#5A4B28; margin-top:2px; }
-        .np-body { font-size:13px; color:#4A4233; line-height:1.5; margin-top:8px; }
-        .np-body.is-quote { font-style:italic; padding-left:12px; border-left:3px solid #E7E1D4; }
+        .np-body { font-size:13px; color:#4A3F2E; line-height:1.5; margin-top:8px; }
+        .np-body.is-quote { font-style:italic; padding-left:12px; border-left:3px solid #E2DCD0; }
         .np-tag { display:inline-block; margin-top:8px; font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.06em;
           text-transform:uppercase; color:#4A3F2E; padding:2px 8px; background:#F4F0E8; border:1px solid #211E1E; border-radius:4px; }
         .np-when { font-size:11px; color:#8A7A4E; font-weight:600; font-family:'Archivo',sans-serif; flex-shrink:0; white-space:nowrap; }
@@ -5245,7 +5245,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
 const __TWEAKS_STYLE = `
   .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
     max-height:calc(100vh - 32px);display:flex;flex-direction:column;
-    background:rgba(250,249,247,.78);color:#29261b;
+    background:rgba(250,249,247,.78);color:#2E2A28;
     -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
     border:.5px solid rgba(255,255,255,.6);border-radius:14px;
     box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
@@ -5255,7 +5255,7 @@ const __TWEAKS_STYLE = `
   .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
   .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
     width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
-  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#2E2A28}
   .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
     overflow-y:auto;overflow-x:hidden;min-height:0;
     scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
@@ -6202,7 +6202,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
 const TK = {
   ink: '#211E1E', cheese: '#FDC831', cream: '#FFFFFF', muted: '#78684C', red: '#B92323',
   field: { width: '100%', padding: '12px 12px', border: '1px solid #211E1E', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
-  label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#55503F', marginBottom: 8, marginTop: 16 },
+  label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#4A3F2E', marginBottom: 8, marginTop: 16 },
   card: { background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' },
   // Spread onto a TK.card row to make it feel clickable (lift on hover, press in).
   rowTransition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)',
@@ -6478,18 +6478,18 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
   const link = () => { const u = window.prompt('Link URL:'); if (u) exec('createLink', u); };
   const image = () => { const u = window.prompt('Image URL:'); if (u) exec('insertImage', u); };
 
-  const tbBtn = { width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 8, border: 'none', background: 'transparent', color: '#6B5F4B', cursor: disabled ? 'default' : 'pointer', transition: 'background .12s, color .12s' };
-  const Sep = () => <span style={{ width: 1, height: 16, background: '#E4DDCD', margin: '0 3px' }} />;
+  const tbBtn = { width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 8, border: 'none', background: 'transparent', color: '#78684C', cursor: disabled ? 'default' : 'pointer', transition: 'background .12s, color .12s' };
+  const Sep = () => <span style={{ width: 1, height: 16, background: '#E2DCD0', margin: '0 3px' }} />;
   const TB = ({ title, onClick, children }) => (
     <button type="button" title={title} disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onClick}
       onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.background = 'rgba(33,30,30,.08)'; e.currentTarget.style.color = '#211E1E'; } }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B5F4B'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#78684C'; }}
       style={tbBtn}>{children}</button>
   );
 
   return (
     <div className="rr-shell" style={{ border: '1px solid rgba(33,30,30,.22)', borderRadius: 12, background: '#FFFFFF', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, padding: '4px 8px', borderBottom: '1px solid #EFEAE0', background: '#FBF8F2' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, padding: '4px 8px', borderBottom: '1px solid #EFE8DA', background: '#F7F4EF' }}>
         <TB title="Bold (⌘B)" onClick={() => exec('bold')}><RTIcon d={["M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"]} /></TB>
         <TB title="Italic (⌘I)" onClick={() => exec('italic')}><RTIcon extra={<><line x1="19" x2="10" y1="4" y2="4" /><line x1="14" x2="5" y1="20" y2="20" /><line x1="15" x2="9" y1="4" y2="20" /></>} /></TB>
         <TB title="Underline (⌘U)" onClick={() => exec('underline')}><RTIcon d={["M6 4v6a6 6 0 0 0 12 0V4"]} extra={<line x1="4" x2="20" y1="20" y2="20" />} /></TB>
@@ -6503,7 +6503,7 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
         <Sep />
         <label title="Text color" style={{ ...tbBtn, position: 'relative' }}
           onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.background = 'rgba(33,30,30,.08)'; e.currentTarget.style.color = '#211E1E'; } }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B5F4B'; }}>
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#78684C'; }}>
           <RTIcon d={["M4 20h16", "m6 16 6-12 6 12", "M8 12h8"]} />
           <input type="color" disabled={disabled} onChange={(e) => color(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
         </label>
@@ -6774,7 +6774,7 @@ function AttachmentItem({ name, source, size, isImage, onOpenImage }) {
     const thumb = (
       <>
         <img src={url} alt={name} style={{ display: 'block', maxWidth: 260, maxHeight: 220, objectFit: 'cover' }} />
-        <span style={{ display: 'block', padding: '8px 12px', fontSize: 12, color: '#5C5240', borderTop: '1px solid #F0EADC', background: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+        <span style={{ display: 'block', padding: '8px 12px', fontSize: 12, color: '#4A3F2E', borderTop: '1px solid #EFE8DA', background: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
       </>
     );
     const frame = { display: 'inline-block', border: '1px solid rgba(33,30,30,.16)', borderRadius: 12, overflow: 'hidden', background: '#FFFFFF', maxWidth: 260, padding: 0, cursor: 'zoom-in' };
@@ -6903,19 +6903,19 @@ function ticketStatusMeta(status) {
     open:        { label: 'Open',        bg: '#2563B0', fg: '#FFFFFF', bd: '#1C4E8C' },
     new:         { label: 'New',         bg: '#2563B0', fg: '#FFFFFF', bd: '#1C4E8C' },
     in_progress: { label: 'In progress', bg: '#B5830F', fg: '#FFFFFF', bd: '#8E6709' },
-    pending:     { label: 'Pending',     bg: '#D1730F', fg: '#FFFFFF', bd: '#A85B0B' },
-    waiting:     { label: 'Waiting',     bg: '#D1730F', fg: '#FFFFFF', bd: '#A85B0B' },
-    on_hold:     { label: 'On hold',     bg: '#D1730F', fg: '#FFFFFF', bd: '#A85B0B' },
-    resolved:    { label: 'Resolved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#076E31' },
+    pending:     { label: 'Pending',     bg: '#E08A1E', fg: '#FFFFFF', bd: '#9A4A00' },
+    waiting:     { label: 'Waiting',     bg: '#E08A1E', fg: '#FFFFFF', bd: '#9A4A00' },
+    on_hold:     { label: 'On hold',     bg: '#E08A1E', fg: '#FFFFFF', bd: '#9A4A00' },
+    resolved:    { label: 'Resolved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#0A6E31' },
     closed:      { label: 'Closed',      bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
-    approved:    { label: 'Approved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#076E31' },
+    approved:    { label: 'Approved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#0A6E31' },
     // An approval status rendered in the ticket-status slot. The module stores
     // 'rejected' on the approval while the ticket becomes 'cancelled'; both are
     // shown as "Declined" so the portal and the agent app don't use two words
     // for one outcome. The stored status is deliberately NOT renamed —
     // 'cancelled' is load-bearing in user-authored automation rules and saved
     // views in the ticket module. Relabel the display instead.
-    rejected:    { label: 'Declined',    bg: '#B92323', fg: '#FFFFFF', bd: '#8E1A1A' },
+    rejected:    { label: 'Declined',    bg: '#B92323', fg: '#FFFFFF', bd: '#8A1E17' },
     // 'cancelled' is NOT "Declined". It is the ticket status for BOTH outcomes
     // — an approver declining and the requester withdrawing — so on its own it
     // can't tell you which happened. The approval status is what separates
@@ -6928,7 +6928,7 @@ function ticketStatusMeta(status) {
     // did.
     cancelled:   { label: 'Cancelled',   bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
   };
-  return map[s] || { label: status || 'Unknown', bg: '#5C564C', fg: '#FFFFFF', bd: '#46413A' };
+  return map[s] || { label: status || 'Unknown', bg: '#4A3F2E', fg: '#FFFFFF', bd: '#4A3F2E' };
 }
 
 // The "two logics", as a label: incident → Issue, service_request → Request.
@@ -7003,9 +7003,9 @@ function matchCatalogItem(catalog, text) {
 }
 
 const STATUS_TINT = {
-  open: '#ECE7DD', new: '#ECE7DD', in_progress: '#E6EEF9',
+  open: '#EFE8DA', new: '#EFE8DA', in_progress: '#E6EEF9',
   pending: '#F4F0E8', waiting: '#F4F0E8', on_hold: '#F4F0E8',
-  resolved: '#DFF1E5', approved: '#DFF1E5', closed: '#F1ECE2', cancelled: '#F1ECE2', rejected: '#FBE3E0',
+  resolved: '#E7F5EC', approved: '#E7F5EC', closed: '#F4F0E8', cancelled: '#F4F0E8', rejected: '#FFF4F2',
 };
 const STATUS_DOT = {
   open: '#211E1E', new: '#211E1E', in_progress: '#2563B0',
@@ -7021,7 +7021,7 @@ function TicketStatusBadge({ status, small, label, type }) {
   // so a list of tickets reads calm and the dot carries the meaning.
   const s = String(status || '').toLowerCase();
   const dot = isReqPending ? '#E08A1E' : (STATUS_DOT[s] || '#9A8E78');
-  const tint = isReqPending ? '#F4F0E8' : (STATUS_TINT[s] || '#F1ECE2');
+  const tint = isReqPending ? '#F4F0E8' : (STATUS_TINT[s] || '#F4F0E8');
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -7218,18 +7218,18 @@ const IconPhone = (p) => <IconBase {...p}><rect x="6" y="2.5" width="12" height=
 // tint; the small red "!" corner (TicketLeadIcon) is what still marks it as a
 // problem rather than a request.
 const ISSUE_TOPICS = [
-  { key: 'security', label: 'Security',        re: /phish|suspicious|scam|malware|virus|hack|compromis|spam/, Glyph: IconShield,    bg: '#FDE7E4', fg: '#B42318' },
-  { key: 'vpn',      label: 'VPN',             re: /\bvpn\b|globalprotect|global protect|remote access|tunnel/, Glyph: IconGlobeLock, bg: '#E4EEFB', fg: '#1C4E8C' },
-  { key: 'account',  label: 'Sign-in',         re: /password|passcode|\bmfa\b|2fa|two.factor|authenticat|log ?in|sign ?in|locked out|onelogin|okta|sso\b|credential/, Glyph: IconKey, bg: '#EEE7FB', fg: '#5B3CB0' },
-  { key: 'network',  label: 'Wi-Fi',           re: /wi-?fi|wireless|internet|network|ethernet|router|no connection|offline|dns\b/, Glyph: IconWifi, bg: '#E2F4F1', fg: '#0F766E' },
-  { key: 'email',    label: 'Email',           re: /outlook|e-?mail|\bmail\b|inbox|gmail|calendar|invite/, Glyph: IconMail, bg: '#E6F0FA', fg: '#1D5F99' },
-  { key: 'slack',    label: 'Slack',           re: /\bslack\b|huddle/, Glyph: IconSlack, bg: '#F3E6F1', fg: '#6B2367' },
-  { key: 'audio',    label: 'Audio & video',   re: /headset|headphone|\bmic\b|microphone|audio|sound|speaker|jabra|webcam|camera|\bccp\b|zoom call/, Glyph: IconHeadset, bg: '#F4F0E8', fg: '#A15C07' },
-  { key: 'display',  label: 'Display',         re: /monitor|display|screen|\bdock\b|docking|hdmi|usb-?c|flicker|projector/, Glyph: IconMonitor, bg: '#EAEDF1', fg: '#3E4C5E' },
-  { key: 'printer',  label: 'Printer',         re: /printer|print|scanner|scan\b|toner/, Glyph: IconPrinter, bg: '#EDEAE4', fg: '#55503F' },
-  { key: 'phone',    label: 'Phone',           re: /iphone|android|mobile|phone|\bipad\b|tablet/, Glyph: IconPhone, bg: '#E8F1E6', fg: '#2F6B2A' },
-  { key: 'access',   label: 'Access',          re: /permission|access denied|no access|can'?t access|cannot access|\b403\b|unauthori[sz]ed/, Glyph: IconLock, bg: '#EEE7FB', fg: '#5B3CB0' },
-  { key: 'device',   label: 'Computer',        re: /laptop|macbook|\bmac\b|computer|\bpc\b|windows|slow|battery|keyboard|trackpad|mouse|freez|crash|won'?t (start|boot|turn on)|update/, Glyph: IconLaptop, bg: '#F1ECE2', fg: '#4A3F2E' },
+  { key: 'security', label: 'Security',        re: /phish|suspicious|scam|malware|virus|hack|compromis|spam/, Glyph: IconShield,    bg: '#FFF4F2', fg: '#B92323' },
+  { key: 'vpn',      label: 'VPN',             re: /\bvpn\b|globalprotect|global protect|remote access|tunnel/, Glyph: IconGlobeLock, bg: '#E6EEF9', fg: '#1C4E8C' },
+  { key: 'account',  label: 'Sign-in',         re: /password|passcode|\bmfa\b|2fa|two.factor|authenticat|log ?in|sign ?in|locked out|onelogin|okta|sso\b|credential/, Glyph: IconKey, bg: '#E6EEF9', fg: '#5B3CB0' },
+  { key: 'network',  label: 'Wi-Fi',           re: /wi-?fi|wireless|internet|network|ethernet|router|no connection|offline|dns\b/, Glyph: IconWifi, bg: '#E7F5EC', fg: '#0F766E' },
+  { key: 'email',    label: 'Email',           re: /outlook|e-?mail|\bmail\b|inbox|gmail|calendar|invite/, Glyph: IconMail, bg: '#E6EEF9', fg: '#1C4E8C' },
+  { key: 'slack',    label: 'Slack',           re: /\bslack\b|huddle/, Glyph: IconSlack, bg: '#E6EEF9', fg: '#6B2367' },
+  { key: 'audio',    label: 'Audio & video',   re: /headset|headphone|\bmic\b|microphone|audio|sound|speaker|jabra|webcam|camera|\bccp\b|zoom call/, Glyph: IconHeadset, bg: '#F4F0E8', fg: '#9A4A00' },
+  { key: 'display',  label: 'Display',         re: /monitor|display|screen|\bdock\b|docking|hdmi|usb-?c|flicker|projector/, Glyph: IconMonitor, bg: '#E6EEF9', fg: '#3E4C5E' },
+  { key: 'printer',  label: 'Printer',         re: /printer|print|scanner|scan\b|toner/, Glyph: IconPrinter, bg: '#F4F0E8', fg: '#4A3F2E' },
+  { key: 'phone',    label: 'Phone',           re: /iphone|android|mobile|phone|\bipad\b|tablet/, Glyph: IconPhone, bg: '#E7F5EC', fg: '#0A6E31' },
+  { key: 'access',   label: 'Access',          re: /permission|access denied|no access|can'?t access|cannot access|\b403\b|unauthori[sz]ed/, Glyph: IconLock, bg: '#E6EEF9', fg: '#5B3CB0' },
+  { key: 'device',   label: 'Computer',        re: /laptop|macbook|\bmac\b|computer|\bpc\b|windows|slow|battery|keyboard|trackpad|mouse|freez|crash|won'?t (start|boot|turn on)|update/, Glyph: IconLaptop, bg: '#F4F0E8', fg: '#4A3F2E' },
 ];
 function issueTopic(ticket) {
   const t = ticket || {};
@@ -7288,7 +7288,7 @@ function ApprovalPill({ state }) {
     // badge whenever the approval is pending or rejected, so it — not the
     // badge — is what a user actually sees on a declined request. Relabelling
     // only the badge left the portal still saying "Rejected".
-    rejected: { label: 'Declined',         color: '#8E1A1A', dot: '#B92323' },
+    rejected: { label: 'Declined',         color: '#8A1E17', dot: '#B92323' },
     // No entry for 'cancelled': a withdrawn approval renders nothing here, and
     // the status badge takes the slot back and says "Cancelled". The outcome
     // belongs to the ticket, not to an approval nobody ever answered.
@@ -7297,7 +7297,7 @@ function ApprovalPill({ state }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 12px',
-      background: { pending: '#F4F0E8', approved: '#DFF1E5', rejected: '#FBE3E0' }[String(state || '').toLowerCase()] || '#F1ECE2',
+      background: { pending: '#F4F0E8', approved: '#E7F5EC', rejected: '#FFF4F2' }[String(state || '').toLowerCase()] || '#F4F0E8',
       color: '#211E1E', border: 'none', borderRadius: 999,
       fontSize: 13, fontWeight: 600, fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
       whiteSpace: 'nowrap', lineHeight: 1.2,
@@ -7709,7 +7709,7 @@ function OnBehalfBanner({ ticket }) {
         background: '#F4F0E8', border: '1px solid rgba(33,30,30,.18)', display: 'grid', placeItems: 'center',
         fontFamily: "'Archivo', sans-serif", fontSize: 9, fontWeight: 900, color: '#211E1E', lineHeight: 1,
       }}>{obInitials(person.name)}</span>
-      <span style={{ fontSize: 13, fontWeight: 600, color: '#55503F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: '#4A3F2E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {text}
       </span>
     </div>
@@ -7748,7 +7748,7 @@ function OnBehalfTag({ ticket, size = 11 }) {
         background: '#F4F0E8', border: 'none', display: 'grid', placeItems: 'center',
         fontFamily: "'Archivo', sans-serif", fontSize: 7.5, fontWeight: 700, color: '#211E1E', lineHeight: 1,
       }}>{initials}</span>
-      <span style={{ fontSize: size, fontWeight: 600, color: '#7A6E58', flexShrink: 0 }}>{prefix}</span>
+      <span style={{ fontSize: size, fontWeight: 600, color: '#78684C', flexShrink: 0 }}>{prefix}</span>
       <span style={{ fontSize: size, fontWeight: 800, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
     </span>
   );
@@ -8146,7 +8146,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
         /* "Requested for others" toggle pill — white when off, cheese when on,
            with a small ✕ hinting the second click clears it. */
         .tkt-facet { position:relative; display:inline-flex; align-items:center; gap:8px; height:34px; padding:0 12px; cursor:pointer;
-          background:transparent; color:#5C5240; border:none; border-radius:8px;
+          background:transparent; color:#4A3F2E; border:none; border-radius:8px;
           font-family:'Archivo',sans-serif; font-weight:600; font-size:13px;
           transition: background .16s ease, color .16s ease; }
         .tkt-facet:hover { background:rgba(33,30,30,.06); color:#211E1E; }
@@ -8302,7 +8302,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button className="tkt-nav-btn is-prev is-wide" onClick={() => goToPage(safePage - 1)} disabled={safePage === 0} aria-label="Previous page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Prev</button>
-            <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#55503F', minWidth: 92, textAlign: 'center' }}>
+            <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#4A3F2E', minWidth: 92, textAlign: 'center' }}>
               Page {safePage + 1} of {pageCount}
             </span>
             <button className="tkt-nav-btn is-next is-wide" onClick={() => goToPage(safePage + 1)} disabled={safePage >= pageCount - 1} aria-label="Next page">Next<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></button>
@@ -8384,11 +8384,11 @@ function ApprovalSummary({ approval, ticket }) {
   const STATE = {
     approved:   { label: 'Approved',   dot: '#0A8A3E', txt: '#0A8A3E' },
     pending:    { label: 'Pending',    dot: '#E08A1E', txt: '#211E1E' },
-    waiting:    { label: 'Up next',    dot: '#D8D2C4', txt: '#8A8275' },
+    waiting:    { label: 'Up next',    dot: '#E2DCD0', txt: '#9A8E78' },
     rejected:   { label: 'Declined',   dot: '#B92323', txt: '#B92323' },
-    skipped:    { label: 'Not needed', dot: '#D8D2C4', txt: '#8A8275' },
-    not_needed: { label: 'Not needed', dot: '#D8D2C4', txt: '#8A8275' },
-    withdrawn:  { label: 'Withdrawn',  dot: '#D8D2C4', txt: '#8A8275' },
+    skipped:    { label: 'Not needed', dot: '#E2DCD0', txt: '#9A8E78' },
+    not_needed: { label: 'Not needed', dot: '#E2DCD0', txt: '#9A8E78' },
+    withdrawn:  { label: 'Withdrawn',  dot: '#E2DCD0', txt: '#9A8E78' },
   };
   const inferred = (s) => {
     const isReject = status === 'rejected' && current && s.order === current.order;
@@ -8399,7 +8399,7 @@ function ApprovalSummary({ approval, ticket }) {
 
   if (stages.length === 0) {
     return (
-      <div style={{ padding: '12px 16px', fontSize: 13, color: '#55503F' }}>
+      <div style={{ padding: '12px 16px', fontSize: 13, color: '#4A3F2E' }}>
         {status === 'approved' ? 'This request was approved.' : status === 'rejected' ? 'This request was declined.' : 'Waiting for approval — you’ll be notified once it’s decided.'}
       </div>
     );
@@ -8408,7 +8408,7 @@ function ApprovalSummary({ approval, ticket }) {
   return (
     <div>
       {status === 'pending' && stages.length > 1 && (
-        <div style={{ padding: '8px 16px', fontSize: 12, fontWeight: 700, color: '#78684C', background: '#F4F0E8', borderBottom: '1px solid #F0EBE0' }}>
+        <div style={{ padding: '8px 16px', fontSize: 12, fontWeight: 700, color: '#78684C', background: '#F4F0E8', borderBottom: '1px solid #EFE8DA' }}>
           {done} of {stages.length} approvals done
         </div>
       )}
@@ -8418,11 +8418,11 @@ function ApprovalSummary({ approval, ticket }) {
         const isCur = key === 'pending';
         const line = approverLine(s, actions, currentApprovers, isCur);
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: i ? '1px solid #F0EBE0' : 'none', background: isCur ? '#F4F0E8' : 'transparent' }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: i ? '1px solid #EFE8DA' : 'none', background: isCur ? '#F4F0E8' : 'transparent' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: meta.dot, border: '1px solid #211E1E', flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name || `Step ${i + 1}`}</span>
-              {line ? <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#4A4233', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null}
+              {line ? <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#4A3F2E', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null}
             </span>
             <span style={{ fontSize: 11, fontWeight: 600, color: meta.txt, fontFamily: "var(--font-mono)", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{meta.label}</span>
           </div>
@@ -8457,11 +8457,11 @@ function approvalStageStates(approval, ticket) {
 const APPROVAL_STEP_ICON = {
   approved: { bg: '#0A8A3E', fg: '#FFFFFF', path: <path d="m6 12.5 4 4 8-9" /> },
   pending:  { bg: '#F4F0E8', fg: '#211E1E', path: <><circle cx="12" cy="12" r="7.5" /><path d="M12 8v4.2l2.6 1.6" /></> },
-  waiting:  { bg: '#FFFFFF', fg: '#8A8275', path: <path d="M8 12h8" /> },
+  waiting:  { bg: '#FFFFFF', fg: '#9A8E78', path: <path d="M8 12h8" /> },
   rejected: { bg: '#B92323', fg: '#FFFFFF', path: <path d="m8 8 8 8M16 8l-8 8" /> },
-  skipped:  { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
-  not_needed: { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
-  withdrawn:  { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
+  skipped:  { bg: '#F4F0E8', fg: '#9A8E78', path: <path d="M8 12h8" /> },
+  not_needed: { bg: '#F4F0E8', fg: '#9A8E78', path: <path d="M8 12h8" /> },
+  withdrawn:  { bg: '#F4F0E8', fg: '#9A8E78', path: <path d="M8 12h8" /> },
 };
 
 // "Approvals" control on the ticket page. It used to be a plain button with
@@ -8505,8 +8505,8 @@ function ApprovalsButton({ approval, ticket }) {
         .appr-btn:active { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .appr-btn:focus-visible { outline:3px solid rgba(33,30,30,.35); outline-offset:2px; }
         .appr-btn.is-pending { background:#F4F0E8; }
-        .appr-btn.is-approved { background:#EEF8F1; }
-        .appr-btn.is-declined { background:#FDEEEC; }
+        .appr-btn.is-approved { background:#E7F5EC; }
+        .appr-btn.is-declined { background:#FFF4F2; }
         .appr-steps { display:flex; align-items:center; }
         .appr-step { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; border:1.5px solid #211E1E; flex:none; position:relative; }
         .appr-step + .appr-step { margin-left:-5px; }
@@ -8515,8 +8515,8 @@ function ApprovalsButton({ approval, ticket }) {
         .appr-text { display:flex; flex-direction:column; line-height:1.15; min-width:0; }
         .appr-head { font-family:var(--font-mono); font-size:12px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
         .appr-btn.is-approved .appr-head { color:#0A6E31; }
-        .appr-btn.is-declined .appr-head { color:#8E1A1A; }
-        .appr-sub { font-size:12px; font-weight:600; color:#5C5240; margin-top:2px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .appr-btn.is-declined .appr-head { color:#8A1E17; }
+        .appr-sub { font-size:12px; font-weight:600; color:#4A3F2E; margin-top:2px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .appr-caret { flex:none; transition:transform .18s ease; }
         @media (prefers-reduced-motion: reduce) { .appr-step.is-pending { animation:none; } .appr-btn { transition:none; } }
       `}</style>
@@ -8553,15 +8553,15 @@ function ApprovalsButton({ approval, ticket }) {
 // step tracker showing how far along it is. Tone (tint + dot) follows the
 // state so "resolved" and "waiting on you" read differently at a glance.
 const TICKET_HERO = {
-  open:      { label: 'Open',              line: 'Received — the IT Team will pick it up shortly.',                       bg: '#ECE7DD', dot: '#211E1E' },
+  open:      { label: 'Open',              line: 'Received — the IT Team will pick it up shortly.',                       bg: '#EFE8DA', dot: '#211E1E' },
   approval:  { label: 'Waiting for approval', line: 'Your request is with the approver. IT starts as soon as it’s signed off.', bg: '#F4F0E8', dot: '#E08A1E' },
   progress:  { label: 'In progress',       line: 'The IT Team is working on this.',                                        bg: '#E6EEF9', dot: '#2563B0' },
   waiting:   { label: 'Waiting on you',    line: 'IT needs something from you — check the conversation below and reply.',  bg: '#F4F0E8', dot: '#E08A1E' },
-  hold:      { label: 'On hold',           line: 'Paused for now. The IT Team will update you when it moves again.',       bg: '#F3EFE7', dot: '#E08A1E' },
-  resolved:  { label: 'Resolved',          line: 'IT marked this as fixed. Close it if you’re sorted, or reply to reopen.', bg: '#DFF1E5', dot: '#0A8A3E' },
-  closed:    { label: 'Closed',            line: 'All done. Reply any time if the problem comes back — it reopens.',       bg: '#F1ECE2', dot: '#9A8E78' },
-  cancelled: { label: 'Cancelled',         line: 'This was withdrawn. Submit a new request if you still need it.',         bg: '#F3EFE7', dot: '#9A8E78' },
-  declined:  { label: 'Declined',          line: 'The approver declined this request. The conversation has the details.',  bg: '#FBE3E0', dot: '#DA3327' },
+  hold:      { label: 'On hold',           line: 'Paused for now. The IT Team will update you when it moves again.',       bg: '#F4F0E8', dot: '#E08A1E' },
+  resolved:  { label: 'Resolved',          line: 'IT marked this as fixed. Close it if you’re sorted, or reply to reopen.', bg: '#E7F5EC', dot: '#0A8A3E' },
+  closed:    { label: 'Closed',            line: 'All done. Reply any time if the problem comes back — it reopens.',       bg: '#F4F0E8', dot: '#9A8E78' },
+  cancelled: { label: 'Cancelled',         line: 'This was withdrawn. Submit a new request if you still need it.',         bg: '#F4F0E8', dot: '#9A8E78' },
+  declined:  { label: 'Declined',          line: 'The approver declined this request. The conversation has the details.',  bg: '#FFF4F2', dot: '#DA3327' },
 };
 function ticketHeroKey(t, approvalState, isDeclined) {
   const s = String((t && t.status) || '').toLowerCase();
@@ -9386,7 +9386,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                       placeholder={`Reply to the ${teamDisplayName(ticketTeamKey(t))}…`} />
 
                     {reopenOnReply && confirmReopen ? (
-                      <div style={{ borderTop: '1px solid #F0EADC', background: '#F4F0E8', padding: '12px 16px' }}>
+                      <div style={{ borderTop: '1px solid #EFE8DA', background: '#F4F0E8', padding: '12px 16px' }}>
                         <div style={{ fontSize: 14, color: '#211E1E', fontWeight: 600, marginBottom: 12, lineHeight: 1.45 }}>
                           This ticket is <b>{String(t.status).toLowerCase()}</b>. Sending this reply will <b>reopen</b> it — continue?
                         </div>
@@ -11379,7 +11379,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 1, borderRadius: '50%', background: '#B9232322', color: '#B92323', display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 12 }}>!</span>
           <div style={{ minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#8E1B1B' }}>{forSelfOnly ? 'Your approver’s account isn’t active' : 'Their approver’s account isn’t active'}</p>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#8A1E17' }}>{forSelfOnly ? 'Your approver’s account isn’t active' : 'Their approver’s account isn’t active'}</p>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: '#8E1B1BCC', lineHeight: 1.45 }}>
               {preview.blocked_reason ? preview.blocked_reason + '. ' : ''}Pick someone else to approve it.
             </p>
@@ -11411,7 +11411,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                   </span>
                 )}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  {multiStage && <p style={{ fontSize: 12, fontWeight: 700, color: '#55503F', margin: '0 0 4px' }}>{stage.name}</p>}
+                  {multiStage && <p style={{ fontSize: 12, fontWeight: 700, color: '#4A3F2E', margin: '0 0 4px' }}>{stage.name}</p>}
 
                   {changeable && picking ? null : rows.length === 0 ? (
                     // Nobody resolved. On a changeable stage this is the whole
@@ -11447,7 +11447,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                         className={'ap-row' + (a.chosen ? ' is-chosen' : '')}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 12,
-                          border: '1px solid ' + (a.chosen ? '#211E1E' : (a.account_disabled ? '#E39C9C' : (a.unavailable ? '#E2DCD0' : '#E6DFCF'))),
+                          border: '1px solid ' + (a.chosen ? '#211E1E' : (a.account_disabled ? '#E39C9C' : (a.unavailable ? '#E2DCD0' : '#E2DCD0'))),
                           background: a.chosen ? '#FFFFFF' : (a.account_disabled ? '#FFFFFF' : (a.unavailable ? '#F4F0E8' : '#FFFFFF')),
                           borderRadius: 12, padding: '12px 12px',
                         }}
@@ -11523,7 +11523,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
           the approval audit trail AND into the notice sent to the manager who
           would otherwise have been asked. */}
       {override && (
-        <div className="ap-reason" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0EBE0' }}>
+        <div className="ap-reason" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #EFE8DA' }}>
           <label className="cf-label" style={{ display: 'block', marginBottom: 8 }}>
             {override.auto ? 'Reason recorded on the ticket' : 'Why are you changing the approver?'}
           </label>
@@ -12036,7 +12036,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
             const isSelf = selfId && String(p.id) === selfId;
             const only = n === 1;
             return (
-              <div key={p.id} className="rfp-person" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderTop: '1px solid #F0EBE0' }}>
+              <div key={p.id} className="rfp-person" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderTop: '1px solid #EFE8DA' }}>
                 {avatar(p.name || p.email, 32, !!isSelf)}
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <p style={{ margin: 0, fontSize: 14, fontWeight: 700, ...ell }}>{p.name || p.email || p.id}{isSelf ? youTag : null}</p>
@@ -12068,7 +12068,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       </div>
 
       {n === 0 ? (
-        <div className="rfp-empty" style={{ border: '1px dashed #C9C0AB', borderRadius: 12, padding: 12, textAlign: 'center', background: '#FCFBF7', marginTop: 8 }}>
+        <div className="rfp-empty" style={{ border: '1px dashed #E2DCD0', borderRadius: 12, padding: 12, textAlign: 'center', background: '#F7F4EF', marginTop: 8 }}>
           <RqIcon name="personAdd" size={22} className="rfp-empty-icon" />
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Nobody chosen yet</p>
           <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: '#78684C' }}>Start typing a name above to find them.</span>
@@ -12610,7 +12610,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
             <div key={r.id} onClick={() => onOpenItem(r)} style={{
               display: "flex", alignItems: "center", gap: 16,
               padding: "20px 24px",
-              borderBottom: i === results.length - 1 ? "none" : "1.5px solid #E7E1D4",
+              borderBottom: i === results.length - 1 ? "none" : "1.5px solid #E2DCD0",
               cursor: "pointer",
               transition: "background .12s",
             }}
@@ -12815,11 +12815,11 @@ function serviceIconUrl(s, size = 64) {
 
 const SOURCE_LABELS = {
   manual:     { label: "Manual",        tone: "#4A3F2E", bg: "#F7F4EF" },
-  probe:      { label: "Health probe",  tone: "#0A8A3E", bg: "#E8F5EC" },
-  statuspage: { label: "Vendor status", tone: "#1E5FB2", bg: "#E5EFFA" },
+  probe:      { label: "Health probe",  tone: "#0A8A3E", bg: "#E7F5EC" },
+  statuspage: { label: "Vendor status", tone: "#2563B0", bg: "#E6EEF9" },
   rss:        { label: "Incident feed", tone: "#8A5A14", bg: "#F4F0E8" },
   page:       { label: "Page scan",     tone: "#4A3F2E", bg: "#F7F4EF" },
-  webhook:    { label: "Live webhook",  tone: "#6D3FB0", bg: "#F0E8FA" },
+  webhook:    { label: "Live webhook",  tone: "#6D3FB0", bg: "#E6EEF9" },
 };
 
 // Icon (emoji) per reference-link kind, shown on the link chips.
@@ -12828,14 +12828,14 @@ const LINK_KIND_ICON = { status: "🟢", rss: "📡", help: "❓", docs: "📄",
 // Severity / state palettes for incident pills.
 const SEVERITY_TONE = {
   minor:    { bg: "#FFE8A3", ink: "#8A6A14", label: "Minor" },
-  major:    { bg: "#FFD4D0", ink: "#8A1E17", label: "Major" },
-  critical: { bg: "#FFD4D0", ink: "#8A1E17", label: "Critical" },
+  major:    { bg: "#F2C9C4", ink: "#8A1E17", label: "Major" },
+  critical: { bg: "#F2C9C4", ink: "#8A1E17", label: "Critical" },
 };
 const INCIDENT_STATE_TONE = {
   investigating: { bg: "#FFE8A3", ink: "#8A6A14", label: "Investigating" },
-  identified:    { bg: "#FFD4D0", ink: "#8A1E17", label: "Identified" },
+  identified:    { bg: "#F2C9C4", ink: "#8A1E17", label: "Identified" },
   monitoring:    { bg: "#FFE8A3", ink: "#8A6A14", label: "Monitoring" },
-  resolved:      { bg: "#D4F4D4", ink: "#0A8A3E", label: "Resolved" },
+  resolved:      { bg: "#E7F5EC", ink: "#0A8A3E", label: "Resolved" },
 };
 const UPDATE_LABEL_TONE = {
   identified: "#DA3327",
@@ -13784,9 +13784,9 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                   className="ss-action-btn"
                   style={{
                     padding: "12px 24px",
-                    background: file ? "#211E1E" : "#E0DCCF",
+                    background: file ? "#211E1E" : "#E2DCD0",
                     color: file ? "#FFFFFF" : "#78684C",
-                    border: `2px solid ${file ? "#211E1E" : "#C9C2B0"}`,
+                    border: `2px solid ${file ? "#211E1E" : "#E2DCD0"}`,
                     borderRadius: 4,
                     boxShadow: file ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
                     fontFamily: "var(--font-mono)",
@@ -13834,10 +13834,10 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
             <div style={{
               marginTop: 16,
               padding: "12px 16px",
-              background: "#FFE8E5",
+              background: "#FFF4F2",
               border: "1px solid #DA3327",
               borderRadius: 8,
-              fontSize: 13, color: "#7A1A14", fontWeight: 600,
+              fontSize: 13, color: "#8A1E17", fontWeight: 600,
               lineHeight: 1.45,
             }}>
               <div>Couldn't analyze this screenshot — {error}.</div>
@@ -14026,7 +14026,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           a damaged device. */}
       {isHardware && (
         <div style={{
-          background: "#FFE8E5",
+          background: "#FFF4F2",
           border: "1px solid #DA3327",
           borderRadius: 12,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -14037,7 +14037,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
             fontFamily: "var(--font-mono)",
             fontSize: 11, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
-            color: "#7A1A14", marginBottom: 8,
+            color: "#8A1E17", marginBottom: 8,
           }}>Hardware repair — IT Team only</div>
           <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.55, marginBottom: 8 }}>
             This looks like physical damage or a hardware failure. Don't try to fix it yourself —
@@ -14474,7 +14474,7 @@ function renderMarkdown(md, opts = {}) {
       if (isFirstElement && level === 1) {
         out.push(
           <hr key={key++} style={{
-            border: 'none', height: 1, background: '#E5E7EB',
+            border: 'none', height: 1, background: '#E6EEF9',
             margin: '0 0 24px',
           }} />
         );
@@ -15243,7 +15243,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                 lineHeight: 1.2, paddingBottom: 16,
                 // Kept visible while pinned: it is the only thing separating
                 // the header from the body scrolling underneath.
-                borderBottom: '1px solid #E5E7EB', color: '#211E1E',
+                borderBottom: '1px solid #E6EEF9', color: '#211E1E',
                 // One line once pinned. With the tool icons scrolled away the
                 // title has the full 652px column, and a 30-character title at
                 // 32px needs ~506px — so this clips in practice only for
@@ -15528,7 +15528,7 @@ function FeedbackPanel({
            bright text combination stays intact when re-hovered. */
         .fb-btn.is-yes-on { background: #211E1E; color: #FFFFFF; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); opacity: 1; }
         .fb-btn.is-yes-on:not(:disabled):hover {
-          background: #000000; color: #211E1E;
+          background: #211E1E; color: #211E1E;
           transform: translate(0, 0);
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
@@ -15645,7 +15645,7 @@ function FeedbackPanel({
         }}>{prompt}</span>
         {state === "positive" && (
           <span style={{
-            color: "#0A6B30", fontWeight: 700, fontSize: 14,
+            color: "#0A6E31", fontWeight: 700, fontSize: 14,
             display: "inline-flex", alignItems: "center", gap: 8,
             fontFamily: "'Archivo', sans-serif",
           }}>
