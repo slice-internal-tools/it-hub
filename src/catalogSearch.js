@@ -249,6 +249,28 @@ function scoreToken(idx, token, noFuzzy) {
 }
 
 /**
+ * How completely the query covers an item's NAME, as a small (≤100) sort-only
+ * tiebreak. "1pass" covers all of "1Password" but only half of "1Password
+ * Groups", so the base app sorts above the derived one instead of losing to it
+ * on the popularity nudge.
+ *
+ * ⚠️ This is added ONLY in the sort comparators (rankItems/matchFromText), never
+ * folded into the score that reaches confidenceOf(). Confidence is a property of
+ * the raw match quality; letting a coverage tiebreak cross the 'strong' band
+ * would let a crafted ticket subject name-cover an unrelated item into an
+ * auto-preselected suggestion. Tokens < 2 chars are ignored (a 1-char prefix
+ * matches every name word).
+ */
+function nameCoverageBonus(idx, queryTerms) {
+  if (!idx.nameWords.length) return 0;
+  let hit = 0;
+  for (const w of idx.nameWords) {
+    if (queryTerms.some((t) => t.length >= 2 && (w === t || w.startsWith(t)))) hit++;
+  }
+  return hit ? Math.round(100 * (hit / idx.nameWords.length)) : 0;
+}
+
+/**
  * Score one item against a query.
  *
  * @returns {number} 0 when the item is not a match at all.
@@ -285,28 +307,10 @@ function scoreItem(item, query, opts = {}) {
   // One unmatched token out of several is tolerated but heavily penalised —
   // people do type a stray word ("adobe photoshop licence"), and dropping to
   // zero results is worse than a demoted-but-present answer.
-  let coverageFactor = 1;
   if (matched < tokens.length) {
     const coverage = matched / tokens.length;
     if (coverage < 0.5) return 0;
-    coverageFactor = coverage * 0.5;
-    score = Math.round(score * coverageFactor);
-  }
-
-  // Name-word coverage: prefer the item whose name the query covers most
-  // completely. "1pass" matches both "1Password" and "1Password Groups" as a
-  // prefix, but it covers all of the former and only half of the latter — so
-  // the base app ranks first and a more-requested but less-specific item
-  // (a longer "… Groups"/variant) can't leapfrog it on popularity alone. Kept
-  // as a bounded tiebreak: scaled by the same partial-match coverage factor so
-  // it can't re-inflate a penalised score, and only tokens >= 2 chars count (a
-  // 1-char prefix matches every name word). Zero when no name word is hit.
-  if (idx.nameWords.length) {
-    let hitWords = 0;
-    for (const w of idx.nameWords) {
-      if (tokens.some((t) => t.length >= 2 && (w === t || w.startsWith(t)))) hitWords++;
-    }
-    if (hitWords) score += Math.round(100 * (hitWords / idx.nameWords.length) * coverageFactor);
+    score = Math.round(score * coverage * 0.5);
   }
 
   // Popularity as a nudge, not a lever: enough to separate two items that
@@ -338,11 +342,13 @@ function rankItems(items, query, opts = {}) {
   const out = [];
   for (const item of items) {
     const score = scoreItem(item, query, { tokens, full });
-    if (score > minScore) out.push({ item, score });
+    // `sort` carries the name-coverage tiebreak; `score` (published as _score,
+    // and the value any downstream confidenceOf() reads) stays bonus-free.
+    if (score > minScore) out.push({ item, score, sort: score + nameCoverageBonus(item.__idx, tokens) });
   }
 
   out.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
+    if (b.sort !== a.sort) return b.sort - a.sort;
     const ap = Number(a.item.request_count) || 0;
     const bp = Number(b.item.request_count) || 0;
     if (bp !== ap) return bp - ap;
@@ -500,43 +506,41 @@ function matchFromText(items, text, opts = {}) {
     for (const tok of terms) if (scoreToken(idx, tok) >= W.NAME_WORD_PREFIX) hits++;
     if (hits > 1) best += 60 * Math.min(hits - 1, 2);
 
-    // Name-word coverage (mirrors scoreItem): a base app ("1Password") outranks
-    // a longer derived one ("1Password Groups") on a prefix match instead of
-    // losing to it on popularity. Kept strictly as a SORT tiebreak — added to
-    // `score` (which decides order) but NOT to `base`, which is what reaches
-    // confidenceOf. So the bonus can never push an item across a confidence
-    // band: a crafted ticket subject can't name-cover its way to a 'strong'
-    // (auto-preselected) suggestion. Tokens < 2 chars are ignored (a 1-char
-    // prefix matches every name word).
-    const base = best;
-    if (idx.nameWords.length) {
-      let hitWords = 0;
-      for (const w of idx.nameWords) {
-        if (terms.some((t) => t.length >= 2 && (w === t || w.startsWith(t)))) hitWords++;
-      }
-      if (hitWords) best += Math.round(100 * (hitWords / idx.nameWords.length));
-    }
-
-    scored.push({ item, score: best, base });
+    // Name-word coverage is a sort-only tiebreak (see nameCoverageBonus): it
+    // orders the result via `sort` but never touches `score`, so it can't reach
+    // the confidenceOf() call below — a crafted ticket subject can't name-cover
+    // its way to a 'strong' (auto-preselected) suggestion.
+    scored.push({ item, score: best, sort: best + nameCoverageBonus(idx, terms) });
   }
 
   scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
+    if (b.sort !== a.sort) return b.sort - a.sort;
     const ap = Number(a.item.request_count) || 0;
     const bp = Number(b.item.request_count) || 0;
     if (bp !== ap) return bp - ap;
     return String(a.item.name || '').localeCompare(String(b.item.name || ''));
   });
 
+  // Confidence compares the top item's RAW score against the highest competing
+  // RAW score across ALL matches — computed over the full sorted set BEFORE the
+  // display truncation. Otherwise a high-raw competitor that the coverage
+  // tiebreak (or sheer volume) pushed past `limit` is invisible to the
+  // ambiguity gate, letting a crafted subject crowd the real runner-up out of
+  // the top N and manufacture a 'strong'. `scored` is sorted, so index 0 is the
+  // top item and the loop takes the max raw over everything else.
+  let runnerUp = 0;
+  for (let k = 1; k < scored.length; k++) {
+    if (scored[k].score > runnerUp) runnerUp = scored[k].score;
+  }
   const limited = scored.slice(0, opts.limit || 6);
   return {
     terms,
-    candidates: limited.map(({ item, score, base }, i) => {
+    candidates: limited.map(({ item, score }, i) => {
       const { __idx, ...rest } = item;
       return {
         ...rest,
         _score: Math.round(score),
-        _confidence: confidenceOf(base, i === 0 ? (limited[1]?.base || 0) : 0),
+        _confidence: confidenceOf(score, i === 0 ? runnerUp : 0),
       };
     }),
   };
