@@ -3076,6 +3076,11 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 .apr-item-desc { margin: 4px 0 0; font-size: 14px; line-height: 1.55; color: #4A3F2E; }
 .apr-why { margin-top: 16px; padding-top: 14px; border-top: 1px solid #F0EADC; }
 .apr-why-label, .apr-label { display: block; font-size: 12.5px; font-weight: 600; color: #78684C; margin-bottom: 6px; }
+.apr-answers { margin: 16px 0 0; padding: 14px 0 0; border-top: 1px solid #F0EADC; display: grid; gap: 11px; }
+.apr-answer { display: grid; grid-template-columns: 168px 1fr; gap: 6px 18px; align-items: baseline; }
+.apr-answer-label { font: 500 11px/1.4 var(--font-mono); letter-spacing: .04em; text-transform: uppercase; color: #78684C; }
+.apr-answer-value { font-size: 14px; line-height: 1.5; color: #211E1E; word-break: break-word; }
+@media (max-width: 640px) { .apr-answer { grid-template-columns: 1fr; gap: 2px; } }
 .apr-label span { font-weight: 500; color: #9A8E78; }
 .apr-history { list-style: none; margin: 0; padding: 0; }
 .apr-history li { position: relative; display: flex; gap: 12px; padding: 0 0 14px; font-size: 13.5px; color: #3A352C; }
