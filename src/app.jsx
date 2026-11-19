@@ -9236,14 +9236,24 @@ function ApprovalDetailView({ id, onBack, onActed }) {
     const raw = (d && d.ticket && d.ticket.description) || '';
     if (!raw) return '';
     if (looksLikeHtml(raw)) return raw;
-    const note = raw
-      .replace(/\n*Form Responses:\n(?:[ \t]+.*(?:\n|$))*/, '')
-      .replace(/^Justification:[ \t]*/, '')
+    // Strip the raw "Form Responses:" dump (server catalog.js) AND any labelled
+    // "Label: value" request-details block (server utils/requestDetails.js, which
+    // some creation paths append to the description) — both duplicate the answers
+    // grid rendered above. The labelled block isn't newline-anchored (it can run
+    // straight on from the justification, e.g. "Test BojanTenants Required: …"),
+    // so remove each answer's "Label: value" wherever it appears.
+    const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let note = raw.replace(/\n*Form Responses:\n(?:[ \t]+.*(?:\n|$))*/, '');
+    for (const a of requestAnswers) {
+      if (!a.value) continue;
+      note = note.replace(new RegExp(esc(a.label) + '\\s*:\\s*' + esc(a.value), 'ig'), '');
+    }
+    note = note
+      .replace(/^\s*Justification:[ \t]*/i, '')
+      .replace(/[ \t]*\n{2,}[ \t]*/g, '\n')
       .trim();
     if (!note) return '';
-    // The justification doubles as a "why?" form answer when the item has a
-    // reason field, so it can already be in the grid above (our reason-field
-    // skip only catches the obvious phrasings). Don't print it twice.
+    // The justification can itself be a "why?" answer already in the grid.
     const dup = requestAnswers.some((a) => a.value.trim().toLowerCase() === note.toLowerCase());
     return dup ? '' : note;
   }, [d, requestAnswers]);
