@@ -4154,3 +4154,8 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 .apr-page .tkd-grid > .tkd-side { padding-left: 32px !important; }
 .apr-page .tkd-side > .tkd-side-card { margin-top: 24px !important; padding-top: 24px !important; border-top: 1px solid rgba(33,30,30,.12) !important; }
 .apr-page .tkd-side .apr-steps { margin-top: 0; padding-top: 0; border-top: none !important; }
+
+/* "No replies yet": a quiet centred note in the flow of the chat, not a
+   dashed box squeezed between your message and the reply field. */
+.tkd-main > .tkd-convo .tkd-noreply { margin: 32px 0 0; padding: 0; border: none; background: none;
+  text-align: center; font-size: 13px; line-height: 1.5; color: #9A8E78; }

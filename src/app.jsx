@@ -9370,7 +9370,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
             })}
 
             {descItem.length > 0 && timeline.length === descItem.length && (st.full || st.error) && (
-              <div className="tkd-noreply">No replies yet — the IT Team will answer here, and you'll get a notification.</div>
+              <div className="tkd-noreply">No replies yet — the {teamDisplayName(ticketTeamKey(t))} will answer here, and you'll get a notification.</div>
             )}
 
             {/* Reply composer — posts a public comment (and any attachments) to the
