@@ -1150,6 +1150,8 @@
 
   .nav-bell { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; padding: 0; }
   .nav-bell-swing { transform-origin: 50% 2px; animation: navBellSwing .9s ease-in-out; }
+  .nav-bell svg { transform-origin: 50% 2px; }
+  .nav-bell:hover svg { animation: navBellSwing .9s ease-in-out; }
   @keyframes navBellSwing {
     0% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-13deg); }
     45% { transform: rotate(9deg); } 60% { transform: rotate(-5deg); } 75% { transform: rotate(2deg); } 100% { transform: rotate(0); }
@@ -4080,3 +4082,5 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 .rqx-goes-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .rqx-goes-name { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; line-height: 1.2; color: #211E1E; }
 .rqx-goes-sub { font-size: 12px; line-height: 1.3; color: #78684C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@media (prefers-reduced-motion: reduce) { .nav-bell:hover svg { animation: none; } }

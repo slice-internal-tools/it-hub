@@ -4348,6 +4348,17 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
     if (unreadCount > prevUnread.current) setRing((n) => n + 1);
     prevUnread.current = unreadCount;
   }, [unreadCount]);
+  // While anything is unread it also rings now and then (first after 1.5s,
+  // then every 10s) until the menu is opened; pointing at it rings it too
+  // (CSS :hover). Reduced motion: still.
+  const hasUnread = unreadCount > 0;
+  React.useEffect(() => {
+    if (!hasUnread || pop.open) return undefined;
+    try { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined; } catch {}
+    const first = setTimeout(() => setRing((n) => n + 1), 1500);
+    const every = setInterval(() => setRing((n) => n + 1), 10000);
+    return () => { clearTimeout(first); clearInterval(every); };
+  }, [hasUnread, pop.open]);
 
   // Group rows under Today / Yesterday / Earlier, in order.
   const groups = [];
