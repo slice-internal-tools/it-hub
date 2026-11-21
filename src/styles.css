@@ -4095,3 +4095,20 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 .rqx-goes-sub { font-size: 12px; line-height: 1.3; color: #78684C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 @media (prefers-reduced-motion: reduce) { .nav-bell:hover svg { animation: none; } }
+
+/* Ticket conversation without the big card: messages sit on the page like a
+   chat, team replies as white bubbles, yours a step deeper than the page; the
+   reply box is its own floating surface pinned to the bottom of the screen,
+   with the page fading in behind it as messages scroll under. */
+.tkd-main > .tkd-convo { background: transparent; border: none !important; border-radius: 0; box-shadow: none !important;
+  padding: 0 !important; margin: 8px 0 0 16px; overflow: visible; }
+.tkd-main > .tkd-convo .convo-msg.is-mine .convo-bubble { background: #EFE8DA; border-color: #EFE8DA; }
+.tkd-main > .tkd-convo .tkd-reply { margin: 24px 0 0; padding: 24px 0 24px; border: none; border-radius: 0;
+  background: linear-gradient(to top, var(--bg) 72%, rgba(247,244,239,0)); }
+.tkd-main > .tkd-convo .tkd-reply-box { border-color: rgba(33,30,30,.14);
+  box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
+.tkd-main > .tkd-convo .tkd-reply-box:focus-within { border-color: rgba(33,30,30,.32);
+  box-shadow: 0 0 0 3px rgba(33,30,30,.08), 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
+.tkd-main > .tkd-convo .tkd-reply-av { box-shadow: inset 0 0 0 1px rgba(33,30,30,.14); }
+@media (max-width: 900px) { .tkd-main > .tkd-convo { margin-left: 0 !important; } }
+@media (max-width: 640px) { .tkd-main > .tkd-convo .tkd-reply { margin: 16px 0 0; padding: 16px 0; } }
