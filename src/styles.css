@@ -4134,9 +4134,6 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
    title does, so the two rows line up instead of drifting 24px apart. */
 .rfp-swap .pav { width: 40px !important; height: 40px !important; margin: 0 12px 0 8px; }
 
-/* Compact urgency (request summary card): taller options, bigger bars with
-   more air, and the label sitting a clear step below them. */
-.rep-urgency.is-compact .rep-urg { gap: 8px; padding: 12px 2px; }
-.rep-urgency.is-compact .rep-urg-bars { height: 14px; gap: 3px; }
-.rep-urgency.is-compact .rep-urg-bars i:nth-child(1) { height: 5px; } .rep-urgency.is-compact .rep-urg-bars i:nth-child(2) { height: 8px; }
-.rep-urgency.is-compact .rep-urg-bars i:nth-child(3) { height: 11px; } .rep-urgency.is-compact .rep-urg-bars i:nth-child(4) { height: 14px; }
+/* Compact urgency (request summary card): same height as before, but the
+   label sits a clear step below the bars (8px instead of 4px). */
+.rep-urgency.is-compact .rep-urg { gap: 8px; padding: 6px 2px; }
