@@ -4137,3 +4137,12 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 /* Compact urgency (request summary card): same height as before, but the
    label sits a clear step below the bars (8px instead of 4px). */
 .rep-urgency.is-compact .rep-urg { gap: 8px; padding: 6px 2px; }
+
+/* Success page: a calm success mark (green tint + soft halo, no black ring)
+   and the ticket number as a quiet copy chip rather than an outlined box. */
+.done-check { width: 56px; height: 56px; border: none; box-shadow: 0 0 0 6px rgba(10,138,62,.08); }
+.done-num { height: 32px; padding: 0 12px; border: none; background: #F4F0E8; font-weight: 700;
+  transition: background-color .15s var(--ease); }
+.done-num:hover { transform: none; background: #EFE8DA; }
+.done-num svg { color: #9A8E78; }
+.done-num:focus-visible { outline: 2px solid #211E1E; outline-offset: 2px; }
