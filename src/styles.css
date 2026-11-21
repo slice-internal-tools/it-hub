@@ -3730,7 +3730,6 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 .apr-head-ic { width: 48px; height: 48px; flex: none; border-radius: 12px; display: grid; place-items: center; background: #FFFFFF; border: 1px solid rgba(33,30,30,.18); box-sizing: border-box; color: #211E1E; }
 
 /* ── Home: one strong element (the ask box), everything else soft ── */
-.companion-promo { border-color: rgba(33,30,30,.12); }
 /* .page-scroll is a grid; its pages must be allowed to shrink below their
    widest content, or a phone gets a page wider than the screen (clipped). */
 .page-scroll > * { min-width: 0; }
@@ -4062,4 +4061,3 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 .cmp-attach:focus-visible, .tkt-nav-btn:focus-visible, .rep-shortcut:focus-visible, .kb-popular-chip:focus-visible, .tkt-quick-chip:focus-visible {
   outline: 2px solid var(--b-ink) !important; outline-offset: 2px !important; }
 @media (prefers-reduced-motion: reduce) { .btn-primary, .btn-outline, .hc-go, .hc-ghost, .tkt-life-btn, .kb-back-btn { transition: none !important; } }
-.kb-companion { margin-top: 16px; }

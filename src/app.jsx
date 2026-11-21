@@ -1191,95 +1191,10 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
         </div>
       )}
 
-      {/* The browser-extension promo (CompanionPromo) was taken off Home to
-          keep it to asking + your tickets; the component and its download
-          links stay below for wherever it moves next. */}
       <div style={{ height: 56 }} aria-hidden="true" />
 
     </div>);
 
-}
-
-// ---------- BROWSER EXTENSION DOWNLOADS ----------
-// Chrome: the Web Store listing (unlisted — link-only, auto-updates).
-// Firefox: the signed .xpi in public/companion/, served with the xpinstall
-// mime type so Firefox opens its install prompt. Bump the version here when a
-// new signed file is dropped into that folder (see public/companion/README.md).
-const COMPANION_CHROME_URL = "https://chromewebstore.google.com/detail/slicedesk-companion/fnagjegbeojhopjbcfmjlcoidkiplnla";
-const COMPANION_FIREFOX_VERSION = "1.5.0";
-const COMPANION_FIREFOX_URL = `${import.meta.env.BASE_URL}companion/slicedesk-companion-${COMPANION_FIREFOX_VERSION}-firefox.xpi`;
-
-// The browsers' real logos (public/companion/logos/, the official SVGs), not
-// line-art stand-ins: people recognise the mark before they read the word.
-const COMPANION_LOGO = (name) => `${import.meta.env.BASE_URL}companion/logos/${name}.svg`;
-
-const COMPANION_DOWNLOADS = [
-  { name: "Chrome extension", body: "From the Chrome Web Store · updates itself",
-    cta: "Add to Chrome", href: COMPANION_CHROME_URL, external: true, logo: COMPANION_LOGO("chrome") },
-  { name: "Firefox add-on", body: `Signed by Mozilla · v${COMPANION_FIREFOX_VERSION} · one click, then Allow access`,
-    cta: "Add to Firefox", href: COMPANION_FIREFOX_URL, external: false, logo: COMPANION_LOGO("firefox") },
-];
-
-
-// Which download to put first: Firefox gets the add-on; every Chromium browser
-// (Chrome, Edge, Brave, Arc) installs from the Chrome Web Store. Safari and
-// anything unknown get no recommendation — both buttons, equal weight.
-function companionBrowser() {
-  try {
-    const ua = navigator.userAgent || '';
-    if (/Firefox\//.test(ua)) return 'firefox';
-    if (/Chrome\/|Chromium\/|Edg\//.test(ua)) return 'chrome';
-  } catch {}
-  return null;
-}
-
-const COMPANION_PERKS = [
-  'Your tickets and approvals, one click from the toolbar',
-  'A desktop alert the moment IT replies or changes a status',
-  'Nothing to set up — it uses the login you already have',
-];
-
-function CompanionPromo() {
-  const rec = React.useMemo(companionBrowser, []);
-  const items = COMPANION_DOWNLOADS.map((b) => ({ ...b, key: /firefox/i.test(b.name) ? 'firefox' : 'chrome' }))
-    .sort((a, b) => (a.key === rec ? -1 : b.key === rec ? 1 : 0));
-  return (
-    <section className="companion-promo" aria-labelledby="companion-title">
-      <style>{`
-        .companion-promo { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:20px 20px; background:#FFFFFF;
-          border:1px solid rgba(33,30,30,.22); border-radius:16px; }
-        .companion-mark { width:40px; height:40px; border-radius:12px; display:grid; place-items:center; flex:none; background:#211E1E; color:#FFFFFF; }
-        .companion-text { flex:1 1 260px; min-width:0; }
-        .companion-title { margin:0; font:400 20px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
-        .companion-lede { margin:3px 0 0; font-size:13px; color:#78684C; line-height:1.45; }
-        .companion-actions { display:flex; gap:8px; flex-wrap:wrap; }
-        .companion-btn { display:inline-flex; align-items:center; gap:8px; height:38px; padding:0 16px 0 12px; border:1px solid #211E1E; border-radius:999px;
-          background:#FFFFFF; color:#211E1E; text-decoration:none; font-size:13px; font-weight:600; transition:background-color .15s ease; }
-        .companion-btn:hover { background:#F4F0E8; }
-        .companion-btn.is-rec { background:#F4F0E8; }
-        .companion-btn.is-rec:hover { background:#FDC831; }
-        .companion-btn:focus-visible { outline:2px solid #211E1E; outline-offset:2px; }
-        .companion-btn img { display:block; }
-      `}</style>
-      <span className="companion-mark" aria-hidden="true"><IconBolt size={20} stroke={2.2} /></span>
-      <div className="companion-text">
-        <h2 id="companion-title" className="companion-title">SliceDesk in your browser</h2>
-        <p className="companion-lede">Your tickets and approvals one click away, with an alert the moment someone replies.</p>
-      </div>
-      <div className="companion-actions">
-        {items.map((b) => (
-          <a key={b.key} href={b.href}
-            target={b.external ? '_blank' : undefined}
-            rel={b.external ? 'noopener noreferrer' : undefined}
-            title={b.body}
-            className={'companion-btn' + (b.key === rec ? ' is-rec' : '')}>
-            <img src={b.logo} alt="" width="20" height="20" />
-            {b.cta}
-          </a>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 // Fast-access guide cards — the most-opened knowledge articles, one tap from
@@ -12483,9 +12398,6 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           <button onClick={() => setSuggestOpen(true)} className="btn btn-primary kb-missing-btn">Suggest an article</button>
         </div>
 
-        {/* The browser extension, at the very end of Knowledge (moved off
-            Home): tickets and approvals one click away from any page. */}
-        <div className="kb-companion"><CompanionPromo /></div>
         </React.Fragment>
         )}
       </div>
