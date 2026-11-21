@@ -1335,10 +1335,7 @@ function GoesToRow({ teamKey, soon = false }) {
       <span className="rqx-k">Goes to</span>
       <span className="rqx-goes">
         <span className="rqx-goes-ic" aria-hidden="true"><Icon size={16} stroke={2} /></span>
-        <span className="rqx-goes-text">
-          <span className="rqx-goes-name">{t.label} team{soon && !t.live && <span className="tp-soon">Soon</span>}</span>
-          <span className="rqx-goes-sub">{t.blurb}</span>
-        </span>
+        <span className="rqx-goes-name">{t.label} team{soon && !t.live && <span className="tp-soon">Soon</span>}</span>
       </span>
     </div>
   );
