@@ -2959,7 +2959,7 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 /* Ticket / approval list rows (shared by My tickets and Approvals). */
 /* The list: one panel, rows split by hairlines — reads as a work queue,
    not a stack of stickers. */
-.tkt-list { background:#FFFFFF; border:1px solid #211E1E; border-radius:16px; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); overflow:hidden; }
+.tkt-list { background:#FFFFFF; border:1px solid rgba(33,30,30,.12); border-radius:16px; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); overflow:hidden; }
 .tkt-row { position:relative; display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:16px; align-items:center;
   width:100%; padding:16px 20px; text-align:left; cursor:pointer; border:none; background:#FFFFFF;
   border-top:1px solid #EFE8DA; transition: background-color .14s ease; font:inherit; color:inherit; }
@@ -3019,7 +3019,7 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 
 /* Table list: shared column grid for the header and every row. */
 .tkt-list-head, .tkt-list .tkt-row { column-gap: 16px; }
-.tkt-list-head { display: grid; grid-template-columns: minmax(0, 1fr) 190px 76px; padding: 12px 20px; background: #F7F4EF;
+.tkt-list-head { display: grid; grid-template-columns: minmax(0, 1fr) 190px 76px; padding: 16px 20px 12px; background: #FFFFFF;
   border-bottom: 1px solid #EFE8DA; font: 500 11px/1 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: #78684C; }
 .tkt-list .tkt-row { grid-template-columns: 40px minmax(0, 1fr) 190px 76px; padding: 16px 20px; }
 .tkt-list .tkt-row:first-of-type { border-top: none; }
