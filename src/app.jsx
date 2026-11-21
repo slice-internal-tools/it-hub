@@ -608,6 +608,60 @@ function HelpMark() {
   );
 }
 
+// The "we" in the headline: every so often it becomes each team that answers
+// in Slice Help ("How can IT help?", "How can HR help?", …) and comes back to
+// "we". The word slides up with a soft blur while its slot eases to the new
+// width, so the whole line re-centres smoothly. A new team in HELP_TEAMS joins
+// the rotation on its own. Plays once per visit, stops (back on "we") as soon
+// as someone types, and under reduced motion it never moves.
+function TeamWord({ paused }) {
+  const words = React.useMemo(() => ["we", ...HELP_TEAMS.map((t) => t.label)], []);
+  const [i, setI] = React.useState(0);
+  const [prev, setPrev] = React.useState(-1);
+  const [widths, setWidths] = React.useState([]);
+  const refs = React.useRef([]);
+  const done = React.useRef(false);   // played, or interrupted by typing: stay on "we"
+
+  React.useEffect(() => {
+    const measure = () => setWidths(refs.current.map((el) => (el ? el.offsetWidth : 0)));
+    measure();
+    try { document.fonts && document.fonts.ready.then(measure); } catch {}
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  React.useEffect(() => {
+    let reduce = false;
+    try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch {}
+    if (paused || reduce || done.current) {
+      if (paused) done.current = true;
+      setI((cur) => { if (cur !== 0) setPrev(cur); return 0; });
+      return undefined;
+    }
+    // One pass per visit (we → IT → HR → Finance → we), then it rests on
+    // "we": enough to say every team answers here without moving forever
+    // above the box people are typing into.
+    let t, n = 0;
+    const step = () => {
+      n += 1;
+      setI((cur) => { setPrev(cur); return (cur + 1) % words.length; });
+      if (n < words.length) t = setTimeout(step, 2400); else done.current = true;
+    };
+    t = setTimeout(step, 3200);   // let the "help?" underline finish first
+    return () => clearTimeout(t);
+  }, [paused, words.length]);
+
+  return (
+    <span className="hc-team" aria-hidden="true" style={widths[i] ? { width: widths[i] } : undefined}>
+      <span className="hc-team-ghost">{words[0]}</span>
+      {words.map((w, k) => (
+        <span key={w} ref={(el) => { refs.current[k] = el; }}
+          className={"hc-team-w" + (k === i ? " is-on" : k === prev ? " is-out" : "")}>{w}</span>
+      ))}
+    </span>
+  );
+}
+
 // First-visit tour: hand-drawn margin notes (wide screens only) — the box
 // takes questions for every team, app access lives in its second tab, and
 // My Tickets is where requests are tracked. Shown once per person (stored
@@ -964,7 +1018,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           animation: "fadeUp .7s .05s var(--ease) both",
           fontFamily: "var(--font-head)",
         }}>
-          How can we{" "}
+          How can <span className="sr-only">we </span><TeamWord paused={!!q.trim()} />{" "}
           <HelpMark />
         </h1>
       </div>

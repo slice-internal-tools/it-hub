@@ -4062,3 +4062,14 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 .cmp-attach:focus-visible, .tkt-nav-btn:focus-visible, .rep-shortcut:focus-visible, .kb-popular-chip:focus-visible, .tkt-quick-chip:focus-visible {
   outline: 2px solid var(--b-ink) !important; outline-offset: 2px !important; }
 @media (prefers-reduced-motion: reduce) { .btn-primary, .btn-outline, .hc-go, .hc-ghost, .tkt-life-btn, .kb-back-btn { transition: none !important; } }
+
+/* Headline: the rotating team word in "How can ___ help?" */
+.hc-team { position: relative; display: inline-block; white-space: nowrap; text-align: left;
+  transition: width .6s cubic-bezier(.22,1,.36,1); }
+.hc-team-ghost { visibility: hidden; }
+.hc-team-w { position: absolute; left: 50%; top: 0; white-space: nowrap; opacity: 0; filter: blur(6px);
+  transform: translate(-50%, .45em); pointer-events: none;
+  transition: opacity .45s ease, filter .45s ease, transform .6s cubic-bezier(.22,1,.36,1); }
+.hc-team-w.is-on { opacity: 1; filter: blur(0); transform: translate(-50%, 0); transition-delay: .08s; }
+.hc-team-w.is-out { transform: translate(-50%, -.45em); }
+@media (prefers-reduced-motion: reduce) { .hc-team, .hc-team-w { transition: none; } }
