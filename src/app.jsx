@@ -1280,13 +1280,15 @@ const QuickAccess = [
 // picked (so people see it's coming) but never submits: its requests would
 // otherwise land in the IT queue, and HR/Finance matters are private.
 const HELP_TEAMS = [
-  { key: "it",      label: "IT",      prefix: "IT",  icon: "laptop", blurb: "Devices, apps & access", live: true,
+  { key: "it",      label: "IT",      prefix: "IT",  icon: "laptop", blurb: "Devices, apps & access", live: true, categories: [],
     subject: "e.g. Access to Figma", details: "Why you need it, and by when…",
     issue: "e.g. Zoom won’t open after the latest update" },
   { key: "hr",      label: "HR",      prefix: "HR",  icon: "people", blurb: "Time off, pay & benefits", live: false,
+    categories: ["hr", "people", "people team", "benefits", "payroll", "time off", "employment"],
     subject: "e.g. Employment verification letter", details: "What you need, and by when…",
     issue: "e.g. My payslip is missing overtime" },
   { key: "finance", label: "Finance", prefix: "FIN", icon: "card",   blurb: "Expenses & invoices", live: false,
+    categories: ["finance", "expenses", "invoices", "procurement", "purchasing", "corporate card"],
     subject: "e.g. Raise my card limit", details: "Amount, cost centre, and by when…",
     issue: "e.g. My expense report was rejected" },
 ];
@@ -1304,6 +1306,42 @@ function ticketTeamKey(t) {
   const num = String((t && t.ticket_number) || '').toUpperCase();
   const hit = HELP_TEAMS.find((x) => num.startsWith(x.prefix + '-'));
   return hit ? hit.key : 'it';
+}
+// Which team's queue a catalog item goes to. The ticket system keeps the real
+// queue to itself (auto_assign_queue_id is admin-only), so: an explicit team
+// on the item if the module ever sends one (team / team_key / queue_team),
+// else its category matched against each team's `categories`, else IT.
+function catalogItemTeam(item) {
+  if (!item) return 'it';
+  const norm = (v) => String(v || '').trim().toLowerCase();
+  const explicit = norm(item.team || item.team_key || item.queue_team);
+  if (explicit) {
+    const hit = HELP_TEAMS.find((t) => explicit === t.key || explicit === norm(t.label) || explicit === norm(t.prefix)
+      || explicit.startsWith(norm(t.label) + ' '));
+    if (hit) return hit.key;
+  }
+  const cat = norm(item.category_name || item.category);
+  const byCat = cat && HELP_TEAMS.find((t) => (t.categories || []).includes(cat));
+  return byCat ? byCat.key : 'it';
+}
+// "Goes to" — the team a request lands with, as one summary-card row.
+// `soon` marks a team that isn't taking requests here yet — only for the
+// free-form paths; a catalog item routed to a team's queue is live by definition.
+function GoesToRow({ teamKey, soon = false }) {
+  const t = helpTeam(teamKey);
+  const Icon = teamIcon(t.key);
+  return (
+    <div className="rqx-card-row">
+      <span className="rqx-k">Goes to</span>
+      <span className="rqx-goes">
+        <span className="rqx-goes-ic" aria-hidden="true"><Icon size={16} stroke={2} /></span>
+        <span className="rqx-goes-text">
+          <span className="rqx-goes-name">{t.label} team{soon && !t.live && <span className="tp-soon">Soon</span>}</span>
+          <span className="rqx-goes-sub">{t.blurb}</span>
+        </span>
+      </span>
+    </div>
+  );
 }
 // "the IT Team" / "the HR team" — for copy like "Reply to …".
 const teamDisplayName = (key) => (key === 'it' ? 'IT Team' : helpTeam(key).label + ' team');
@@ -6112,10 +6150,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
 
         <aside className="rqx-side" aria-label="Summary">
           <div className="rqx-card">
-            <div className="rqx-card-row">
-              <span className="rqx-k">Team</span>
-              <span className="rqx-team">{teamInfo.label}{!teamInfo.live && <span className="tp-soon">Soon</span>}</span>
-            </div>
+            <GoesToRow teamKey={teamInfo.key} soon />
             <div className="rqx-card-row">
               <span className="rqx-k">Kind</span>
               <div className="rep-kind" role="radiogroup" aria-label="Kind">
@@ -10398,12 +10433,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const sidePanel = ({ approval }) => (
     <aside className="rqx-side" aria-label="Summary">
       <div className="rqx-card">
-        {view === 'freeform' && (
-          <div className="rqx-card-row">
-            <span className="rqx-k">Team</span>
-            <span className="rqx-team">{helpTeam(team).label}{!helpTeam(team).live && <span className="tp-soon">Soon</span>}</span>
-          </div>
-        )}
+        <GoesToRow teamKey={view === 'freeform' ? team : catalogItemTeam(item)} soon={view === 'freeform'} />
         <div className="rqx-card-row">
           <span className="rqx-k">For</span>
           <span className="rqx-people">

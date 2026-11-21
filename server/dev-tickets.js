@@ -387,6 +387,10 @@ catalogItems.push(
   { id: 514, name: 'Salesforce', description: 'Salesforce access, set up to match an existing colleague.', category_name: 'Sales', icon_url: appIcon('#00A1E0', '#FFFFFF', 'SF', 26), request_count: 15, approval_required: true, justify_required: true,
     request_form_fields: [{ key: 'user_to_clone', label: 'User to Clone:', type: 'text', required: true }] },
   { id: 513, name: 'Salesforce Sales Cloud — Enterprise Edition (Read-only reporting)', description: 'Dashboards and reports for the revenue team; no record editing.', category_name: 'Sales', icon_url: appIcon('#00A1E0', '#FFFFFF', 'S', 36), request_count: 0, approval_required: true, justify_required: false, request_form_fields: [] },
+  // Items owned by other teams' queues (dev only) — the request page shows
+  // "Goes to HR team" / "Goes to Finance team" from their category.
+  { id: 516, name: 'Employment verification letter', description: 'A signed letter confirming your role and start date, for a bank or landlord.', category_name: 'HR', icon_url: appIcon('#E7F5EC', '#0A6E31', 'HR', 26), request_count: 11, approval_required: false, justify_required: false, request_form_fields: simpleForm('Who is it for (bank, landlord…)?') },
+  { id: 517, name: 'Corporate card', description: 'A Slice corporate card, or a higher limit on the one you have.', category_name: 'Finance', icon_url: appIcon('#E6EEF9', '#1C4E8C', '$', 36), request_count: 8, approval_required: true, justify_required: true, request_form_fields: simpleForm('Monthly limit you need') },
   { id: 512, name: 'MacBook Pro 14"', description: 'Standard engineering build with the Jamf baseline.', category_name: 'Hardware', icon_url: appIcon('#E8E8ED', '#1D1D1F', '⌘', 34), request_count: 12, approval_required: true, justify_required: true, request_form_fields: [] },
 );
 // Point the fixture tickets at their app so the list rows show its icon.
