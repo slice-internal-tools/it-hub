@@ -8773,12 +8773,15 @@ function TicketDetailsPanel({ t, approvalState, approval, status, onPriorityChan
             return <Row k="Team"><span className="tkd-team"><span className="tkd-team-ic" aria-hidden="true"><TIcon size={12} stroke={2.2} /></span>{helpTeam(tk).label} team</span></Row>;
           })()}
           {t.ticket_number && <Row k="Ticket ID"><TicketNumber value={t.ticket_number} size={13} /></Row>}
+          {t.type && <Row k="Type">{ticketTypeMeta(t.type).label}</Row>}
           {t.priority && (
             <Row k="Priority">
               <PriorityControl value={t.priority} onChange={ticketBucket(t.status) === 'open' ? onPriorityChange : null} />
             </Row>
           )}
+          {t.requester_name && <Row k="Requested by">{t.requester_name}</Row>}
           {assignee && <Row k="Assigned to">{assignee}</Row>}
+          {t.created_at && <Row k="Opened"><span title={fmt(t.created_at)}>{relativeTime(t.created_at)}</span></Row>}
           {t.updated_at && <Row k="Last update"><span title={fmt(t.updated_at)}>{relativeTime(t.updated_at)}</span></Row>}
         </dl>
       </div>
@@ -9301,16 +9304,13 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
 
           <div className="tkd-grid">
           <div className="tkd-main">
+          {/* Just the title here; number, type, who and when live in the
+              Details panel on the right (on phones the head above keeps its
+              meta line, since the panel drops below the conversation). */}
           <div className="tkd-head" ref={headRef}>
             <TicketLeadIcon ticket={t} app={catInfo} size={48} />
             <div style={{ minWidth: 0 }}>
               <h1 className="tkd-title">{t.subject}</h1>
-              <div className="tkd-meta">
-                {t.ticket_number && <><span className="tkd-meta-id"><TicketNumber value={t.ticket_number} size={13} /></span><span className="tkt-row-sep" aria-hidden="true" /></>}
-                <span>{ticketTypeMeta(t.type).label}</span>
-                {t.created_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>Opened {relativeTime(t.created_at)}</span></>}
-                {t.requester_name && <><span className="tkt-row-sep" aria-hidden="true" /><span>by {t.requester_name}</span></>}
-              </div>
             </div>
           </div>
 
