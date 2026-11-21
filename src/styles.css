@@ -4112,3 +4112,10 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 .tkd-main > .tkd-convo .tkd-reply-av { box-shadow: inset 0 0 0 1px rgba(33,30,30,.14); }
 @media (max-width: 900px) { .tkd-main > .tkd-convo { margin-left: 0 !important; } }
 @media (max-width: 640px) { .tkd-main > .tkd-convo .tkd-reply { margin: 16px 0 0; padding: 16px 0; } }
+
+/* Ticket page: a hairline between the conversation (left) and the info panel
+   (right), running the full height of the page so the two sides read as
+   different places without boxing either in. */
+@media (min-width: 901px) {
+  .tkd-grid > .tkd-main { align-self: stretch; padding-right: 32px; border-right: 1px solid #E2DCD0; }
+}
