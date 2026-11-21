@@ -2719,7 +2719,10 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
    status band with a step tracker (the answer to "where's my ticket?"), then
    description + conversation on the left and a details panel on the right. */
 .tkd-bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin: 0 0 24px; padding: 12px 0; background: var(--bg); border-bottom: 1px solid rgba(33,30,30,.12); }
+  margin: 0 0 12px; padding: 8px 0; background: var(--bg); border-bottom: 1px solid transparent; transition: border-color .2s ease; }
+/* The divider only shows once the bar is stuck over scrolled content (that's
+   when the ticket title slides into it); at rest it was dead space. */
+.tkd-bar:has(.tkd-bar-title.is-on) { border-bottom-color: rgba(33,30,30,.12); }
 .tkd-back { display: inline-flex; align-items: center; gap: 8px; height: 34px; white-space: nowrap; flex: none; padding: 0 12px 0 8px; border-radius: 12px;
   border: none; background: transparent; color: #4A3F2E; cursor: pointer; font: 600 14px/1 'Archivo', sans-serif;
   transition: background-color .15s ease, color .15s ease; }
