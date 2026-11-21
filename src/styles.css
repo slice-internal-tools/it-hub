@@ -4128,3 +4128,8 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 .ps-field:focus-within, .ag-field:focus-visible { border-color: #211E1E; box-shadow: 0 0 0 3px rgba(33,30,30,.08); }
 .ag-field:hover { box-shadow: none; border-color: rgba(33,30,30,.55); }
 .cmp-bar .cmp-attach { padding: 0 12px !important; }
+
+/* Request page: "Requesting for" sits in the header's grid — the avatar is
+   centred under the app icon (56px column) and the name starts where the
+   title does, so the two rows line up instead of drifting 24px apart. */
+.rfp-swap .pav { width: 40px !important; height: 40px !important; margin: 0 12px 0 8px; }
