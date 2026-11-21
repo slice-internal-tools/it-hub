@@ -6891,11 +6891,12 @@ function ComposerField({ id, value, onChange, placeholder, invalid, files, onFil
       )}
       <div className="cmp-bar">
         <input ref={inputRef} type="file" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
-        <button type="button" className="cmp-attach" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()}>
+        <button type="button" className="cmp-attach" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()}
+          title="Attach files — you can also drop or paste a screenshot here">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
           Attach{list.length ? ` · ${list.length}` : ''}
         </button>
-        <span className="cmp-hint">{drag ? 'Drop to attach' : 'or drop / paste a screenshot'}</span>
+        {drag && <span className="cmp-hint">Drop to attach</span>}
       </div>
       {err && <p className="cf-err" role="alert" style={{ margin: '0 12px 12px' }}><RqIcon name="alert" size={13} />{err}</p>}
     </div>

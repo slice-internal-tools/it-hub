@@ -329,8 +329,8 @@
   .ps { position: relative; }
   .ps-field {
     display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; box-sizing: border-box;
-    background: #FFFFFF; border: 1.5px solid #211E1E; border-radius: 12px; color: #9A8E78;
-    transition: box-shadow .18s var(--ease), color .18s var(--ease), border-radius .18s var(--ease);
+    background: #FFFFFF; border: 1px solid rgba(33,30,30,.28); border-radius: 12px; color: #9A8E78;
+    transition: box-shadow .18s var(--ease), color .18s var(--ease), border-radius .18s var(--ease), border-color .15s var(--ease);
   }
   .ps-field:focus-within { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); color: #211E1E; }
   .ps-icon { flex: none; transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
@@ -3525,10 +3525,11 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 .cmp.is-invalid:focus-within { box-shadow: 0 0 0 3px rgba(185,35,35,.16); }
 .cmp.is-drag { border-color: #211E1E; border-style: dashed; background: #F4F0E8; }
 .cmp-input {
-  display: block; width: 100%; box-sizing: border-box; padding: 12px 12px 8px; border: 0; outline: none; resize: vertical;
+  display: block; width: 100%; box-sizing: border-box; padding: 12px 16px 4px; border: 0; outline: none; resize: none;
+  field-sizing: content; max-height: 320px;
   background: transparent; font: inherit; font-size: 14px; line-height: 1.45; color: #211E1E;
 }
-.cmp-input::placeholder { color: #A89C84; }
+.cmp-input::placeholder { color: #9A8E78; }
 .cmp-files { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 12px 8px; }
 .cmp-file {
   display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 4px 4px 12px; box-sizing: border-box;
@@ -3539,7 +3540,7 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 .cmp-file-size { flex: none; font-size: 11px; color: #9A8E78; }
 .cmp-file-x { flex: none; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #9A8E78; cursor: pointer; }
 .cmp-file-x:hover, .cmp-file-x:focus-visible { background: #FFF4F2; color: #B92323; outline: none; }
-.cmp-bar { display: flex; align-items: center; gap: 12px; padding: 8px 8px; border-top: 1px solid #EFE8DA; background: #FFFFFF; }
+.cmp-bar { display: flex; align-items: center; gap: 12px; padding: 4px 4px 8px; background: #FFFFFF; }
 .cmp-attach {
   display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 8px; cursor: pointer;
   border: 1px solid transparent; background: transparent; color: #4A3F2E; font: 700 13px 'Archivo', sans-serif;
@@ -4119,3 +4120,11 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 @media (min-width: 901px) {
   .tkd-grid > .tkd-main { align-self: stretch; padding-right: 32px; border-right: 1px solid #E2DCD0; }
 }
+
+/* Form fields: the people / agent picker matches the text inputs (hairline,
+   darker on hover, charcoal + soft ring on focus) instead of a 1.5px black
+   outline; Attach lines its icon up with the text above it. */
+.ps-field:hover:not(:focus-within) { border-color: rgba(33,30,30,.55); }
+.ps-field:focus-within, .ag-field:focus-visible { border-color: #211E1E; box-shadow: 0 0 0 3px rgba(33,30,30,.08); }
+.ag-field:hover { box-shadow: none; border-color: rgba(33,30,30,.55); }
+.cmp-bar .cmp-attach { padding: 0 12px !important; }
