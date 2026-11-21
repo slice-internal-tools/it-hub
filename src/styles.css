@@ -3179,7 +3179,7 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 
 /* Ticket page: title sits in the conversation column so Status starts at the
    top; the lifecycle action is a clear full-width button under the pill. */
-.tkd-main > .tkd-head { margin-bottom: 4px; }
+.tkd-main > .tkd-head { margin-bottom: -4px; }   /* 20px column gap − 4 = 16px to the card: the title belongs to it */
 .tkd-side { padding-top: 8px; }
 .tkd-side .tkd-hero-actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 16px 0 2px; }
 .tkd-side .tkd-hero-actions .tkt-life-btn { width: 100%; height: 40px; justify-content: center; border-radius: 12px;
