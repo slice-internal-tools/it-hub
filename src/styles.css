@@ -4146,3 +4146,11 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
 .done-num:hover { transform: none; background: #EFE8DA; }
 .done-num svg { color: #9A8E78; }
 .done-num:focus-visible { outline: 2px solid #211E1E; outline-offset: 2px; }
+
+/* Approval page, in step with the ticket page: 16px from the title to the
+   request card, the same 32px either side of the divider, and the decision /
+   approval-steps sections split by a hairline above (not under) the heading. */
+.apr-page .tkd-grid .tkd-main > .tkd-head { margin-bottom: -4px !important; }
+.apr-page .tkd-grid > .tkd-side { padding-left: 32px !important; }
+.apr-page .tkd-side > .tkd-side-card { margin-top: 24px !important; padding-top: 24px !important; border-top: 1px solid rgba(33,30,30,.12) !important; }
+.apr-page .tkd-side .apr-steps { margin-top: 0; padding-top: 0; border-top: none !important; }
