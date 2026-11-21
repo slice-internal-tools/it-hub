@@ -8770,7 +8770,7 @@ function TicketDetailsPanel({ t, approvalState, approval, status, onPriorityChan
           {(() => {
             const tk = ticketTeamKey(t);
             const TIcon = teamIcon(tk);
-            return <Row k="Team"><span className="tkd-team"><TIcon size={14} stroke={1.9} aria-hidden="true" />{helpTeam(tk).label}</span></Row>;
+            return <Row k="Team"><span className="tkd-team"><span className="tkd-team-ic" aria-hidden="true"><TIcon size={12} stroke={2.2} /></span>{helpTeam(tk).label} team</span></Row>;
           })()}
           {t.ticket_number && <Row k="Ticket ID"><TicketNumber value={t.ticket_number} size={13} /></Row>}
           {t.priority && (

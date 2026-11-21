@@ -3677,7 +3677,10 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 .rep-kind-opt.is-on { background: #FFFFFF; color: #211E1E; box-shadow: 0 0 0 1px rgba(33,30,30,.08), 0 1px 2px rgba(33,30,30,.06); }
 .rep-kind-opt:focus-visible { outline: 2px solid #211E1E; outline-offset: 1px; }
 @media (max-width: 640px) { .rep-nudge-x { flex-direction: column; align-items: flex-start; } }
-.tkd-team { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: #211E1E; }
+.tkd-team { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px 0 4px; box-sizing: border-box;
+  border-radius: 999px; background: #FFFFFF; border: 1px solid rgba(33,30,30,.12); box-shadow: 0 1px 2px rgba(33,30,30,.06);
+  font-size: 13px; font-weight: 700; line-height: 1; color: #211E1E; white-space: nowrap; }
+.tkd-team-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 50%; background: #211E1E; color: #FFFFFF; }
 
 .rep-x .tp { margin-bottom: 0; }
 
