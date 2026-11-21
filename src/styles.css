@@ -3245,10 +3245,15 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 /* Date markers: a small centred pill (iMessage / Slack style) with room to
    breathe — not a full-width rule that reads like a section heading. */
 .tkd-convo { padding-top: 20px !important; }
-.tkd-convo .convo-day { justify-content: center; margin: 24px 0 16px; }
-.tkd-convo .convo-day::before, .tkd-convo .convo-day::after { content: none; }
-.tkd-convo .convo-day span { display: inline-block; padding: 4px 12px; border-radius: 999px; background: #F4F0E8;
-  font: 600 12px/1.2 'Archivo', sans-serif; color: #78684C; letter-spacing: 0; }
+/* Day marker: plain muted text between two short hairlines that fade out.
+   No fill — a filled pill used the same warm grey as your own messages and
+   read like one. */
+.tkd-convo .convo-day { justify-content: center; gap: 12px; margin: 24px 0 16px; }
+.tkd-convo .convo-day::before, .tkd-convo .convo-day::after { content: ''; flex: 0 1 96px; height: 1px; }
+.tkd-convo .convo-day::before { background: linear-gradient(90deg, rgba(226,220,208,0), #E2DCD0); }
+.tkd-convo .convo-day::after { background: linear-gradient(90deg, #E2DCD0, rgba(226,220,208,0)); }
+.tkd-convo .convo-day span { display: inline-block; padding: 0; background: none;
+  font: 500 12px/1.2 'Archivo', sans-serif; color: #9A8E78; letter-spacing: 0; }
 .tkd-convo > .convo-day:first-child, .tkd-convo > .convo-day:first-of-type { margin-top: 0; }
 
 /* Composer toolbar buttons share the attach button's anatomy exactly: 32px
