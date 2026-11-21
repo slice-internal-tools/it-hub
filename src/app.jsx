@@ -1345,6 +1345,25 @@ function GoesToRow({ teamKey, soon = false }) {
 }
 // "the IT Team" / "the HR team" — for copy like "Reply to …".
 const teamDisplayName = (key) => (key === 'it' ? 'IT Team' : helpTeam(key).label + ' team');
+// Copy written for IT, re-pointed at another team: "the IT Team" → "the HR
+// team", a bare "IT" (as in "IT starts…") → "HR". IT text passes untouched.
+const teamify = (str, key) => (!key || key === 'it' || !str) ? str : String(str)
+  .replace(/\bthe IT Team\b/g, 'the ' + teamDisplayName(key))
+  .replace(/\bThe IT Team\b/g, 'The ' + teamDisplayName(key))
+  .replace(/\bIT Team\b/g, teamDisplayName(key))
+  .replace(/\bIT\b/g, helpTeam(key).label);
+// What "Critical" does, for the team the ticket goes to. Only IT's alert is
+// known to go to Slack, so other teams don't promise a channel.
+function critCopy(key) {
+  const n = teamDisplayName(key || 'it');
+  const where = (key || 'it') === 'it' ? ' on Slack' : '';
+  return {
+    body: `Critical alerts the whole ${n}${where} right away. Use it when you can’t work at all, or many people are affected. For anything else, High still goes to the top of the queue.`,
+    note: `The ${n} gets an alert${where} as soon as you send this, so someone picks it up right away.`,
+    short: `Alerts the ${n}${where} right away.`,
+    done: `Marked critical — the ${n} has been alerted${where}.`,
+  };
+}
 // Resolved at call time: the icons are declared further down this file.
 const teamIcon = (key) => ({ laptop: IconLaptop, people: IconPeople, card: IconCard })[helpTeam(key).icon] || IconSpark;
 
@@ -5865,7 +5884,7 @@ const URGENCY_OPTIONS = [
 // services/urgentAlerts.js), and says so before they submit.
 // `compact`: the small segmented version used in the request form's side
 // panel (bars over the label, one quiet track).
-function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, compact = false }) {
+function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, compact = false, teamKey = 'it' }) {
   // Critical interrupts the whole team, so picking it asks once. Saying no
   // leaves the previous choice in place.
   const [asking, setAsking] = React.useState(false);
@@ -5895,14 +5914,14 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, com
       {value === 'critical' && (
         <div className={'rep-crit-note' + (compact ? ' is-compact' : '')} role="note">
           <span aria-hidden="true">🚨</span>
-          <span>{compact ? 'Alerts the IT Team on Slack right away.' : 'The IT Team gets an alert on Slack as soon as you send this, so someone picks it up right away.'}</span>
+          <span>{compact ? critCopy(teamKey).short : critCopy(teamKey).note}</span>
         </div>
       )}
       {asking && (
         <ConfirmDialog
           kicker="Critical"
           title="Is this really critical?"
-          body="Critical alerts the whole IT Team on Slack right away. Use it when you can’t work at all, or many people are affected. For anything else, High still goes to the top of the queue."
+          body={critCopy(teamKey).body}
           tone="danger"
           icon={<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>}
           confirmLabel="Yes, it’s critical"
@@ -6045,7 +6064,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
     const urgent = priority === 'high' || priority === 'critical';
     const steps = [
       { key: 'sent', title: 'Ticket sent', body: `Saved as ${num}.`, state: 'done' },
-      { key: 'triage', title: 'IT takes a look', body: priority === 'critical' ? 'Marked critical — the IT Team has been alerted on Slack.' : urgent ? 'Marked urgent — it goes to the top of the queue.' : 'Someone from the IT Team picks it up and may ask a question.', state: 'current' },
+      { key: 'triage', title: teamInfo.label + ' takes a look', body: priority === 'critical' ? critCopy(teamInfo.key).done : teamify(urgent ? 'Marked urgent — it goes to the top of the queue.' : 'Someone from the IT Team picks it up and may ask a question.', teamInfo.key), state: 'current' },
       { key: 'fix', title: 'Fixed', body: 'You’ll get a reply here and by email at every step.', state: 'todo' },
     ];
     return (
@@ -6056,7 +6075,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
           </span>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="done-what"><span>{subject.trim()}</span></div>
-            <div className="done-sub">With the IT Team{urgent ? ' · urgent' : ''}</div>
+            <div className="done-sub">With the {teamDisplayName(teamInfo.key)}{urgent ? ' · urgent' : ''}</div>
           </div>
           {num && (
             <button type="button" className="done-num" title="Copy ticket number"
@@ -6172,7 +6191,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
               </div>
             </div>
             <div className="rqx-card-row rqx-urgency">
-              <UrgencyPicker value={priority} onChange={setPriority} label="Urgency" compact />
+              <UrgencyPicker value={priority} onChange={setPriority} label="Urgency" compact teamKey={teamInfo.key} />
             </div>
             {who && (
               <div className="rqx-card-row">
@@ -6628,7 +6647,7 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend 
         <ConfirmDialog
           kicker="Critical"
           title="Send and raise to critical?"
-          body="Critical alerts the whole IT Team on Slack right away. Use it when you can’t work at all, or many people are affected. For anything else, High still puts it at the top of the queue."
+          body={critCopy(ticketTeamKey(ticket)).body}
           tone="danger"
           icon={<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>}
           confirmLabel="Send as critical"
@@ -8638,7 +8657,7 @@ function TicketStatusHero({ t, approvalState, isDeclined, error, approval, child
       <div className="tkd-hero-top">
         <div className="tkd-hero-text">
           <span className="tkd-hero-state"><span className="tkd-hero-dot" aria-hidden="true" />{h.label}</span>
-          {showLine && <span className="tkd-hero-line">{h.line}</span>}
+          {showLine && <span className="tkd-hero-line">{teamify(h.line, ticketTeamKey(t))}</span>}
         </div>
       </div>
       {error && <p className="tkd-hero-err">{error}</p>}
@@ -8675,7 +8694,7 @@ function PrioBars({ n }) {
     </span>
   );
 }
-function PriorityControl({ value, onChange }) {
+function PriorityControl({ value, onChange, teamKey = 'it' }) {
   const v = String(value || '').toLowerCase() === 'urgent' ? 'critical' : String(value || '').toLowerCase();
   const cur = PRIORITY_LEVELS.find((l) => l.v === v);
   const [open, setOpen] = React.useState(false);
@@ -8733,7 +8752,7 @@ function PriorityControl({ value, onChange }) {
         <ConfirmDialog
           kicker="Critical"
           title="Raise this ticket to critical?"
-          body="Critical alerts the whole IT Team on Slack right away. Use it when you can’t work at all, or many people are affected. For anything else, High still puts it at the top of the queue."
+          body={critCopy(teamKey).body}
           tone="danger"
           icon={<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>}
           confirmLabel="Yes, it’s critical"
@@ -8777,7 +8796,7 @@ function TicketDetailsPanel({ t, approvalState, approval, status, onPriorityChan
           {t.type && <Row k="Type">{ticketTypeMeta(t.type).label}</Row>}
           {t.priority && (
             <Row k="Priority">
-              <PriorityControl value={t.priority} onChange={ticketBucket(t.status) === 'open' ? onPriorityChange : null} />
+              <PriorityControl value={t.priority} teamKey={ticketTeamKey(t)} onChange={ticketBucket(t.status) === 'open' ? onPriorityChange : null} />
             </Row>
           )}
           {t.requester_name && <Row k="Requested by">{t.requester_name}</Row>}
@@ -10302,7 +10321,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     const steps = [
       { key: 'sent', title: 'Request sent', body: multi ? `${results.length} tickets created, one per person.` : `Saved as ${num(first)}.`, state: 'done' },
       ...(anyPending ? [{ key: 'approval', title: 'Approval', body: 'Your approver gets an email and a Slack message. You’ll hear as soon as they decide.', state: 'current' }] : []),
-      { key: 'setup', title: 'IT sets it up', body: anyPending ? 'Starts once it’s approved.' : urgency === 'critical' ? 'Marked critical — the IT Team has been alerted on Slack.' : 'The IT Team has it and will pick it up next.', state: anyPending ? 'todo' : 'current' },
+      { key: 'setup', title: helpTeam(view === 'freeform' ? team : catalogItemTeam(item)).label + ' sets it up', body: anyPending ? 'Starts once it’s approved.' : urgency === 'critical' ? critCopy(view === 'freeform' ? team : catalogItemTeam(item)).done : teamify('The IT Team has it and will pick it up next.', view === 'freeform' ? team : catalogItemTeam(item)), state: anyPending ? 'todo' : 'current' },
       { key: 'done', title: 'Ready to use', body: 'You get a notification here and by email when it’s done.', state: 'todo' },
     ];
     return (
@@ -10321,7 +10340,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             ) : (
               <div className="done-sub">
                 {first && first._forName ? <>For <b>{first._forName}</b> · </> : null}
-                {anyPending ? 'Waiting for approval' : 'With the IT Team'}
+                {anyPending ? 'Waiting for approval' : 'With the ' + teamDisplayName(view === 'freeform' ? team : catalogItemTeam(item))}
               </div>
             )}
           </div>
@@ -10464,7 +10483,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         {/* A property of the request, like priority in a ticket sidebar —
             beside Submit rather than as another block in the form. */}
         <div className="rqx-card-row rqx-urgency">
-          <UrgencyPicker value={urgency} onChange={setUrgency} label="Urgency" compact />
+          <UrgencyPicker value={urgency} onChange={setUrgency} label="Urgency" compact teamKey={view === 'freeform' ? team : catalogItemTeam(item)} />
         </div>
         {approval}
         {/* Pinned to the bottom of the viewport while the panel is taller
