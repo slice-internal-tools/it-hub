@@ -1001,7 +1001,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             <SlideIndicator activeKey={mode} radius={999} />
             <button type="button" role="tab" id="hc-tab-ask" aria-controls="hc-panel" aria-selected={mode === "ask"}
               className={"hc-tab" + (mode === "ask" ? " is-on" : "")} onClick={() => switchMode("ask")}>
-              <IconSpark size={15} stroke={2.2} />
+              <IconChat size={15} stroke={2.2} />
               <span>Ask</span>
             </button>
             <button type="button" role="tab" id="hc-tab-access" aria-controls="hc-panel" aria-selected={mode === "access"}
@@ -3622,6 +3622,7 @@ const IconBase = ({ children, size = 18, stroke = 1.5, ...rest }) => (
 const IconSearch = (p) => <IconBase {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></IconBase>;
 const IconArrow  = (p) => <IconBase {...p}><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></IconBase>;
 const IconArrowLeft = (p) => <IconBase {...p}><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></IconBase>;
+const IconChat   = (p) => <IconBase {...p}><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></IconBase>;
 const IconSpark  = (p) => <IconBase {...p}><path d="M12 3v3"/><path d="M12 18v3"/><path d="M3 12h3"/><path d="M18 12h3"/><path d="m5.6 5.6 2.1 2.1"/><path d="m16.3 16.3 2.1 2.1"/><path d="m5.6 18.4 2.1-2.1"/><path d="m16.3 7.7 2.1-2.1"/></IconBase>;
 const IconLaptop = (p) => <IconBase {...p}><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M2 20h20"/></IconBase>;
 const IconWifi   = (p) => <IconBase {...p}><path d="M5 12.55a11 11 0 0 1 14 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></IconBase>;

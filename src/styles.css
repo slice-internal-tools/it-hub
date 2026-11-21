@@ -2244,35 +2244,36 @@
   .hc-sub { margin: 16px auto 0; max-width: 560px; font-size: 16px; line-height: 1.5; color: #4A3F2E; font-weight: 500;
     animation: fadeUp .7s .1s var(--ease) both; }
   .hc-wrap { max-width: 880px; margin: 0 auto; position: relative; z-index: 1; }
-  .hc-shell { position: relative; background: #FFFFFF; border: 1px solid #211E1E; border-radius: 16px;
+  .hc-shell { position: relative; background: #FFFFFF; border: 1px solid rgba(33,30,30,.14); border-radius: 16px;
     box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); overflow: hidden;
-    transition: box-shadow .25s var(--ease); }
+    transition: box-shadow .25s var(--ease), border-color .25s var(--ease); }
   /* Focus recolours the shadow in place — same size, same position — so the
      box never shifts under the cursor while you're clicking into it. */
-  .hc-shell:focus-within { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
+  .hc-shell:focus-within { border-color: rgba(33,30,30,.32);
+    box-shadow: 0 0 0 3px rgba(33,30,30,.08), 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
 
-  .hc-tabs { position: relative; display: flex; align-items: center; gap: 8px; padding: 12px 12px; border-bottom: 1px solid #EFE8DA; background: #F7F4EF; }
+  .hc-tabs { position: relative; display: flex; align-items: center; gap: 8px; padding: 12px 12px 0; background: #FFFFFF; }
   .hc-tabs .tab-slider { background: #211E1E; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
     transition: transform .42s cubic-bezier(.65,0,.25,1.15), width .42s cubic-bezier(.65,0,.25,1.15), height .42s ease; }
   .hc-tab { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px;
     border: 1px solid transparent; border-radius: 999px; background: transparent; color: #4A3F2E; cursor: pointer; white-space: nowrap;
     font: 650 14px/1 'Archivo', sans-serif; letter-spacing: -.005em;
     transition: color .18s ease, background-color .2s var(--ease), border-color .18s ease; }
-  .hc-tab:hover { color: #211E1E; background: #EFE8DA; }
+  .hc-tab:hover { color: #211E1E; background: #F4F0E8; }
   .hc-tab { z-index: 1; }
   .hc-tab.is-on { background: transparent; color: #FFFFFF; transition-delay: .08s; }
   .hc-tab.is-on:hover { background: transparent; }
   .hc-tab svg { transition: color .2s ease .05s, transform .45s cubic-bezier(.34,1.56,.64,1); }
-  .hc-tab.is-on svg { color: #FFFFFF; transform: rotate(-12deg) scale(1.08); }
+  .hc-tab.is-on svg { color: #FFFFFF; }
   .hc-tab:focus-visible { outline: 2px solid #211E1E; outline-offset: 2px; }
   .hc-tab svg { flex: none; }
   /* App logos on the access tab: overlapping circles. Catalog icons are
      rounded squares, so the image is scaled up ~14% inside the circle to crop
      their corners away; the ring takes the colour of whatever sits behind
      the tab (cream idle, charcoal selected) so the overlap reads as a cut. */
-  .hc-tab-apps { display: inline-flex; align-items: center; margin-left: 4px; --ring: #F7F4EF; }
+  .hc-tab-apps { display: inline-flex; align-items: center; margin-left: 4px; --ring: #FFFFFF; }
   .hc-tab.is-on .hc-tab-apps { --ring: #211E1E; }
-  .hc-tab:hover:not(.is-on) .hc-tab-apps { --ring: #EFE8DA; }
+  .hc-tab:hover:not(.is-on) .hc-tab-apps { --ring: #F4F0E8; }
   .hc-tab-app { position: relative; width: 26px; height: 26px; margin-left: -8px; border-radius: 50%; overflow: hidden; flex: none;
     display: grid; place-items: center; background: #FFFFFF; box-shadow: 0 0 0 2px var(--ring);
     font: 700 11px/1 'Archivo', sans-serif; color: #211E1E; isolation: isolate;
@@ -2299,14 +2300,14 @@
   .hc-panel.is-in-right .hc-app { animation: hcAppIn .42s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(80ms + var(--i, 0) * 32ms); }
   @keyframes hcAppIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
   .hc-input { display: block; width: 100%; box-sizing: border-box; border: none; outline: none; resize: none; background: transparent;
-    padding: 24px 24px 8px; font: 400 24px/1.4 'Archivo', sans-serif; letter-spacing: -.018em; color: #211E1E; min-height: 142px; }
-  .hc-input::placeholder { color: #A89C84; }
+    padding: 16px 24px 8px; font: 400 20px/1.45 'Archivo', sans-serif; letter-spacing: -.01em; color: #211E1E; min-height: 128px; }
+  .hc-input::placeholder { color: #9A8E78; }
   .hc-input.is-line { min-height: 0; padding: 0; height: 64px; font-size: 20px; flex: 1; min-width: 0; }
   .hc-drop { position: absolute; inset: 8px; z-index: 5; pointer-events: none; display: grid; place-items: center;
     background: rgba(33,30,30,.08); border: 1.5px dashed #211E1E; border-radius: 12px;
     font: 400 24px/1.2 var(--font-head); color: #211E1E; }
 
-  .hc-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px 16px 20px; }
+  .hc-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px 16px 8px; }
   .hc-foot-left, .hc-foot-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
   .hc-foot-left { flex: 1 1 auto; }
   .hc-ghost { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 999px;
@@ -2357,14 +2358,14 @@
   .hc-prompts .chip-flat:hover, .hc-prompts .chip-flat:focus-visible { transform: translateY(-1px); box-shadow: none; border-color: #211E1E; }
 
   @media (max-width: 640px) {
-    .hc-tabs { padding: 8px; gap: 4px; }
+    .hc-tabs { padding: 8px 8px 0; gap: 4px; }
     .hc-tab { padding: 0 12px; font-size: 14px; flex: 1; justify-content: center; }
     .hc-tab-apps, .hc-kbd-hint { display: none; }
-    .hc-input { font-size: 20px; padding: 20px 20px 4px; min-height: 88px; }
+    .hc-input { font-size: 16px; padding: 12px 20px 4px; min-height: 88px; }
     .hc-input.is-line { font-size: 16px; height: 56px; }
     .hc-search { padding: 4px 16px 0 20px; }
     .hc-apps { grid-template-columns: 1fr; padding: 0 8px 4px; }
-    .hc-foot { padding: 8px 12px 12px; }
+    .hc-foot { padding: 8px 12px 12px 4px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .hc-shell, .hc-tab, .hc-tab svg, .hc-tab-app, .hc-go, .hc-go svg, .hc-app-go, .hc-panel-size, .hc-tabs .tab-slider { transition: none; }
@@ -4020,10 +4021,10 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
   background: var(--b-disabled-bg) !important; border-color: var(--b-disabled-bg) !important; color: var(--b-disabled-ink) !important; cursor: not-allowed; opacity: 1 !important; }
 
 /* SECONDARY — white, hairline, warm-grey hover */
-.btn-outline, .hc-ghost, .rfp-btn, .rep-nudge-btn, .tkt-close-btn, .tkd-hero .tkt-life-btn:not(.is-primary),
+.btn-outline, .rfp-btn, .rep-nudge-btn, .tkt-close-btn, .tkd-hero .tkt-life-btn:not(.is-primary),
 .cdlg-actions .tkt-life-btn:not(.cdlg-confirm), .tkt-nav-btn {
   background: #FFFFFF !important; color: var(--b-ink) !important; border: 1px solid var(--b-line) !important; }
-.btn-outline:hover:not(:disabled), .hc-ghost:hover:not(:disabled), .rfp-btn:hover:not(:disabled), .rep-nudge-btn:hover:not(:disabled),
+.btn-outline:hover:not(:disabled), .rfp-btn:hover:not(:disabled), .rep-nudge-btn:hover:not(:disabled),
 .tkt-close-btn:hover:not(:disabled), .tkd-hero .tkt-life-btn:not(.is-primary):hover:not(:disabled),
 .cdlg-actions .tkt-life-btn:not(.cdlg-confirm):hover:not(:disabled), .tkt-nav-btn:hover:not(:disabled) {
   background: var(--b-fill) !important; border-color: var(--b-line-hover) !important; }
@@ -4036,9 +4037,9 @@ body:has(.hc-tour.is-closing) .hc-note.is-tickets { opacity: 0; transition: opac
   background: var(--b-danger-bg) !important; border-color: rgba(185,35,35,.35) !important; color: #8A1E17 !important; }
 
 /* GHOST — no border; for Back / Cancel / Attach */
-.kb-back-btn, .rqx-cancel, .cmp-attach {
+.kb-back-btn, .rqx-cancel, .cmp-attach, .hc-ghost {
   background: transparent !important; color: var(--b-muted) !important; border: 1px solid transparent !important; height: var(--btn-h-sm) !important; padding: 0 12px !important; }
-.kb-back-btn:hover, .rqx-cancel:hover:not(:disabled), .cmp-attach:hover:not(:disabled) { background: var(--b-fill) !important; color: var(--b-ink) !important; }
+.kb-back-btn:hover, .rqx-cancel:hover:not(:disabled), .cmp-attach:hover:not(:disabled), .hc-ghost:hover:not(:disabled) { background: var(--b-fill) !important; color: var(--b-ink) !important; }
 .kb-back-btn { margin-left: -12px; }
 .rqx-cancel { width: 100%; }
 
