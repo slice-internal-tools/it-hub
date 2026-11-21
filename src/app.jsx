@@ -612,15 +612,24 @@ function HelpMark() {
 // in Slice Help ("How can IT help?", "How can HR help?", …) and comes back to
 // "we". The word slides up with a soft blur while its slot eases to the new
 // width, so the whole line re-centres smoothly. A new team in HELP_TEAMS joins
-// the rotation on its own. Plays once per visit, stops (back on "we") as soon
-// as someone types, and under reduced motion it never moves.
+// the rotation on its own. Plays once, on someone's first visit only; stops
+// (back on "we") as soon as they type; under reduced motion it never moves.
+const TEAMWORD_KEY = () => 'slicehelp.teamword.v1:' + String((typeof window !== 'undefined' && window.PORTAL_CURRENT_ID) || 'me');
 function TeamWord({ paused }) {
   const words = React.useMemo(() => ["we", ...HELP_TEAMS.map((t) => t.label)], []);
   const [i, setI] = React.useState(0);
   const [prev, setPrev] = React.useState(-1);
   const [widths, setWidths] = React.useState([]);
   const refs = React.useRef([]);
-  const done = React.useRef(false);   // played, or interrupted by typing: stay on "we"
+  // Only ever on someone's first visit (remembered per person in this
+  // browser, like the tour); ?tour=1 plays it again. After that, or once
+  // they start typing, it stays on "we".
+  const done = React.useRef((() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("tour") === "1") return false;
+      return !!window.localStorage.getItem(TEAMWORD_KEY());
+    } catch { return true; }
+  })());
 
   React.useEffect(() => {
     const measure = () => setWidths(refs.current.map((el) => (el ? el.offsetWidth : 0)));
@@ -638,11 +647,12 @@ function TeamWord({ paused }) {
       setI((cur) => { if (cur !== 0) setPrev(cur); return 0; });
       return undefined;
     }
-    // One pass per visit (we → IT → HR → Finance → we), then it rests on
-    // "we": enough to say every team answers here without moving forever
-    // above the box people are typing into.
+    // One pass (we → IT → HR → Finance → we), then it rests on "we":
+    // enough to say every team answers here without moving above the box
+    // people are typing into.
     let t, n = 0;
     const step = () => {
+      if (n === 0) { try { window.localStorage.setItem(TEAMWORD_KEY(), new Date().toISOString()); } catch {} }
       n += 1;
       setI((cur) => { setPrev(cur); return (cur + 1) % words.length; });
       if (n < words.length) t = setTimeout(step, 2400); else done.current = true;
