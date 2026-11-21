@@ -1243,7 +1243,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                 onClick={() => onOpenGuide && onOpenGuide({ id: g.id, title: g.title, category: g.category })}
                 style={{
                   textAlign: "left", cursor: "pointer",
-                  background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: 16,
+                  background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)", borderRadius: 16,
                   padding: "16px 20px", boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                   fontFamily: "inherit",
                 }}>
@@ -1417,7 +1417,7 @@ function PhishingCard({ onSubmit }) {
       <div style={{
         padding: "24px 24px",
         background: "#0A8A3E",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         color: "#FFFFFF",
@@ -1427,7 +1427,7 @@ function PhishingCard({ onSubmit }) {
         <div style={{
           width: 52, height: 52, borderRadius: "50%",
           background: "#FFFFFF", color: "#0A8A3E",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center",
           marginBottom: 16,
         }}>
@@ -1487,7 +1487,7 @@ function PhishingCard({ onSubmit }) {
               width: "100%", boxSizing: "border-box",
               padding: "12px 12px",
               background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 4,
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
             }}/>
@@ -1499,7 +1499,7 @@ function PhishingCard({ onSubmit }) {
               width: "100%", boxSizing: "border-box",
               padding: "12px 12px",
               background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 4,
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
             }}/>
@@ -1516,7 +1516,7 @@ function PhishingCard({ onSubmit }) {
               padding: "4px 12px",
               background: reason === r.id ? "#211E1E" : "#FFFFFF",
               color: reason === r.id ? "#FFFFFF" : "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 700, fontSize: 11,
               letterSpacing: "0.02em",
@@ -1533,7 +1533,7 @@ function PhishingCard({ onSubmit }) {
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
             background: (sender || subject) ? "#211E1E" : "#E2DCD0",
             color: (sender || subject) ? "#FFFFFF" : "#78684C",
-            border: "1px solid #211E1E", borderRadius: 4,
+            border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
             boxShadow: (sender || subject) ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
             fontFamily: "var(--font-mono)",
             fontWeight: 600, fontSize: 13,
@@ -1782,7 +1782,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
       <div style={{
         padding: "24px 24px",
         background: "#0A8A3E",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         color: "#FFFFFF",
@@ -1792,7 +1792,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         <div style={{
           width: 52, height: 52, borderRadius: "50%",
           background: "#FFFFFF", color: "#0A8A3E",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center",
           marginBottom: 16,
         }}>
@@ -1816,7 +1816,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
       <div style={{
         padding: "24px 24px",
         background: "#FFFFFF",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
@@ -1854,7 +1854,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
               width: "100%", boxSizing: "border-box",
               padding: "12px 12px",
               background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 4,
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
             }}/>
@@ -1867,7 +1867,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
               width: "100%", boxSizing: "border-box",
               padding: "12px 12px",
               background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 4,
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
               resize: "vertical",
@@ -1885,7 +1885,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
               padding: "8px 12px",
               background: urgency === u.id ? "#211E1E" : "#FFFFFF",
               color: urgency === u.id ? "#FFFFFF" : "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 700, fontSize: 11,
               letterSpacing: "0.02em",
@@ -1905,7 +1905,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
             background: canSend ? "#211E1E" : "#E2DCD0",
             color: canSend ? "#FFFFFF" : "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 4,
+            border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
             boxShadow: canSend ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
             fontFamily: "var(--font-mono)",
             fontWeight: 600, fontSize: 13,
@@ -1923,7 +1923,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
     <div className="oncall-card" style={{
       padding: "24px 24px",
       background: "#FFFFFF",
-      border: "1px solid #211E1E",
+      border: "1px solid rgba(33,30,30,.14)",
       borderRadius: 16,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       position: "relative",
@@ -1963,7 +1963,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         <div className="oncall-ticket-icon" style={{
           width: 32, height: 32, borderRadius: 8,
           background: "#F4F0E8",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center", flexShrink: 0,
         }}>
           {/* Real ticket icon — admit-ticket / coupon style with serrated edge */}
@@ -2025,7 +2025,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         <div className="oncall-slack-icon" style={{
           width: 36, height: 36, borderRadius: 8,
           background: "#FFFFFF",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center", flexShrink: 0,
         }}>
           {/* Real Slack mark — official 4-color rounded hashmark */}
@@ -2147,7 +2147,7 @@ function QuestionFlow({ query, onBack, onDone }) {
         <button onClick={back} style={{
           display: "inline-flex", alignItems: "center", gap: 8,
           padding: "8px 12px 8px 12px",
-          background: "#FFFFFF", border: "1px solid #211E1E",
+          background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)",
           borderRadius: 4, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           fontFamily: "var(--font-mono)",
           fontWeight: 600, fontSize: 12,
@@ -2192,7 +2192,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               display: "flex", gap: 0,
               width: 140, height: 10,
               background: "#FFFFFF",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 4,
               overflow: "hidden",
             }}>
@@ -2224,7 +2224,7 @@ function QuestionFlow({ query, onBack, onDone }) {
                 display: "grid", placeItems: "center", flexShrink: 0,
                 fontSize: 11, fontWeight: 900,
                 fontFamily: "'Archivo', sans-serif",
-                border: "1px solid #211E1E",
+                border: "1px solid rgba(33,30,30,.14)",
                 animation: "pizzaPulse 1.4s ease-in-out infinite",
               }}>S</div>
               <TypingDots />
@@ -2243,7 +2243,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               display: "grid", placeItems: "center", flexShrink: 0,
               fontSize: 11, fontWeight: 900,
               fontFamily: "'Archivo', sans-serif",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               marginTop: 2,
             }}>S</div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -2352,7 +2352,7 @@ function QuestionFlow({ query, onBack, onDone }) {
           rows={4}
           style={{
             width: "100%",
-            border: "1px solid #211E1E",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 16,
             background: "#FFFFFF",
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -2391,7 +2391,7 @@ function QuestionFlow({ query, onBack, onDone }) {
                 display: "inline-flex", alignItems: "center", gap: 8,
                 padding: "12px 24px",
                 background: canContinue() ? "#211E1E" : "#EFE8DA",
-                border: "1px solid #211E1E",
+                border: "1px solid rgba(33,30,30,.14)",
                 borderRadius: 4,
                 boxShadow: canContinue() ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                 fontFamily: "var(--font-mono)",
@@ -2456,7 +2456,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
       <button onClick={onBack} style={{
         display: "inline-flex", alignItems: "center", gap: 8,
         padding: "8px 12px 8px 12px", marginBottom: 24,
-        background: "#FFFFFF", border: "1px solid #211E1E",
+        background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 4, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         fontFamily: "var(--font-mono)",
         fontWeight: 600, fontSize: 12,
@@ -2539,7 +2539,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
             <button style={{
               padding: "8px 16px",
               background: "#F4F0E8",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 4,
               boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               fontFamily: "var(--font-mono)",
@@ -2569,7 +2569,7 @@ function SectionHead({ kicker, title, subtitle, style }) {
         color: "#211E1E", fontWeight: 600, marginBottom: 8,
         padding: "3px 8px",
         background: "#F4F0E8",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 4,
       }}>{kicker}</div>
       <h2 style={{
@@ -2595,7 +2595,7 @@ function GuideCard({ guide, index, onOpen }) {
       style={{
         padding: "16px 20px",
         background: "#FFFFFF",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 12,
         boxShadow: hover ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         transform: hover ? "translate(0, 0)" : "none",
@@ -2607,7 +2607,7 @@ function GuideCard({ guide, index, onOpen }) {
         <div style={{
           width: 40, height: 40, borderRadius: 8, flexShrink: 0,
           background: guide.hot ? "#F4F0E8" : "#F4F0E8",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           color: "#211E1E",
           display: "grid", placeItems: "center"
         }}>
@@ -2618,7 +2618,7 @@ function GuideCard({ guide, index, onOpen }) {
             <span style={{
               padding: "2px 8px",
               background: "#FFFFFF",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 4,
               fontFamily: "var(--font-mono)",
               fontSize: 11, fontWeight: 600,
@@ -2652,7 +2652,7 @@ function GuideCard({ guide, index, onOpen }) {
         <div style={{
           width: 28, height: 28, borderRadius: "50%",
           background: hover ? "#F4F0E8" : "transparent",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center",
           color: "#211E1E",
           transition: "background .15s ease",
@@ -2675,7 +2675,7 @@ function RelatedRow({ ticket, index }) {
     <div style={{
       padding: "12px 16px",
       background: "#FFFFFF",
-      border: "1px solid #211E1E",
+      border: "1px solid rgba(33,30,30,.14)",
       borderTop: index === 0 ? "2px solid #211E1E" : "none",
       borderBottomLeftRadius: 0,
       borderBottomRightRadius: 0,
@@ -2689,7 +2689,7 @@ function RelatedRow({ ticket, index }) {
         color: "#211E1E", minWidth: 64,
         padding: "3px 8px",
         background: "#F4F0E8",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 4,
         textAlign: "center",
       }}>{ticket.id}</div>
@@ -2714,7 +2714,7 @@ function RelatedRow({ ticket, index }) {
         color: "#211E1E",
         padding: "3px 8px",
         background: "#F4F0E8",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 4,
       }}>
         {Math.round(ticket.similar * 100)}%
@@ -2729,7 +2729,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
     <div style={{
       padding: "20px 24px",
       background: filed ? "#E7F5EC" : "#FFFFFF",
-      border: "1px solid #211E1E",
+      border: "1px solid rgba(33,30,30,.14)",
       borderRadius: 12,
       boxShadow: filed ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       animation: `fadeUp .5s ${index * 80}ms var(--ease) both`,
@@ -2752,7 +2752,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
               padding: "3px 8px",
               background: "#F4F0E8",
               color: "#211E1E",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 4,
               fontFamily: "var(--font-mono)",
               fontSize: 11, fontWeight: 600,
@@ -2773,7 +2773,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
       <div style={{
         padding: "12px 12px",
         background: "#F4F0E8",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 8,
         fontSize: 12, marginBottom: 16,
       }}>
@@ -2795,7 +2795,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
           display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
           background: filed ? "#0A8A3E" : "#211E1E",
           color: "#FFFFFF",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           borderRadius: 4,
           boxShadow: filed ? "none" : (hover ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"),
           transform: !filed && hover ? "translate(0, 0)" : "none",
@@ -2845,7 +2845,7 @@ function GuideSheet({ guide, onClose }) {
         style={{
           width: "min(580px, 100%)", height: "100%",
           background: "#F4F0E8",
-          borderLeft: "1px solid #211E1E",
+          borderLeft: "1px solid rgba(33,30,30,.14)",
           boxShadow: "0 1px 2px rgba(33,30,30,.06)",
           padding: "32px 32px 40px",
           overflowY: "auto",
@@ -2859,7 +2859,7 @@ function GuideSheet({ guide, onClose }) {
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "4px 12px",
             background: "#F4F0E8",
-            border: "1px solid #211E1E",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 4,
             fontFamily: "var(--font-mono)",
             fontSize: 11, fontWeight: 600,
@@ -2871,7 +2871,7 @@ function GuideSheet({ guide, onClose }) {
           <button onClick={onClose} style={{
             width: 32, height: 32,
             background: "#FFFFFF",
-            border: "1px solid #211E1E",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
@@ -2897,7 +2897,7 @@ function GuideSheet({ guide, onClose }) {
             display: "grid", gridTemplateColumns: "36px 1fr", gap: 16,
             padding: "16px 16px",
             background: "#FFFFFF",
-            border: "1px solid #211E1E",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 8,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             marginBottom: 12,
@@ -2905,7 +2905,7 @@ function GuideSheet({ guide, onClose }) {
               <div style={{
               width: 30, height: 30, borderRadius: "50%",
               background: "#F4F0E8",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               color: "#211E1E",
               display: "grid", placeItems: "center",
               fontFamily: "'Archivo', sans-serif",
@@ -2921,7 +2921,7 @@ function GuideSheet({ guide, onClose }) {
         <div style={{
           marginTop: 32, padding: "20px 20px",
           background: "#FFFFFF",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           borderRadius: 12,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           display: "flex", alignItems: "center", gap: 12,
@@ -2936,7 +2936,7 @@ function GuideSheet({ guide, onClose }) {
           <button style={{
             padding: "8px 16px",
             background: "#FFFFFF",
-            border: "1px solid #211E1E",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             fontFamily: "var(--font-mono)",
@@ -2947,7 +2947,7 @@ function GuideSheet({ guide, onClose }) {
           <button style={{
             padding: "8px 16px",
             background: "#F4F0E8",
-            border: "1px solid #211E1E",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             fontFamily: "var(--font-mono)",
@@ -2980,7 +2980,7 @@ function FiledToast({ ticket, onClose, onView }) {
       position: "fixed", bottom: 28, right: 28, zIndex: 80,
       width: 380,
       background: "#FFFFFF",
-      border: "1px solid #211E1E",
+      border: "1px solid rgba(33,30,30,.14)",
       borderRadius: 12,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       padding: "20px 20px",
@@ -2991,7 +2991,7 @@ function FiledToast({ ticket, onClose, onView }) {
         <div style={{
           width: 38, height: 38, borderRadius: "50%",
           background: "#0A8A3E",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           color: "#FFFFFF",
           display: "grid", placeItems: "center", flexShrink: 0,
         }}>
@@ -3016,7 +3016,7 @@ function FiledToast({ ticket, onClose, onView }) {
             <button onClick={onView} style={{
               padding: "8px 12px",
               background: "#F4F0E8",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 4,
               boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               fontFamily: "var(--font-mono)",
@@ -4826,7 +4826,7 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
         padding: "16px 20px",
         width: "100%",
         background: selected ? "#F4F0E8" : "#FFFFFF",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 16,
         cursor: "pointer",
         transition: "transform .15s var(--ease), box-shadow .15s var(--ease), background .15s",
@@ -4838,7 +4838,7 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
     >
       <div style={{
         width: 22, height: 22, borderRadius: "50%",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         background: selected ? "#211E1E" : "#FFFFFF",
         display: "grid", placeItems: "center",
         transition: "transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), opacity .2s var(--ease)",
@@ -4918,7 +4918,7 @@ function Progress({ current, total }) {
         <div key={i} style={{
           width: i === current ? 28 : 10, height: 10, borderRadius: 999,
           background: i <= current ? "#211E1E" : "#FFFFFF",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           transition: "width .4s var(--ease), transform .4s var(--ease), box-shadow .4s var(--ease), background-color .4s var(--ease), color .4s var(--ease), border-color .4s var(--ease), opacity .4s var(--ease)",
         }}/>
       ))}
@@ -4997,7 +4997,7 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
         margin: "16px 0 0",
         padding: "16px 20px",
         background: "#F4F0E8",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 12,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         display: "flex",
@@ -5012,7 +5012,7 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
           flexShrink: 0,
           width: 28, height: 28, borderRadius: 8,
           background: "#F4F0E8",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center",
           fontSize: 14,
         }}
@@ -5141,14 +5141,14 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         .np-body { font-size:13px; color:#4A3F2E; line-height:1.5; margin-top:8px; }
         .np-body.is-quote { font-style:italic; padding-left:12px; border-left:3px solid #E2DCD0; }
         .np-tag { display:inline-block; margin-top:8px; font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.06em;
-          text-transform:uppercase; color:#4A3F2E; padding:2px 8px; background:#F4F0E8; border:1px solid #211E1E; border-radius:4px; }
+          text-transform:uppercase; color:#4A3F2E; padding:2px 8px; background:#F4F0E8; border:1px solid rgba(33,30,30,.14); border-radius:4px; }
         .np-when { font-size:11px; color:#8A7A4E; font-weight:600; font-family:'Archivo',sans-serif; flex-shrink:0; white-space:nowrap; }
         .np-x { flex-shrink:0; width:26px; height:26px; background:transparent; border:1px solid transparent; border-radius:999px;
           display:grid; place-items:center; cursor:pointer; color:#78684C; }
         .np-x:hover { background:#FFFFFF; border-color:#211E1E; color:#211E1E; }
         .np-dot { position:absolute; left:6px; top:50%; transform:translateY(-50%); width:7px; height:7px; border-radius:50%; background:#E8534E; }
       `}</style>
-      <div style={{ background: "#F7F4EF", borderBottom: "1px solid #211E1E", padding: "20px 32px" }}>
+      <div style={{ background: "#F7F4EF", borderBottom: "1px solid rgba(33,30,30,.14)", padding: "20px 32px" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <button onClick={onBack} className="kb-back-btn">
             <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>
@@ -5195,7 +5195,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
           [...grouped.entries()].map(([group, list]) => (
             <div key={group} style={{ marginBottom: 32 }}>
               <div className="eyebrow" style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 12 }}>{group}</div>
-              <div style={{ background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 16, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)", overflow: "hidden" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)", borderRadius: 16, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)", overflow: "hidden" }}>
                 {list.map((it) => (
                   <div key={it.id} role="button" tabIndex={0} onClick={() => openIt(it)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openIt(it); } }}
@@ -5735,7 +5735,7 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
     // presentation of the same header, so leaving one behind would make the
     // logo change size depending on which shell happened to render. A shade
     // smaller than the page version, because a modal header band is tighter.
-    <span style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 12, background: "#FFFFFF", border: "1px solid #211E1E", display: "grid", placeItems: "center", overflow: "hidden" }}>
+    <span style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 12, background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)", display: "grid", placeItems: "center", overflow: "hidden" }}>
       {typeof icon === "string"
         ? <img src={icon} alt="" width="34" height="34" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
         : icon}
@@ -5750,12 +5750,12 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
       <div className="overlay-panel-in" onClick={e => e.stopPropagation()} style={{
         width: "100%", maxWidth,
         background: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 12,
+        border: "1px solid rgba(33,30,30,.14)", borderRadius: 12,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         <div style={{
           padding: "16px 24px",
-          borderBottom: "1px solid #211E1E",
+          borderBottom: "1px solid rgba(33,30,30,.14)",
           display: "flex", alignItems: "center", gap: 12,
         }}>
           {logo}
@@ -5842,7 +5842,7 @@ const btnPrimary = {
 const btnSecondary = {
   padding: "12px 16px",
   background: "#FFFFFF", color: "#211E1E",
-  border: "1px solid #211E1E", borderRadius: 4,
+  border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
   fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 12,
   letterSpacing: "0.04em", textTransform: "uppercase",
   cursor: "pointer",
@@ -6207,9 +6207,9 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
 // Shared tokens so every ticket surface looks the same.
 const TK = {
   ink: '#211E1E', cheese: '#FDC831', cream: '#FFFFFF', muted: '#78684C', red: '#B92323',
-  field: { width: '100%', padding: '12px 12px', border: '1px solid #211E1E', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
+  field: { width: '100%', padding: '12px 12px', border: '1px solid rgba(33,30,30,.14)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
   label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#4A3F2E', marginBottom: 8, marginTop: 16 },
-  card: { background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' },
+  card: { background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' },
   // Spread onto a TK.card row to make it feel clickable (lift on hover, press in).
   rowTransition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)',
 };
@@ -7053,7 +7053,7 @@ function TicketTypeBadge({ type }) {
       padding: '2px 8px',
       background: filled ? '#211E1E' : '#FFFFFF',
       color: filled ? '#FFFFFF' : '#211E1E',
-      border: '1px solid #211E1E', borderRadius: 4,
+      border: '1px solid rgba(33,30,30,.14)', borderRadius: 4,
       fontSize: 11, fontWeight: 600, fontFamily: "var(--font-mono)",
       letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap',
     }}>{m.label}</span>
@@ -7708,7 +7708,7 @@ function OnBehalfBanner({ ticket }) {
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: 8,
       padding: '4px 12px 4px 4px', marginBottom: 12,
-      background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 999,
+      background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)', borderRadius: 999,
       boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', maxWidth: '100%',
     }}>
       <span aria-hidden="true" style={{
@@ -8506,7 +8506,7 @@ function ApprovalsButton({ approval, ticket }) {
     <div ref={ref} style={{ position: 'relative' }}>
       <style>{`
         .appr-btn { display:inline-flex; align-items:center; gap:12px; padding:8px 12px 8px 8px; min-height:38px; box-sizing:border-box;
-          background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:12px; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); cursor:pointer;
+          background:#FFFFFF; color:#211E1E; border:1px solid rgba(33,30,30,.14); border-radius:12px; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); cursor:pointer;
           font-family:inherit; text-align:left; transition:transform .16s cubic-bezier(.22,.61,.36,1), box-shadow .16s cubic-bezier(.22,.61,.36,1); }
         .appr-btn:hover { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .appr-btn:active { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
@@ -8546,7 +8546,7 @@ function ApprovalsButton({ approval, ticket }) {
         <svg className="appr-caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none' }} aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, maxWidth: '86vw', background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', zIndex: 40, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, maxWidth: '86vw', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', zIndex: 40, overflow: 'hidden' }}>
           <ApprovalSummary approval={approval} ticket={ticket} />
         </div>
       )}
@@ -9235,7 +9235,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
               <button type="button" onClick={() => setLightbox(null)} className="btn btn-outline" style={{ padding: '8px 12px', fontSize: 12, background: '#FFFFFF' }}>Close ✕</button>
             </div>
           </div>
-          <img className="overlay-panel-in" src={lightbox.url} alt={lightbox.name} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(92vw, 1100px)', maxHeight: '80vh', objectFit: 'contain', borderRadius: 12, border: '1px solid #211E1E', background: '#fff', cursor: 'default' }} />
+          <img className="overlay-panel-in" src={lightbox.url} alt={lightbox.name} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(92vw, 1100px)', maxHeight: '80vh', objectFit: 'contain', borderRadius: 12, border: '1px solid rgba(33,30,30,.14)', background: '#fff', cursor: 'default' }} />
         </div>,
         document.body,
       )}
@@ -10690,7 +10690,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           const on = catFilter === key;
           return (
             <button key={key} onClick={() => setCatFilter(key)} style={{
-              padding: '4px 12px', borderRadius: 999, cursor: 'pointer', border: '1px solid #211E1E',
+              padding: '4px 12px', borderRadius: 999, cursor: 'pointer', border: '1px solid rgba(33,30,30,.14)',
               fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase',
               background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FFFFFF' : '#211E1E',
             }}>{label}</button>
@@ -11982,7 +11982,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
 
   const avatar = (label, size, isSelf) => <PersonAvatar name={label} size={size} self={isSelf} />;
   const youTag = (
-    <span style={{ display: 'inline-block', marginLeft: 8, padding: '1px 8px', borderRadius: 999, background: '#F4F0E8', border: '1px solid #211E1E', fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
+    <span style={{ display: 'inline-block', marginLeft: 8, padding: '1px 8px', borderRadius: 999, background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)', fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
   );
   const ell = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 
@@ -12020,7 +12020,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
         <label style={{ ...TK.label, marginTop: 0, marginBottom: 0 }}>Who is this for?</label>
         {n > 1 && (
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)', borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap' }}>
             {n} requests
           </span>
         )}
@@ -12033,7 +12033,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       </div>
 
       {n > 0 && (
-        <div style={{ border: '1px solid #211E1E', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ border: '1px solid rgba(33,30,30,.14)', borderRadius: 12, overflow: 'hidden' }}>
           {people.map((p) => {
             const isSelf = selfId && String(p.id) === selfId;
             const only = n === 1;
@@ -12358,7 +12358,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           {/* Search bar */}
           <form onSubmit={onSubmit} className="kb-search-form" style={{
             background: "#FFFFFF",
-            border: "1px solid #211E1E",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 16,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             padding: "8px 8px 8px 20px",
@@ -12386,7 +12386,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
             {query && (
               <button type="button" onClick={() => setQuery("")} aria-label="Clear search" style={{
                 width: 28, height: 28, padding: 0, cursor: "pointer",
-                background: "#F7F4EF", border: "1px solid #211E1E", borderRadius: "50%",
+                background: "#F7F4EF", border: "1px solid rgba(33,30,30,.14)", borderRadius: "50%",
                 display: "grid", placeItems: "center", color: "#211E1E",
                 marginRight: 4,
               }}>
@@ -12540,7 +12540,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
               in
               <span style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
-                background: "#F4F0E8", border: "1px solid #211E1E", borderRadius: 999,
+                background: "#F4F0E8", border: "1px solid rgba(33,30,30,.14)", borderRadius: 999,
                 padding: "3px 12px 3px 12px", fontWeight: 700, fontSize: 12,
                 fontFamily: "Archivo, sans-serif",
               }}>
@@ -12559,7 +12559,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {/* Sort */}
-          <div style={{ display: "inline-flex", border: "1px solid #211E1E", borderRadius: 8, overflow: "hidden", background: "#FFFFFF" }}>
+          <div style={{ display: "inline-flex", border: "1px solid rgba(33,30,30,.14)", borderRadius: 8, overflow: "hidden", background: "#FFFFFF" }}>
             {[
               { v: "relevance", label: "Best match" },
               { v: "recent", label: "Recently updated" },
@@ -12588,7 +12588,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
           {/* Typographic mark instead of emoji */}
           <div style={{
             width: 64, height: 64, margin: "0 auto 16px",
-            background: "#F4F0E8", border: "1px solid #211E1E", borderRadius: "50%",
+            background: "#F4F0E8", border: "1px solid rgba(33,30,30,.14)", borderRadius: "50%",
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
             fontFamily: "'Archivo', sans-serif", fontSize: 32, fontWeight: 900, color: "#211E1E",
@@ -12605,7 +12605,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
       ) : (
         <div style={{
           background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 16,
+          border: "1px solid rgba(33,30,30,.14)", borderRadius: 16,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           overflow: "hidden",
         }}>
@@ -12681,7 +12681,7 @@ function HighlightMatch({ text, query }) {
       <mark style={{
         background: "#F4F0E8", color: "#211E1E",
         padding: "0 3px", borderRadius: 2,
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         {text.slice(idx, idx + query.length)}
@@ -12744,7 +12744,7 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
       <div className="overlay-panel-in" onClick={(e) => e.stopPropagation()} style={{
         width: "min(540px, 100%)",
         background: "#F7F4EF",
-        border: "1px solid #211E1E", borderRadius: 16,
+        border: "1px solid rgba(33,30,30,.14)", borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         padding: 32,
       }}>
@@ -12769,7 +12769,7 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
           <div style={{ textAlign: "center", padding: "12px 8px" }}>
             <div style={{
               width: 72, height: 72, margin: "0 auto 16px",
-              background: "#0A8A3E", border: "1px solid #211E1E", borderRadius: "50%",
+              background: "#0A8A3E", border: "1px solid rgba(33,30,30,.14)", borderRadius: "50%",
               boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               display: "grid", placeItems: "center",
               color: "#FFFFFF", fontSize: 32, fontWeight: 900,
@@ -12795,7 +12795,7 @@ const inputStyle = {
   fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 500,
   color: "#211E1E",
   background: "#FFFFFF",
-  border: "1px solid #211E1E", borderRadius: 8,
+  border: "1px solid rgba(33,30,30,.14)", borderRadius: 8,
   outline: "none",
 };
 
@@ -12991,7 +12991,7 @@ function StatusPage({ onBack }) {
         {/* Service list */}
         <div style={{
           background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 16,
+          border: "1px solid rgba(33,30,30,.14)", borderRadius: 16,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           overflow: "hidden",
           marginBottom: 48,
@@ -13002,7 +13002,7 @@ function StatusPage({ onBack }) {
             gridTemplateColumns: "44px 1.4fr 1fr",
             gap: 16,
             padding: "12px 24px",
-            background: "#F7F4EF", borderBottom: "1px solid #211E1E",
+            background: "#F7F4EF", borderBottom: "1px solid rgba(33,30,30,.14)",
             fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
             letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E",
           }}>
@@ -13156,7 +13156,7 @@ function ServiceRow({ service, isLast }) {
 function MiniStat({ label, value }) {
   return (
     <div style={{
-      background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 8,
+      background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)", borderRadius: 8,
       padding: "12px 12px",
     }}>
       <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "#78684C", marginBottom: 4 }}>{label}</div>
@@ -13185,7 +13185,7 @@ function IncidentCard({ incident, open }) {
   return (
     <div style={{
       background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 12,
+      border: "1px solid rgba(33,30,30,.14)", borderRadius: 12,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       overflow: "hidden",
       transition: "transform .15s var(--ease), box-shadow .15s var(--ease)",
@@ -13203,7 +13203,7 @@ function IncidentCard({ incident, open }) {
             <span style={{
               fontFamily: "ui-monospace, Menlo, monospace",
               fontSize: 11, fontWeight: 700,
-              background: "#F7F4EF", border: "1px solid #211E1E",
+              background: "#F7F4EF", border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 4, padding: "2px 8px", color: "#211E1E",
             }}>{idLabel}</span>
             <span style={{
@@ -13243,7 +13243,7 @@ function IncidentCard({ incident, open }) {
         </div>
         <div style={{
           width: 30, height: 30,
-          background: "#FDC831", border: "1px solid #211E1E", borderRadius: 4,
+          background: "#FDC831", border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
           display: "grid", placeItems: "center",
           transform: expanded ? "rotate(180deg)" : "none",
           transition: "transform .2s var(--ease)",
@@ -13483,7 +13483,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
         style={{
           width: "min(720px, 100%)",
           background: "#F4F0E8",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           borderRadius: 16,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           padding: 0,
@@ -13494,7 +13494,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
         {/* Header */}
         <div style={{
           padding: "20px 32px",
-          borderBottom: "1px solid #211E1E",
+          borderBottom: "1px solid rgba(33,30,30,.14)",
           background: "#F4F0E8",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         }}>
@@ -13526,7 +13526,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           <button onClick={onClose} aria-label="Close" style={{
             width: 32, height: 32,
             background: "#FFFFFF",
-            border: "1px solid #211E1E", borderRadius: 4,
+            border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
             color: "#211E1E", cursor: "pointer",
@@ -13577,7 +13577,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                         position: "absolute", top: 10, right: 10,
                         padding: "8px 12px",
                         background: "#FFFFFF",
-                        border: "1px solid #211E1E", borderRadius: 4,
+                        border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
                         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                         fontFamily: "var(--font-mono)",
                         fontSize: 11, fontWeight: 600,
@@ -13605,7 +13605,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                       width: 56, height: 56, borderRadius: 12,
                       background: dragOver ? "#211E1E" : "#F4F0E8",
                       color: dragOver ? "#FFFFFF" : "#211E1E",
-                      border: "1px solid #211E1E",
+                      border: "1px solid rgba(33,30,30,.14)",
                       display: "grid", placeItems: "center",
                       margin: "0 auto 16px",
                       fontFamily: "Archivo, sans-serif",
@@ -13655,7 +13655,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                   style={{
                     width: "100%",
                     background: "#FFFFFF",
-                    border: "1px solid #211E1E",
+                    border: "1px solid rgba(33,30,30,.14)",
                     borderRadius: 8,
                     padding: "12px 12px",
                     fontFamily: "inherit",
@@ -13830,7 +13830,7 @@ function AnalyzingView({ file, progress }) {
       <div style={{
         height: 8,
         background: "#FFFFFF",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 999,
         overflow: "hidden",
         marginBottom: 12,
@@ -13957,7 +13957,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           {clues.length > 0 && (
             <div style={{
               background: "#FFFFFF",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 8,
               padding: "16px 20px",
               marginBottom: 20,
@@ -13991,7 +13991,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                     className="ss-action-btn"
                     style={{
                       background: i === 0 ? "#F4F0E8" : "#FFFFFF",
-                      border: "1px solid #211E1E",
+                      border: "1px solid rgba(33,30,30,.14)",
                       borderRadius: 12,
                       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                       padding: "12px 16px",
@@ -14045,7 +14045,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                     <div style={{
                       width: 22, height: 22, borderRadius: "50%",
                       background: "#FFFFFF",
-                      border: "1px solid #211E1E",
+                      border: "1px solid rgba(33,30,30,.14)",
                       display: "grid", placeItems: "center",
                       fontFamily: "Archivo, sans-serif",
                       fontSize: 11, fontWeight: 800,
@@ -14073,7 +14073,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           style={{
             padding: "12px 16px",
             background: "transparent",
-            border: "1px solid #211E1E", borderRadius: 4,
+            border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
             fontFamily: "var(--font-mono)",
             fontWeight: 600, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -14090,7 +14090,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
               padding: "12px 20px",
               background: isHardware ? "#211E1E" : "#FFFFFF",
               color: isHardware ? "#FFFFFF" : "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               boxShadow: isHardware ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               fontFamily: "var(--font-mono)",
               fontWeight: 600, fontSize: 13,
@@ -14152,7 +14152,7 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
       <div style={{
         width: 40, height: 40, borderRadius: 8,
         background: "#F4F0E8",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         color: "#211E1E",
         display: "grid", placeItems: "center",
         fontFamily: "Archivo, sans-serif",
@@ -14456,7 +14456,7 @@ function renderMarkdown(md, opts = {}) {
               padding: '12px 16px',
               marginBottom: 8,
               background: '#FFFFFF',
-              border: '1px solid #211E1E',
+              border: '1px solid rgba(33,30,30,.14)',
               borderRadius: 8,
               boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
               width: '100%',
@@ -14464,7 +14464,7 @@ function renderMarkdown(md, opts = {}) {
             }}>
               <div style={{
                 width: 22, height: 22, borderRadius: '50%',
-                background: '#F4F0E8', border: '1px solid #211E1E',
+                background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)',
                 color: '#211E1E',
                 display: 'grid', placeItems: 'center',
                 fontFamily: "'Archivo', sans-serif",
@@ -14781,7 +14781,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   const fbBtn = (active) => ({
     background: active ? '#211E1E' : '#FFFFFF',
     color: active ? '#FFFFFF' : '#211E1E',
-    border: '1px solid #211E1E',
+    border: '1px solid rgba(33,30,30,.14)',
     padding: '12px 24px',
     borderRadius: 8,
     fontWeight: 800,
@@ -14911,7 +14911,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
       }}>
         <article ref={articleRef} style={{
           background: '#FFFFFF',
-          border: '1px solid #211E1E',
+          border: '1px solid rgba(33,30,30,.14)',
           borderRadius: 16,
           boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
           padding: '16px 64px 40px',
@@ -14956,7 +14956,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           <div style={{
             position: 'absolute', top: 0, right: 0, height: 34,
             display: 'flex', alignItems: 'center',
-            border: '1px solid #211E1E', borderRadius: 8,
+            border: '1px solid rgba(33,30,30,.14)', borderRadius: 8,
             background: '#FFFFFF', boxSizing: 'border-box',
             boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
             width: searchOpen ? 'clamp(150px, calc(100vw - 470px), 340px)' : 34,
@@ -14990,7 +14990,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           {searchQ.trim() !== '' && (
             <div style={{
               position: 'absolute', top: '115%', right: 0, width: 'clamp(220px, calc(100vw - 470px), 340px)',
-              background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
+              background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 8,
               boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', overflow: 'hidden',
               maxHeight: 280, overflowY: 'auto', zIndex: 120,
             }}>
@@ -15067,7 +15067,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             {exportOpen && (
               <div style={{
                 position: 'absolute', right: 0, top: '115%', minWidth: 160,
-                background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
+                background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 8,
                 boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', overflow: 'hidden', zIndex: 120,
               }}>
                 {[['pdf', 'PDF document'], ['md', 'Markdown (.md)'], ['html', 'HTML file']].map(([f, l]) => (
@@ -15239,7 +15239,7 @@ function ImageLightbox({ images, index, onClose }) {
     [side]: 18,
     width: 48, height: 48, borderRadius: '50%',
     background: '#FFFFFF', color: '#211E1E',
-    border: '1px solid #211E1E',
+    border: '1px solid rgba(33,30,30,.14)',
     boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
     cursor: disabled ? 'not-allowed' : 'pointer',
     display: 'grid', placeItems: 'center',
@@ -15295,7 +15295,7 @@ function ImageLightbox({ images, index, onClose }) {
           position: 'fixed', top: 22, right: 22,
           width: 40, height: 40, borderRadius: '50%',
           background: '#FFFFFF', color: '#211E1E',
-          border: '1px solid #211E1E',
+          border: '1px solid rgba(33,30,30,.14)',
           boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
           cursor: 'pointer',
           display: 'grid', placeItems: 'center',
@@ -15385,7 +15385,7 @@ function FeedbackPanel({
     <div className="feedback-panel" style={{
       marginTop: 32, padding: "20px 24px",
       background: "#FFFFFF",
-      border: "1px solid #211E1E",
+      border: "1px solid rgba(33,30,30,.14)",
       borderRadius: 16,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
     }}>
@@ -15394,7 +15394,7 @@ function FeedbackPanel({
           display: inline-flex; align-items: center; gap: 8px;
           padding: 12px 20px;
           background: #FFFFFF; color: #211E1E;
-          border: 1px solid #211E1E; border-radius: 8px;
+          border: 1px solid rgba(33,30,30,.14); border-radius: 8px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
           font-weight: 800; font-size: 14px;
@@ -15440,7 +15440,7 @@ function FeedbackPanel({
         .fb-reason {
           padding: 8px 12px;
           background: #FFFFFF; color: #211E1E;
-          border: 1px solid #211E1E; border-radius: 999px;
+          border: 1px solid rgba(33,30,30,.14); border-radius: 999px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
           font-size: 12px; font-weight: 700;
@@ -15458,7 +15458,7 @@ function FeedbackPanel({
           width: 100%;
           padding: 12px 12px;
           background: #FFFFFF;
-          border: 1px solid #211E1E;
+          border: 1px solid rgba(33,30,30,.14);
           border-radius: 8px;
           font-family: 'Archivo', sans-serif;
           font-size: 14px; color: #211E1E;
@@ -15513,7 +15513,7 @@ function FeedbackPanel({
           display: inline-flex; align-items: center;
           padding: 8px 16px;
           background: #F4F0E8; color: #211E1E;
-          border: 1px solid #211E1E; border-radius: 999px;
+          border: 1px solid rgba(33,30,30,.14); border-radius: 999px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
           font-size: 13px; font-weight: 700;
@@ -15782,7 +15782,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
       <button className="search-back-btn" onClick={onBack} style={{
         position: 'fixed', top: 20, left: 20, zIndex: 110,
         background: '#FFFFFF',
-        border: '1px solid #211E1E',
+        border: '1px solid rgba(33,30,30,.14)',
         borderRadius: 8,
         padding: '8px 16px',
         fontFamily: "'Archivo', sans-serif",
@@ -15819,7 +15819,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         {loading && (
           <div>
             <div style={{
-              background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 16,
+              background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 16,
               padding: '24px 32px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
               display: 'flex', alignItems: 'center', gap: 16,
             }}>
@@ -15829,7 +15829,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                 display: 'grid', placeItems: 'center', flexShrink: 0,
                 fontSize: 11, fontWeight: 900,
                 fontFamily: "'Archivo', sans-serif",
-                border: '1px solid #211E1E',
+                border: '1px solid rgba(33,30,30,.14)',
                 animation: 'pizzaPulse 1.4s ease-in-out infinite',
               }}>S</div>
               <TypingDots />
@@ -15856,7 +15856,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           const hasTrailer = !!m;
           return (
             <div style={{
-              background: '#F4F0E8', border: '1px solid #211E1E', borderRadius: 16,
+              background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)', borderRadius: 16,
               padding: '24px 24px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
             }}>
               <div style={{
@@ -15864,7 +15864,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
               }}>
                 <div style={{
                   width: 26, height: 26, borderRadius: '50%',
-                  background: '#F4F0E8', border: '1px solid #211E1E',
+                  background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)',
                   display: 'grid', placeItems: 'center',
                   fontFamily: "'Archivo', sans-serif",
                   fontSize: 11, fontWeight: 900, color: '#211E1E',
@@ -15928,7 +15928,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     style={{
                       textAlign: 'left',
                       background: '#FFFFFF',
-                      border: '1px solid #211E1E',
+                      border: '1px solid rgba(33,30,30,.14)',
                       borderRadius: 16,
                       padding: '20px 24px',
                       boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
@@ -15943,7 +15943,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                   >
                     <div className="card-icon" style={{
                       width: 40, height: 40, borderRadius: 12,
-                      background: '#F4F0E8', border: '1px solid #211E1E',
+                      background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)',
                       display: 'grid', placeItems: 'center', flexShrink: 0,
                       marginTop: 2,
                     }}>
@@ -15988,7 +15988,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
         {!loading && suggestions && suggestions.length > 0 && (
           <div style={{
-            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 16,
+            background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 16,
             padding: '20px 24px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
           }}>
             <div style={{
@@ -16035,7 +16035,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
         {!loading && citations.length === 0 && (!suggestions || suggestions.length === 0) && (
           <div style={{
-            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 16,
+            background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 16,
             padding: '24px 32px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
           }}>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>No matching guides yet.</div>
