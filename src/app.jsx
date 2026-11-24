@@ -1290,7 +1290,10 @@ const HELP_TEAMS = [
   { key: "hr",      label: "HR",      prefix: "HR",  icon: "people", blurb: "Time off, pay & benefits", live: true,
     subject: "e.g. Employment verification letter", details: "What you need, and by when…",
     issue: "e.g. My payslip is missing overtime" },
-  { key: "finance", label: "Finance", prefix: "FIN", icon: "card",   blurb: "Expenses & invoices", live: true,
+  // No prefix: FIN- belongs to the separate "Finance IT" queue (Finance's IT
+  // apps), and Finance Support numbers its tickets REQ-/INC-. Finance tickets
+  // are recognised by their queue (the server labels them `team`).
+  { key: "finance", label: "Finance", prefix: "", icon: "card",   blurb: "Expenses & invoices", live: true,
     subject: "e.g. Raise my card limit", details: "Amount, cost centre, and by when…",
     issue: "e.g. My expense report was rejected" },
 ];
@@ -1306,12 +1309,12 @@ const IconCard = (p) => <IconBase {...p}><rect x="2.5" y="5" width="19" height="
 const OPEN_TEAMS = HELP_TEAMS.filter((t) => t.live);
 const helpTeam = (key) => HELP_TEAMS.find((t) => t.key === key) || HELP_TEAMS[0];
 // Which team owns a ticket: an explicit `team` from the server when there is
-// one, else its number's prefix (IT-90012, HR-00041, FIN-00007). IT otherwise.
+// one (from its queue), else its number's prefix (IT-90012, HR-00041). IT otherwise.
 function ticketTeamKey(t) {
   const explicit = String((t && t.team) || '').toLowerCase();
   if (explicit && HELP_TEAMS.some((x) => x.key === explicit)) return explicit;
   const num = String((t && t.ticket_number) || '').toUpperCase();
-  const hit = HELP_TEAMS.find((x) => num.startsWith(x.prefix + '-'));
+  const hit = HELP_TEAMS.find((x) => x.prefix && num.startsWith(x.prefix + '-'));
   return hit ? hit.key : 'it';
 }
 // Which team's queue a catalog item goes to. The ticket system keeps the real
