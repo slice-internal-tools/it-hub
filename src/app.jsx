@@ -616,7 +616,9 @@ function HelpMark() {
 // (back on "we") as soon as they type; under reduced motion it never moves.
 const TEAMWORD_KEY = () => 'slicehelp.teamword.v1:' + String((typeof window !== 'undefined' && window.PORTAL_CURRENT_ID) || 'me');
 function TeamWord({ paused }) {
-  const words = React.useMemo(() => ["we", ...OPEN_TEAMS.map((t) => t.label)], []);
+  // Every team that will answer in Slice Help, live or coming — this is the
+  // welcome line, not a picker, so it names where the portal is going.
+  const words = React.useMemo(() => ["we", ...HELP_TEAMS.map((t) => t.label)], []);
   const [i, setI] = React.useState(0);
   const [prev, setPrev] = React.useState(-1);
   const [widths, setWidths] = React.useState([]);
@@ -1029,7 +1031,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           animation: "fadeUp .7s .05s var(--ease) both",
           fontFamily: "var(--font-head)",
         }}>
-          How can {OPEN_TEAMS.length > 1 ? <><span className="sr-only">we </span><TeamWord paused={!!q.trim()} /></> : "we"}{" "}
+          How can <span className="sr-only">we </span><TeamWord paused={!!q.trim()} />{" "}
           <HelpMark />
         </h1>
       </div>
@@ -1299,7 +1301,7 @@ const IconPeople = (p) => <IconBase {...p}><circle cx="9" cy="8" r="3.5"/><path 
 const IconCard = (p) => <IconBase {...p}><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19"/><path d="M6.5 15h4"/></IconBase>;
 
 // The teams people can pick today. A team that isn't live stays out of every
-// picker, the headline and the tour until its `live` flips — no "Soon" teams
+// picker and the tour until its `live` flips — no "Soon" teams
 // in front of 1000 people. (helpTeam still knows them all, so an HR- ticket
 // that exists keeps its HR badge.)
 const OPEN_TEAMS = HELP_TEAMS.filter((t) => t.live);
