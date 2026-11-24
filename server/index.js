@@ -172,6 +172,49 @@ function ticketProxyError(res, err, label) {
   );
 }
 
+// ── Teams → ticket-system queues ────────────────────────────────────────────
+// Slice Help's teams other than IT, and the ticket-system queue each one's
+// free-form requests and reports go to (matched by queue NAME, case-insensitive;
+// override with TEAM_QUEUES='{"hr":"People Operations",…}'). IT sends no
+// queue_id, so the module's default queue (IT Support) takes it as before.
+// Catalog items keep their own routing in the module (item → category → portal).
+const TEAM_QUEUES = (() => {
+  const fallback = { hr: 'People Operations', finance: 'Finance Support' };
+  try { return process.env.TEAM_QUEUES ? { ...fallback, ...JSON.parse(process.env.TEAM_QUEUES) } : fallback; }
+  catch { console.warn('[teams] TEAM_QUEUES is not valid JSON — using defaults'); return fallback; }
+})();
+let teamQueueCache = { at: 0, map: null };
+// { teamToQueue: { hr: 12 }, queueToTeam: { '12': 'hr' } }. Cached 5 minutes —
+// the queue list is the same for everyone, so sharing it is safe.
+async function teamQueueMap() {
+  if (teamQueueCache.map && Date.now() - teamQueueCache.at < 5 * 60 * 1000) return teamQueueCache.map;
+  const { ok, data } = await ticketModuleFetch('GET', '/queues');
+  if (!ok || !data || !Array.isArray(data.queues)) {
+    if (teamQueueCache.map) return teamQueueCache.map;   // keep the last good map
+    throw Object.assign(new Error('Couldn’t load the ticket queues.'), { statusCode: 502 });
+  }
+  const byName = new Map(data.queues.map((q) => [String(q.name || '').trim().toLowerCase(), q.id]));
+  const teamToQueue = {}, queueToTeam = {};
+  for (const [team, name] of Object.entries(TEAM_QUEUES)) {
+    const id = byName.get(String(name).trim().toLowerCase());
+    if (id != null) { teamToQueue[team] = id; queueToTeam[String(id)] = team; }
+    else console.warn(`[teams] no ticket queue named "${name}" for team "${team}" — its requests will be refused`);
+  }
+  teamQueueCache = { at: Date.now(), map: { teamToQueue, queueToTeam } };
+  return teamQueueCache.map;
+}
+// Label tickets with their team from the queue they're in (prefixes aren't
+// enough: a queue may have none). Best effort — a failure leaves them as-is.
+async function labelTeams(tickets) {
+  try {
+    const { queueToTeam } = await teamQueueMap();
+    for (const t of tickets) {
+      if (t && t.queue_id != null && queueToTeam[String(t.queue_id)]) t.team = queueToTeam[String(t.queue_id)];
+    }
+  } catch { /* leave unlabelled — the client falls back to the number prefix */ }
+  return tickets;
+}
+
 // Resolve who a request/ticket is FOR. Any signed-in user may raise one on
 // behalf of another person (requested_for, from the portal's user picker); the
 // catalog route still passes the signed-in user as the submitter (audit +
@@ -369,9 +412,23 @@ function richTextOrError(raw, label) {
 // Create a ticket — the "issue" path (incident) or a freeform service request.
 app.post('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const { subject, description, type, priority, requested_for, talked_to_agent_id, talked_to_note } = req.body ?? {};
+  const { subject, description, type, priority, requested_for, talked_to_agent_id, talked_to_note, team } = req.body ?? {};
   if (!subject || !String(subject).trim()) {
     return res.status(400).json({ error: 'A subject is required.' });
+  }
+  // Another team's request goes to that team's queue — never silently to the
+  // default (IT) queue, where IT agents would read HR / Finance matters.
+  let queueId = null;
+  const teamKey = team ? String(team).toLowerCase() : 'it';
+  if (teamKey !== 'it') {
+    if (!Object.prototype.hasOwnProperty.call(TEAM_QUEUES, teamKey)) {
+      return res.status(400).json({ error: 'Unknown team.' });
+    }
+    try { queueId = (await teamQueueMap()).teamToQueue[teamKey] ?? null; }
+    catch (err) { return ticketProxyError(res, err, 'tickets.create.queues'); }
+    if (queueId == null) {
+      return res.status(409).json({ error: 'That team isn’t taking requests here right now. Please try again later.' });
+    }
   }
   const requester = resolveRequester(u, requested_for);
   const desc = richTextOrError(description, 'The description');
@@ -392,6 +449,7 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
       submitter_email: u.email,
       talked_to_agent_id: asAgentId(talked_to_agent_id),
       talked_to_note: asTalkedToNote(talked_to_note),
+      ...(queueId != null ? { queue_id: queueId } : {}),
     });
     // The ticket module returns an envelope: { status, message, ticket }.
     if (!ok || data.status === 'rejected' || data.status === 'error') {
@@ -400,7 +458,9 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
         validation_errors: data.validation_errors,
       });
     }
-    res.json(data.ticket || data);
+    const created = data.ticket || data;
+    if (created && queueId != null) created.team = teamKey;
+    res.json(created);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.create');
   }
@@ -506,6 +566,7 @@ app.get('/api/tickets', requireSliceUser, async (req, res) => {
   const status = req.query.status ? String(req.query.status) : null;
   try {
     const tickets = await listUserTickets(u, status);
+    await labelTeams(tickets);
     // The full list is exactly what the notification diff needs — hand it
     // over so the bell catches up without a second round of module calls.
     if (!status && !tickets.partial) notifications.syncUser(u, { tickets }).catch(() => {});
@@ -535,6 +596,7 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
     // logged (and then marked read by the client) instead of turning up in
     // the bell after they've already seen it.
     await notifications.syncTicket(req.user, ticket).catch((e) => console.warn('[tickets.get] notif sync:', e.message));
+    await labelTeams([ticket]);
     res.json(ticket);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.get');

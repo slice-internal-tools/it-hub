@@ -1279,19 +1279,21 @@ const QuickAccess = [
 
 // ---------- TEAMS ----------
 // Every team that takes requests through Slice Help. Adding a team is one row
-// here; flip `live` once it has its own queue. A team that isn't live can be
+// here, plus its ticket-system queue in TEAM_QUEUES (server/index.js), which
+// sends its reports and custom requests there; flip `live` once that queue exists. A team that isn't live can be
 // picked (so people see it's coming) but never submits: its requests would
 // otherwise land in the IT queue, and HR/Finance matters are private.
 const HELP_TEAMS = [
-  { key: "it",      label: "IT",      prefix: "IT",  icon: "laptop", blurb: "Devices, apps & access", live: true, categories: [],
+  { key: "it",      label: "IT",      prefix: "IT",  icon: "laptop", blurb: "Devices, apps & access", live: true,
     subject: "e.g. Access to Figma", details: "Why you need it, and by when…",
     issue: "e.g. Zoom won’t open after the latest update" },
-  { key: "hr",      label: "HR",      prefix: "HR",  icon: "people", blurb: "Time off, pay & benefits", live: false,
-    categories: ["hr", "people", "people team", "benefits", "payroll", "time off", "employment"],
+  { key: "hr",      label: "HR",      prefix: "HR",  icon: "people", blurb: "Time off, pay & benefits", live: true,
     subject: "e.g. Employment verification letter", details: "What you need, and by when…",
     issue: "e.g. My payslip is missing overtime" },
-  { key: "finance", label: "Finance", prefix: "FIN", icon: "card",   blurb: "Expenses & invoices", live: false,
-    categories: ["finance", "expenses", "invoices", "procurement", "purchasing", "corporate card"],
+  // No prefix: FIN- belongs to the separate "Finance IT" queue (Finance's IT
+  // apps), and Finance Support numbers its tickets REQ-/INC-. Finance tickets
+  // are recognised by their queue (the server labels them `team`).
+  { key: "finance", label: "Finance", prefix: "", icon: "card",   blurb: "Expenses & invoices", live: true,
     subject: "e.g. Raise my card limit", details: "Amount, cost centre, and by when…",
     issue: "e.g. My expense report was rejected" },
 ];
@@ -1307,18 +1309,18 @@ const IconCard = (p) => <IconBase {...p}><rect x="2.5" y="5" width="19" height="
 const OPEN_TEAMS = HELP_TEAMS.filter((t) => t.live);
 const helpTeam = (key) => HELP_TEAMS.find((t) => t.key === key) || HELP_TEAMS[0];
 // Which team owns a ticket: an explicit `team` from the server when there is
-// one, else its number's prefix (IT-90012, HR-00041, FIN-00007). IT otherwise.
+// one (from its queue), else its number's prefix (IT-90012, HR-00041). IT otherwise.
 function ticketTeamKey(t) {
   const explicit = String((t && t.team) || '').toLowerCase();
   if (explicit && HELP_TEAMS.some((x) => x.key === explicit)) return explicit;
   const num = String((t && t.ticket_number) || '').toUpperCase();
-  const hit = HELP_TEAMS.find((x) => num.startsWith(x.prefix + '-'));
+  const hit = HELP_TEAMS.find((x) => x.prefix && num.startsWith(x.prefix + '-'));
   return hit ? hit.key : 'it';
 }
 // Which team's queue a catalog item goes to. The ticket system keeps the real
 // queue to itself (auto_assign_queue_id is admin-only), so: an explicit team
 // on the item if the module ever sends one (team / team_key / queue_team),
-// else its category matched against each team's `categories`, else IT.
+// else IT.
 function catalogItemTeam(item) {
   if (!item) return 'it';
   const norm = (v) => String(v || '').trim().toLowerCase();
@@ -1328,12 +1330,10 @@ function catalogItemTeam(item) {
       || explicit.startsWith(norm(t.label) + ' '));
     if (hit) return hit.key;
   }
-  // Category guessing only for teams that are live in Slice Help: until HR /
-  // Finance open, an app in a "Finance" category (say, NetSuite access) is
-  // still fulfilled by IT and must not read "Goes to Finance team".
-  const cat = norm(item.category_name || item.category);
-  const byCat = cat && HELP_TEAMS.find((t) => t.live && (t.categories || []).includes(cat));
-  return byCat ? byCat.key : 'it';
+  // No guessing from the category: the module routes each item itself (item
+  // → category → portal queue) and a "Finance" category can hold IT-handled
+  // apps. Until the module sends the item's team, it reads as IT.
+  return 'it';
 }
 // "Goes to" — the team a request lands with, as one summary-card row.
 // `soon` marks a team that isn't taking requests here yet — only for the
@@ -6042,7 +6042,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
     if (busy) return;
     if (!helpTeam(team).live) return; // never route another team's issue to IT
     if (!subject.trim()) {
-      setSubjectErr("Add a short summary so IT knows what this is about.");
+      setSubjectErr("Add a short summary so the " + teamDisplayName(team) + " knows what this is about.");
       if (subjectRef.current) subjectRef.current.focus();
       return;
     }
@@ -6051,7 +6051,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
       // Create the ticket first, then attach files to it (attachments need the
       // ticket id). A failed upload doesn't lose the ticket — we just warn.
       const data = await ticketsApiJson("POST", "/api/tickets", {
-        subject: subject.trim(), description: description.trim(), type, priority,
+        subject: subject.trim(), description: description.trim(), type, priority, team,
         ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
       });
       if (attachFiles.length && (data.id || data.ticket_number)) {
@@ -10316,7 +10316,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     const out = await fanOut((target) =>
       ticketsApiJson('POST', '/api/tickets', {
         // The same "How urgent?" as a catalog item; Critical alerts the team.
-        subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: urgency,
+        subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: urgency, team,
         ...(target ? { requested_for: target } : {}),
         ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
       }));
