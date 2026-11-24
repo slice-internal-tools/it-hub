@@ -1320,8 +1320,11 @@ function catalogItemTeam(item) {
       || explicit.startsWith(norm(t.label) + ' '));
     if (hit) return hit.key;
   }
+  // Category guessing only for teams that are live in Slice Help: until HR /
+  // Finance open, an app in a "Finance" category (say, NetSuite access) is
+  // still fulfilled by IT and must not read "Goes to Finance team".
   const cat = norm(item.category_name || item.category);
-  const byCat = cat && HELP_TEAMS.find((t) => (t.categories || []).includes(cat));
+  const byCat = cat && HELP_TEAMS.find((t) => t.live && (t.categories || []).includes(cat));
   return byCat ? byCat.key : 'it';
 }
 // "Goes to" — the team a request lands with, as one summary-card row.
