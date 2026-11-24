@@ -9999,7 +9999,9 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
       setUrgency('medium');
       setView('form');
     } catch (e) {
-      setErr(e.message || 'Couldn’t open that item.');
+      // 404 = the ticket system hides this item from you (department-targeted,
+      // or retired) — say so plainly rather than as a failure.
+      setErr(e.status === 404 ? 'This app isn’t available to you. If you think you need it, send a custom request.' : (e.message || 'Couldn’t open that item.'));
     } finally {
       setItemBusy(false);
     }
