@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Slice IT Hub — Admin</title>
+  <title>Slice Help — Admin</title>
   <!-- Relative so it resolves under any prefix (see the base note below). -->
   <link rel="icon" href="assets/slice-logo.png" />
   <!-- Guide-editor island styles (Tailwind token layer + lexicalTheme.css),
@@ -2206,14 +2206,14 @@
 
   <!-- ============== SIDEBAR ============== -->
   <aside class="sidebar">
-    <a class="brand" href="./" title="Back to IT Hub" style="text-decoration:none;cursor:pointer;">
+    <a class="brand" href="./" title="Back to Slice Help" style="text-decoration:none;cursor:pointer;">
       <img class="brand-mark" src="assets/slice-logo.png" alt="Slice" />
-      <span class="brand-name">IT Hub<small>Admin</small></span>
+      <span class="brand-name">Help<small>Admin</small></span>
     </a>
     <div class="sidebar-body">
     <a href="./" class="nav-link" style="font-weight:600;">
       <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></span>
-      Back to IT Hub
+      Back to Slice Help
     </a>
     <div class="nav-section">Workspace</div>
     <div class="nav-link" data-section="overview">
@@ -2274,7 +2274,7 @@
           <div class="item" id="avatarKbd"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10v.01M10 10v.01M14 10v.01M18 10v.01M6 14h12"/></svg> Keyboard shortcuts</div>
           <div class="item" id="avatarExport"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export all guides</div>
           <div class="divider"></div>
-          <div class="item" id="avatarHub"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back to IT Hub</div>
+          <div class="item" id="avatarHub"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back to Slice Help</div>
         </div>
       </div>
       </div>
@@ -3039,7 +3039,7 @@ function navigate(section) {
   // Reflect the section in document.title so the browser tab + history
   // remain useful even though the in-page crumb is gone.
   const t = pageMeta(section);
-  document.title = t.ttl ? `${t.ttl} · IT Hub admin` : 'IT Hub admin';
+  document.title = t.ttl ? `${t.ttl} · Slice Help admin` : 'Slice Help admin';
   render();
   // Scroll to top on every section change — without this, opening a
   // new section while half-way down the previous one strands the user
@@ -6186,7 +6186,7 @@ const cmdkActions = [
   { type: 'action', label: 'New guide', icon: '+', go: () => startNewGuide() },
   { type: 'action', label: 'Export all guides (.json)', icon: '⬇', go: () => exportAllGuides() },
   { type: 'action', label: 'Show keyboard shortcuts', icon: '?', go: () => $('shortcutModal').showModal() },
-  { type: 'action', label: 'Back to IT Hub', icon: '←', go: () => { window.location.href = '/'; } },
+  { type: 'action', label: 'Back to Slice Help', icon: '←', go: () => { window.location.href = '/'; } },
 ];
 
 let cmdkResults = [];

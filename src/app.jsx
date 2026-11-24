@@ -450,7 +450,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 const COPY = {
   concierge: {
     greeting: (ctx) => `${ctx.timeOfDay}, Maya. How can we help?`,
-    heroTitle: ["Welcome to the ", "Slice IT Hub", "."],
+    heroTitle: ["Welcome to the ", "Slice Help", "."],
     heroSub: "Tell us what's going on — we'll triage, suggest a fix, or send the right ticket in seconds.",
     placeholder: "e.g. I can't connect to Wi‑Fi in the 14th floor conference room…",
     privacy: "Everything stays private to Slice IT",
@@ -468,7 +468,7 @@ const COPY = {
   },
   precise: {
     greeting: () => "IT Service Portal",
-    heroTitle: ["", "Slice IT Hub", ""],
+    heroTitle: ["", "Slice Help", ""],
     heroSub: "Describe the issue. We'll classify it, surface fixes, and route if needed.",
     placeholder: "Describe the issue (device, app, symptom, timeframe)…",
     privacy: "Logged to Slice IT only",
@@ -486,7 +486,7 @@ const COPY = {
   },
   playful: {
     greeting: (ctx) => `${ctx.timeOfDay}, Maya ✨ What's bugging you today?`,
-    heroTitle: ["Hey — welcome to the ", "Slice IT Hub", "."],
+    heroTitle: ["Hey — welcome to the ", "Slice Help", "."],
     heroSub: "Tell us what broke. We'll figure out whether it's a quick fix or a full rescue mission.",
     placeholder: "e.g. My laptop sounds like it's trying to take off…",
     privacy: "Pinky promise — stays with IT",
@@ -573,8 +573,203 @@ function useLiveStatus(intervalMs = 30000) {
   return { services, lastCheck, error };
 }
 
+// "help?" with a hand-drawn Cheese underline. Drawn once on load like a
+// marker (pressure swell, a lighter second stroke under it, faint ink
+// texture); the word pulses as the stroke lands and the "?" settles. Pointing
+// at it redraws it, once per hover. Reduced motion: shown already drawn.
+function HelpMark() {
+  const [run, setRun] = React.useState(0);
+  const busy = React.useRef(true);
+  React.useEffect(() => { const t = setTimeout(() => { busy.current = false; }, 2300); return () => clearTimeout(t); }, []);
+  const replay = () => {
+    if (busy.current) return;
+    busy.current = true;
+    setRun((n) => n + 1);
+    setTimeout(() => { busy.current = false; }, 1700);
+  };
+  const loop = "M4 13 C 42 7, 82 17, 120 11 S 178 7, 196 12";
+  const pass2 = "M22 19 C 66 15, 126 21, 184 16";
+  return (
+    <span className={"hc-help" + (run ? " is-replay" : "")} key={run} onMouseEnter={replay}>
+      help<span className="hc-q">?</span>
+      <svg className="hc-help-loop" viewBox="0 0 200 24" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <filter id="hcInk" x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="4" result="n" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="1.6" />
+          </filter>
+        </defs>
+        <g filter="url(#hcInk)">
+          <path className="hc-loop-a" d={loop} pathLength="1" vectorEffect="non-scaling-stroke" />
+          <path className="hc-loop-b" d={pass2} pathLength="1" vectorEffect="non-scaling-stroke" />
+        </g>
+      </svg>
+    </span>
+  );
+}
+
+// The "we" in the headline: every so often it becomes each team that answers
+// in Slice Help ("How can IT help?", "How can HR help?", …) and comes back to
+// "we". The word slides up with a soft blur while its slot eases to the new
+// width, so the whole line re-centres smoothly. A new team in HELP_TEAMS joins
+// the rotation on its own. Plays once, on someone's first visit only; stops
+// (back on "we") as soon as they type; under reduced motion it never moves.
+const TEAMWORD_KEY = () => 'slicehelp.teamword.v1:' + String((typeof window !== 'undefined' && window.PORTAL_CURRENT_ID) || 'me');
+function TeamWord({ paused }) {
+  // Every team that will answer in Slice Help, live or coming — this is the
+  // welcome line, not a picker, so it names where the portal is going.
+  const words = React.useMemo(() => ["we", ...HELP_TEAMS.map((t) => t.label)], []);
+  const [i, setI] = React.useState(0);
+  const [prev, setPrev] = React.useState(-1);
+  const [widths, setWidths] = React.useState([]);
+  const refs = React.useRef([]);
+  // Only ever on someone's first visit (remembered per person in this
+  // browser, like the tour); ?tour=1 plays it again. After that, or once
+  // they start typing, it stays on "we".
+  const done = React.useRef((() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("tour") === "1") return false;
+      return !!window.localStorage.getItem(TEAMWORD_KEY());
+    } catch { return true; }
+  })());
+
+  React.useEffect(() => {
+    const measure = () => setWidths(refs.current.map((el) => (el ? el.offsetWidth : 0)));
+    measure();
+    try { document.fonts && document.fonts.ready.then(measure); } catch {}
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  React.useEffect(() => {
+    let reduce = false;
+    try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch {}
+    if (paused || reduce || done.current) {
+      if (paused) done.current = true;
+      setI((cur) => { if (cur !== 0) setPrev(cur); return 0; });
+      return undefined;
+    }
+    // One pass (we → IT → HR → Finance → we), then it rests on "we":
+    // enough to say every team answers here without moving above the box
+    // people are typing into.
+    let t, n = 0;
+    const step = () => {
+      if (n === 0) { try { window.localStorage.setItem(TEAMWORD_KEY(), new Date().toISOString()); } catch {} }
+      n += 1;
+      setI((cur) => { setPrev(cur); return (cur + 1) % words.length; });
+      if (n < words.length) t = setTimeout(step, 2400); else done.current = true;
+    };
+    t = setTimeout(step, 3200);   // let the "help?" underline finish first
+    return () => clearTimeout(t);
+  }, [paused, words.length]);
+
+  return (
+    <span className="hc-team" aria-hidden="true" style={widths[i] ? { width: widths[i] } : undefined}>
+      <span className="hc-team-ghost">{words[0]}</span>
+      {words.map((w, k) => (
+        <span key={w} ref={(el) => { refs.current[k] = el; }}
+          className={"hc-team-w" + (k === i ? " is-on" : k === prev ? " is-out" : "")}>{w}</span>
+      ))}
+    </span>
+  );
+}
+
+// First-visit tour: hand-drawn margin notes (wide screens only) — the box
+// takes questions for every team, app access lives in its second tab, and
+// My Tickets is where requests are tracked. Shown once per person (stored
+// per user in this browser); "Got it" dismisses it early. ?tour=1 replays it.
+const TOUR_KEY = () => 'slicehelp.tour.v1:' + String((typeof window !== 'undefined' && window.PORTAL_CURRENT_ID) || 'me');
+function useFirstVisitTour() {
+  const [show, setShow] = React.useState(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('tour') === '1') return true;
+      return !window.localStorage.getItem(TOUR_KEY());
+    } catch { return false; }
+  });
+  const [closing, setClosing] = React.useState(false);
+  const markSeen = React.useCallback(() => { try { window.localStorage.setItem(TOUR_KEY(), new Date().toISOString()); } catch {} }, []);
+  // Seen once it has played through (the notes finish drawing ~3.5s in).
+  React.useEffect(() => {
+    if (!show) return undefined;
+    const t = setTimeout(markSeen, 4000);
+    return () => clearTimeout(t);
+  }, [show, markSeen]);
+  const dismiss = React.useCallback(() => {
+    markSeen(); setClosing(true);
+    setTimeout(() => { setShow(false); setClosing(false); }, 280);
+  }, [markSeen]);
+  // The "?" button replays it from the start (a new run key restarts the
+  // draw-in animations).
+  const [run, setRun] = React.useState(0);
+  const replay = React.useCallback(() => { setRun((n) => n + 1); setClosing(false); setShow(true); }, []);
+  return { show, closing, dismiss, replay, run };
+}
+
+// The note under "My Tickets" in the top bar: fixed, measured from the link.
+function TourTicketsNote({ onDone }) {
+  const [pos, setPos] = React.useState(null);
+  React.useLayoutEffect(() => {
+    const place = () => {
+      const link = [...document.querySelectorAll('.topnav-link')].find((b) => /my tickets/i.test(b.textContent || ''));
+      if (!link) { setPos(null); return; }
+      const r = link.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, left: r.left + r.width / 2 });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, []);
+  if (!pos) return null;
+  return ReactDOM.createPortal((
+    <div className="hc-note is-tickets" style={{ top: pos.top, left: pos.left }}>
+      <svg className="hc-note-arrow" viewBox="0 0 140 64" fill="none" aria-hidden="true">
+        <path className="hc-note-line" d="M132 50 C 92 54, 40 40, 10 6" pathLength="1" />
+        <path className="hc-note-head" d="M10 6 L 23 8 M10 6 L 12 19" pathLength="1" />
+      </svg>
+      <span className="hc-note-body">
+        <span className="hc-note-text" aria-hidden="true">Your tickets &amp; approvals<br />live here</span>
+        <button type="button" className="hc-note-done" onClick={onDone}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7.5" /></svg>
+          Got it
+        </button>
+      </span>
+    </div>
+  ), document.body);
+}
+
+function HcNotes({ closing, onDone }) {
+  return (
+    <div className={"hc-tour" + (closing ? " is-closing" : "")}>
+      <div className="hc-note is-left" aria-hidden="true">
+        <span className="hc-note-text">Need an app?<br />Request it here</span>
+        <svg className="hc-note-arrow" viewBox="0 0 130 64" fill="none">
+          <path className="hc-note-line" d="M4 14 C 46 6, 96 18, 120 54" pathLength="1" />
+          <path className="hc-note-head" d="M120 54 L 108 50 M120 54 L 122 41" pathLength="1" />
+        </svg>
+      </div>
+      <div className="hc-note is-right" aria-hidden="true">
+        <span className="hc-note-text">Ask about anything</span>
+        {OPEN_TEAMS.length > 1 && (
+          <span className="hc-note-teams">
+            {OPEN_TEAMS.map((t) => {
+              const Icon = teamIcon(t.key);
+              return <span key={t.key} className="hc-note-team"><Icon size={13} stroke={2} />{t.label}</span>;
+            })}
+          </span>
+        )}
+        <svg className="hc-note-arrow" viewBox="0 0 120 70" fill="none">
+          <path className="hc-note-line" d="M104 6 C 96 40, 60 62, 12 52" pathLength="1" />
+          <path className="hc-note-head" d="M12 52 L 24 46 M12 52 L 23 60" pathLength="1" />
+        </svg>
+      </div>
+      <TourTicketsNote onDone={onDone} />
+    </div>
+  );
+}
+
 function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets, onOpenTicketNumber, onRequestItem, onBrowseCatalog, onCustomRequest, onRequest }) {
   const [q, setQ] = useState("");
+  const tour = useFirstVisitTour();
   // Apps shown in the "Request app access" stack. Session-cached and shared
   // with the ticket list's icon lookup — one /api/catalog fetch between them.
   const { preview: ctaIcons, total: ctaTotal } = useCatalogStackItems();
@@ -825,7 +1020,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
       )}
 
       {/* Hero */}
-      <div className="hero-headline" style={{ position: "relative", zIndex: 1, textAlign: "center", marginBottom: 28 }}>
+      <div className="hero-headline" style={{ position: "relative", zIndex: 1, textAlign: "center", marginBottom: 32 }}>
         <h1 style={{
           fontSize: "clamp(34px, 4.4vw, 60px)",
           fontWeight: 400,
@@ -836,16 +1031,9 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           animation: "fadeUp .7s .05s var(--ease) both",
           fontFamily: "var(--font-head)",
         }}>
-          How can{" "}
-          <span className="annotate-underline" style={{
-            fontFamily: "var(--font-head)",
-            fontWeight: 400,
-            letterSpacing: "-0.01em",
-            color: "#211E1E",
-          }}>Slice IT</span>
-          {" "}help you?
+          How can <span className="sr-only">we </span><TeamWord paused={!!q.trim()} />{" "}
+          <HelpMark />
         </h1>
-        <p className="hc-sub">Ask a question, report a problem, or get access to an app.</p>
       </div>
 
       {/* The command box — one surface, two jobs. "Ask IT" is the free-text
@@ -855,6 +1043,10 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           mode of the box itself is what makes it impossible to miss without
           shouting. */}
       <div className="hc-wrap" style={{ animation: "fadeUp .7s .15s var(--ease) both" }}>
+        {tour.show && <HcNotes key={tour.run} closing={tour.closing} onDone={tour.dismiss} />}
+        {!tour.show && ReactDOM.createPortal(
+          <button type="button" className="tour-help" onClick={tour.replay} aria-label="Show me around" data-tip="Show me around">?</button>,
+          document.body)}
         <div
           className={"hc-shell" + (mode === "access" ? " is-access" : "")}
           onDragOver={(e) => { if (mode !== "ask") return; e.preventDefault(); if (!dragOver) setDragOver(true); }}
@@ -876,8 +1068,8 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             <SlideIndicator activeKey={mode} radius={999} />
             <button type="button" role="tab" id="hc-tab-ask" aria-controls="hc-panel" aria-selected={mode === "ask"}
               className={"hc-tab" + (mode === "ask" ? " is-on" : "")} onClick={() => switchMode("ask")}>
-              <IconSpark size={15} stroke={2.2} />
-              <span>Ask IT</span>
+              <IconChat size={15} stroke={2.2} />
+              <span>Ask</span>
             </button>
             <button type="button" role="tab" id="hc-tab-access" aria-controls="hc-panel" aria-selected={mode === "access"}
               className={"hc-tab" + (mode === "access" ? " is-on" : "")} onClick={() => switchMode("access")}>
@@ -913,7 +1105,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                 onChange={(e) => { setQ(e.target.value); setInstantHidden(false); }}
                 onKeyDown={onHeroKeyDown}
                 role="combobox"
-                aria-label="Ask IT"
+                aria-label="Ask a question"
                 aria-expanded={showInstant}
                 aria-controls="hero-instant"
                 aria-activedescendant={showInstant ? `hero-instant-${instantActive}` : undefined}
@@ -955,7 +1147,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                   {attachError && <span className="hc-error">{attachError}</span>}
                 </div>
                 <div className="hc-foot-right">
-                  <span className="hc-kbd-hint"><span className="kbd">⏎</span> {attached ? "to analyze" : "to send"}</span>
                   <button onClick={() => submit()} disabled={!attached && !q.trim()} className="hc-go">
                     {attached ? "Analyze" : "Ask"}
                     <IconArrow size={15} stroke={2.4} />
@@ -1029,31 +1220,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           <InstantPanel id="hero-instant" rows={instantRows} active={instantActive} onHover={setInstantActive} onPick={pickInstant} />
         )}
 
-        {/* Quick prompts */}
-        {mode === "ask" && (
-          <div className="hc-prompts">
-            <span className="hc-prompts-label">Popular</span>
-            {QUICK_PROMPTS.map((qp) =>
-            <Chip key={qp.label} icon={qp.icon} label={qp.label}
-            onClick={() => onPromptClick(qp)} />
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* IT Command row: Phishing + On-call roster */}
-      <div style={{
-        maxWidth: 1120, margin: "56px auto 0",
-        animation: "fadeUp .8s .3s var(--ease) both",
-      }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 16,
-        }}>
-          <PhishingCard onSubmit={submit} />
-          <OnCallCard onSubmit={submit} onOpenTickets={onOpenTickets} />
-        </div>
       </div>
 
       {/* Open tickets shortcut — renders nothing when nothing is open. */}
@@ -1062,215 +1228,40 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
       {/* Pinned guides — the user's own pins (shared with SliceDesk Docs). */}
       {pinnedGuides.length > 0 && (
         <div style={{
-          maxWidth: 1120, margin: "72px auto 0",
+          maxWidth: 880, margin: "40px auto 0",
           animation: "fadeUp .8s .3s var(--ease) both"
         }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", margin: 0, letterSpacing: "-0.015em" }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--ink)", margin: 0, letterSpacing: "-0.015em" }}>
               📌 Your pinned guides
             </h2>
           </div>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-            gap: 14
+            gap: 16
           }}>
             {pinnedGuides.slice(0, 8).map((g) => (
               <button key={g.id}
                 onClick={() => onOpenGuide && onOpenGuide({ id: g.id, title: g.title, category: g.category })}
                 style={{
                   textAlign: "left", cursor: "pointer",
-                  background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: 14,
-                  padding: "16px 18px", boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
+                  background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)", borderRadius: 16,
+                  padding: "16px 20px", boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                   fontFamily: "inherit",
                 }}>
                 <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 800, color: "#211E1E", marginBottom: 4, letterSpacing: "-0.01em" }}>{g.title}</div>
-                <div style={{ fontSize: 11.5, color: "#5C4916", fontWeight: 600 }}>{g.category || "Guide"}</div>
+                <div style={{ fontSize: 12, color: "#5C4916", fontWeight: 600 }}>{g.category || "Guide"}</div>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Below fold: quick-access grid */}
-      <div style={{
-        maxWidth: 1120, margin: "96px auto 0",
-        animation: "fadeUp .8s .35s var(--ease) both"
-      }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", margin: 0, letterSpacing: "-0.015em" }}>
-            {t("quickKicker")}
-          </h2>
-          <a href="#" className="pill-link"
-            onClick={(e)=>{ e.preventDefault(); onOpenKnowledge && onOpenKnowledge(); }}>
-            Full knowledge base <span className="pill-link-arrow">→</span>
-          </a>
-        </div>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-          gap: 14
-        }}>
-          {QuickAccess.map((qa, i) => {
-            const Icon = window[qa.icon];
-            const onCardClick = () => {
-              if (qa.action === "guide" && qa.guideTitle) {
-                const norm = (s) => String(s || '').toLowerCase().replace(/[\u2010-\u2015]/g, '-').trim();
-                const match = dbGuides.find((g) => norm(g.title) === norm(qa.guideTitle));
-                if (match && onOpenGuide) { onOpenGuide({ id: match.id, title: match.title, category: match.category }); return; }
-              }
-              if (qa.action === "knowledge" && onOpenKnowledge) onOpenKnowledge();
-              else if (qa.action === "status" && onOpenStatus) onOpenStatus();
-              else if (qa.action === 'guide' && onOpenKnowledge) onOpenKnowledge();
-            };
-            return (
-              <Card key={qa.title} interactive onClick={onCardClick} style={{ padding: 20 }}>
-                <div className="qa-icon" style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: "oklch(97% 0.01 280)",
-                  display: "grid", placeItems: "center",
-                  color: "var(--ink-2)",
-                  marginBottom: 14
-                }}>
-                  <Icon size={18} stroke={1.75} />
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", marginBottom: 4, letterSpacing: "-0.012em" }}>{qa.title}</div>
-                <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.45 }}>{qa.body}</div>
-              </Card>);
-
-          })}
-        </div>
-      </div>
-
-      {/* Browser extension — sits above System status: it's the one thing on
-          the page that isn't a task, but it's what keeps people from having to
-          come back here to check on a ticket. Chrome installs from the Web
-          Store. Firefox installs the SIGNED file served by this Portal
-          (public/companion/), which is also where its update manifest lives —
-          Mozilla signs self-distributed add-ons but does not host them. */}
-      <div style={{
-        maxWidth: 1120, margin: "72px auto 0",
-        animation: "fadeUp .8s .38s var(--ease) both"
-      }}>
-        <CompanionPromo />
-      </div>
-
+      <div style={{ height: 56 }} aria-hidden="true" />
 
     </div>);
 
-}
-
-// ---------- BROWSER EXTENSION DOWNLOADS ----------
-// Chrome: the Web Store listing (unlisted — link-only, auto-updates).
-// Firefox: the signed .xpi in public/companion/, served with the xpinstall
-// mime type so Firefox opens its install prompt. Bump the version here when a
-// new signed file is dropped into that folder (see public/companion/README.md).
-const COMPANION_CHROME_URL = "https://chromewebstore.google.com/detail/slicedesk-companion/fnagjegbeojhopjbcfmjlcoidkiplnla";
-const COMPANION_FIREFOX_VERSION = "1.5.0";
-const COMPANION_FIREFOX_URL = `${import.meta.env.BASE_URL}companion/slicedesk-companion-${COMPANION_FIREFOX_VERSION}-firefox.xpi`;
-
-// The browsers' real logos (public/companion/logos/, the official SVGs), not
-// line-art stand-ins: people recognise the mark before they read the word.
-const COMPANION_LOGO = (name) => `${import.meta.env.BASE_URL}companion/logos/${name}.svg`;
-
-const COMPANION_DOWNLOADS = [
-  { name: "Chrome extension", body: "From the Chrome Web Store · updates itself",
-    cta: "Add to Chrome", href: COMPANION_CHROME_URL, external: true, logo: COMPANION_LOGO("chrome") },
-  { name: "Firefox add-on", body: `Signed by Mozilla · v${COMPANION_FIREFOX_VERSION} · one click, then Allow access`,
-    cta: "Add to Firefox", href: COMPANION_FIREFOX_URL, external: false, logo: COMPANION_LOGO("firefox") },
-];
-
-
-// Which download to put first: Firefox gets the add-on; every Chromium browser
-// (Chrome, Edge, Brave, Arc) installs from the Chrome Web Store. Safari and
-// anything unknown get no recommendation — both buttons, equal weight.
-function companionBrowser() {
-  try {
-    const ua = navigator.userAgent || '';
-    if (/Firefox\//.test(ua)) return 'firefox';
-    if (/Chrome\/|Chromium\/|Edg\//.test(ua)) return 'chrome';
-  } catch {}
-  return null;
-}
-
-const COMPANION_PERKS = [
-  'Your tickets and approvals, one click from the toolbar',
-  'A desktop alert the moment IT replies or changes a status',
-  'Nothing to set up — it uses the login you already have',
-];
-
-function CompanionPromo() {
-  const rec = React.useMemo(companionBrowser, []);
-  const items = COMPANION_DOWNLOADS.map((b) => ({ ...b, key: /firefox/i.test(b.name) ? 'firefox' : 'chrome' }))
-    .sort((a, b) => (a.key === rec ? -1 : b.key === rec ? 1 : 0));
-  return (
-    <section className="surface companion-promo" aria-labelledby="companion-title">
-      <style>{`
-        .companion-promo { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:28px; align-items:center; padding:26px 28px; }
-        .companion-mark { width:44px; height:44px; border-radius:12px; display:grid; place-items:center; flex:none;
-          background:#211E1E; color:#FDC831; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
-        .companion-title { margin:0; font-family:'Archivo',sans-serif; font-size:24px; font-weight:800; letter-spacing:-.025em; color:#211E1E; line-height:1.1; }
-        .companion-lede { margin:6px 0 0; font-size:13.5px; color:#5C4916; font-weight:500; line-height:1.5; }
-        .companion-perks { list-style:none; margin:16px 0 0; padding:0; display:grid; gap:8px; }
-        .companion-perks li { display:flex; align-items:flex-start; gap:9px; font-size:13px; color:#211E1E; font-weight:600; line-height:1.4; }
-        .companion-perks .tick { width:18px; height:18px; flex:none; border-radius:50%; display:grid; place-items:center;
-          background:#D4F4D4; border:1px solid #211E1E; color:#0A6E31; margin-top:1px; }
-        .companion-actions { display:grid; gap:10px; }
-        .companion-btn { display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid #211E1E; border-radius:12px;
-          background:#FFFFFF; color:#211E1E; text-decoration:none; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
-          transition:transform .18s cubic-bezier(.22,.61,.36,1), box-shadow .18s cubic-bezier(.22,.61,.36,1), background .16s ease; }
-        .companion-btn:hover { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 10px 20px rgba(33,30,30,.12); }
-        .companion-btn:active { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
-        .companion-btn:focus-visible { outline:3px solid rgba(33,30,30,.35); outline-offset:2px; }
-        .companion-btn.is-rec { background:#FDC831; }
-        .companion-btn-logo { width:40px; height:40px; border-radius:10px; flex:none; display:grid; place-items:center;
-          background:#FFFFFF; border:1px solid #211E1E; }
-        .companion-btn-logo img { transition:transform .22s cubic-bezier(.34,1.56,.64,1); }
-        .companion-btn:hover .companion-btn-logo img { transform:scale(1.1) rotate(-4deg); }
-        .companion-btn-name { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:'Archivo',sans-serif; font-size:15px; font-weight:800; letter-spacing:-.01em; }
-        .companion-btn-sub { display:block; font-size:12px; color:#5C4916; font-weight:500; margin-top:2px; }
-        .companion-btn.is-rec .companion-btn-sub { color:#3D3011; }
-        .companion-rec { padding:1px 7px; border-radius:999px; background:#211E1E; color:#FDC831; font-size:9.5px; font-weight:600;
-          letter-spacing:.06em; text-transform:uppercase; font-family:var(--font-mono);}
-        .companion-btn-go { margin-left:auto; flex:none; transition:transform .16s ease; }
-        .companion-btn:hover .companion-btn-go { transform:translateX(3px); }
-        @media (max-width: 820px) { .companion-promo { grid-template-columns:1fr; gap:20px; padding:22px 20px; } }
-        @media (prefers-reduced-motion: reduce) { .companion-btn, .companion-btn-logo img, .companion-btn-go { transition:none; } }
-      `}</style>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span className="companion-mark" aria-hidden="true"><IconBolt size={22} stroke={2.2} /></span>
-          <div style={{ minWidth: 0 }}>
-            <h2 id="companion-title" className="companion-title">SliceDesk in your browser</h2>
-            <p className="companion-lede">The <b>SliceDesk Companion</b> for Chrome and Firefox.</p>
-          </div>
-        </div>
-        <ul className="companion-perks">
-          {COMPANION_PERKS.map((p) => (
-            <li key={p}><span className="tick" aria-hidden="true"><IconCheck size={11} stroke={3} /></span>{p}</li>
-          ))}
-        </ul>
-      </div>
-      <div className="companion-actions">
-        {items.map((b) => (
-          <a key={b.key} href={b.href}
-            target={b.external ? '_blank' : undefined}
-            rel={b.external ? 'noopener noreferrer' : undefined}
-            className={'companion-btn' + (b.key === rec ? ' is-rec' : '')}>
-            <span className="companion-btn-logo"><img src={b.logo} alt="" width="26" height="26" style={{ display: 'block' }} /></span>
-            <span style={{ minWidth: 0 }}>
-              <span className="companion-btn-name">
-                {b.cta}
-                {b.key === rec && <span className="companion-rec">Your browser</span>}
-              </span>
-              <span className="companion-btn-sub">{b.body}</span>
-            </span>
-            <span className="companion-btn-go" aria-hidden="true"><IconArrow size={18} stroke={2.6} /></span>
-          </a>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 // Fast-access guide cards — the most-opened knowledge articles, one tap from
@@ -1285,6 +1276,147 @@ const QuickAccess = [
 { icon: "IconShield",  action: "guide", guideTitle: "Phishing email — what to do",     title: "Report phishing",           body: "Security" },
 { icon: "IconBook",    action: "knowledge",                                            title: "Browse all guides",         body: "All articles, searchable" }];
 
+
+// ---------- TEAMS ----------
+// Every team that takes requests through Slice Help. Adding a team is one row
+// here; flip `live` once it has its own queue. A team that isn't live can be
+// picked (so people see it's coming) but never submits: its requests would
+// otherwise land in the IT queue, and HR/Finance matters are private.
+const HELP_TEAMS = [
+  { key: "it",      label: "IT",      prefix: "IT",  icon: "laptop", blurb: "Devices, apps & access", live: true, categories: [],
+    subject: "e.g. Access to Figma", details: "Why you need it, and by when…",
+    issue: "e.g. Zoom won’t open after the latest update" },
+  { key: "hr",      label: "HR",      prefix: "HR",  icon: "people", blurb: "Time off, pay & benefits", live: false,
+    categories: ["hr", "people", "people team", "benefits", "payroll", "time off", "employment"],
+    subject: "e.g. Employment verification letter", details: "What you need, and by when…",
+    issue: "e.g. My payslip is missing overtime" },
+  { key: "finance", label: "Finance", prefix: "FIN", icon: "card",   blurb: "Expenses & invoices", live: false,
+    categories: ["finance", "expenses", "invoices", "procurement", "purchasing", "corporate card"],
+    subject: "e.g. Raise my card limit", details: "Amount, cost centre, and by when…",
+    issue: "e.g. My expense report was rejected" },
+];
+// Monochrome line icons for the team picker (same 24-grid stroke style as the
+// rest of the set).
+const IconPeople = (p) => <IconBase {...p}><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/></IconBase>;
+const IconCard = (p) => <IconBase {...p}><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19"/><path d="M6.5 15h4"/></IconBase>;
+
+// The teams people can pick today. A team that isn't live stays out of every
+// picker and the tour until its `live` flips — no "Soon" teams
+// in front of 1000 people. (helpTeam still knows them all, so an HR- ticket
+// that exists keeps its HR badge.)
+const OPEN_TEAMS = HELP_TEAMS.filter((t) => t.live);
+const helpTeam = (key) => HELP_TEAMS.find((t) => t.key === key) || HELP_TEAMS[0];
+// Which team owns a ticket: an explicit `team` from the server when there is
+// one, else its number's prefix (IT-90012, HR-00041, FIN-00007). IT otherwise.
+function ticketTeamKey(t) {
+  const explicit = String((t && t.team) || '').toLowerCase();
+  if (explicit && HELP_TEAMS.some((x) => x.key === explicit)) return explicit;
+  const num = String((t && t.ticket_number) || '').toUpperCase();
+  const hit = HELP_TEAMS.find((x) => num.startsWith(x.prefix + '-'));
+  return hit ? hit.key : 'it';
+}
+// Which team's queue a catalog item goes to. The ticket system keeps the real
+// queue to itself (auto_assign_queue_id is admin-only), so: an explicit team
+// on the item if the module ever sends one (team / team_key / queue_team),
+// else its category matched against each team's `categories`, else IT.
+function catalogItemTeam(item) {
+  if (!item) return 'it';
+  const norm = (v) => String(v || '').trim().toLowerCase();
+  const explicit = norm(item.team || item.team_key || item.queue_team);
+  if (explicit) {
+    const hit = HELP_TEAMS.find((t) => explicit === t.key || explicit === norm(t.label) || explicit === norm(t.prefix)
+      || explicit.startsWith(norm(t.label) + ' '));
+    if (hit) return hit.key;
+  }
+  // Category guessing only for teams that are live in Slice Help: until HR /
+  // Finance open, an app in a "Finance" category (say, NetSuite access) is
+  // still fulfilled by IT and must not read "Goes to Finance team".
+  const cat = norm(item.category_name || item.category);
+  const byCat = cat && HELP_TEAMS.find((t) => t.live && (t.categories || []).includes(cat));
+  return byCat ? byCat.key : 'it';
+}
+// "Goes to" — the team a request lands with, as one summary-card row.
+// `soon` marks a team that isn't taking requests here yet — only for the
+// free-form paths; a catalog item routed to a team's queue is live by definition.
+function GoesToRow({ teamKey, soon = false }) {
+  const t = helpTeam(teamKey);
+  const Icon = teamIcon(t.key);
+  return (
+    <div className="rqx-card-row">
+      <span className="rqx-k">Goes to</span>
+      <span className="rqx-goes">
+        <span className="rqx-goes-ic" aria-hidden="true"><Icon size={16} stroke={2} /></span>
+        <span className="rqx-goes-name">{t.label} team{soon && !t.live && <span className="tp-soon">Soon</span>}</span>
+      </span>
+    </div>
+  );
+}
+// "the IT Team" / "the HR team" — for copy like "Reply to …".
+const teamDisplayName = (key) => (key === 'it' ? 'IT Team' : helpTeam(key).label + ' team');
+// Copy written for IT, re-pointed at another team: "the IT Team" → "the HR
+// team", a bare "IT" (as in "IT starts…") → "HR". IT text passes untouched.
+const teamify = (str, key) => (!key || key === 'it' || !str) ? str : String(str)
+  .replace(/\bthe IT Team\b/g, 'the ' + teamDisplayName(key))
+  .replace(/\bThe IT Team\b/g, 'The ' + teamDisplayName(key))
+  .replace(/\bIT Team\b/g, teamDisplayName(key))
+  .replace(/\bIT\b/g, helpTeam(key).label);
+// What "Critical" does, for the team the ticket goes to. Only IT's alert is
+// known to go to Slack, so other teams don't promise a channel.
+function critCopy(key) {
+  const n = teamDisplayName(key || 'it');
+  const where = (key || 'it') === 'it' ? ' on Slack' : '';
+  return {
+    body: `Critical alerts the whole ${n}${where} right away. Use it when you can’t work at all, or many people are affected. For anything else, High still goes to the top of the queue.`,
+    note: `The ${n} gets an alert${where} as soon as you send this, so someone picks it up right away.`,
+    short: `Alerts the ${n}${where} right away.`,
+    done: `Marked critical — the ${n} has been alerted${where}.`,
+  };
+}
+// Resolved at call time: the icons are declared further down this file.
+const teamIcon = (key) => ({ laptop: IconLaptop, people: IconPeople, card: IconCard })[helpTeam(key).icon] || IconSpark;
+
+function TeamPicker({ value, onChange }) {
+  const refs = React.useRef([]);
+  const idx = Math.max(0, OPEN_TEAMS.findIndex((t) => t.key === value));
+  // Radio-group keys: arrows move and select, like native radios.
+  const onKey = (e) => {
+    const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const n = (idx + d + OPEN_TEAMS.length) % OPEN_TEAMS.length;
+    onChange(OPEN_TEAMS[n].key);
+    refs.current[n] && refs.current[n].focus();
+  };
+  const cur = helpTeam(value);
+  const ICON = { laptop: IconLaptop, people: IconPeople, card: IconCard };
+  if (OPEN_TEAMS.length < 2) return null;   // one team: nothing to choose
+  return (
+    <div className="tp">
+      <div className="cf-head"><span className="cf-label" id="tp-label">Which team is this for?</span></div>
+      <div className="tp-opts" role="radiogroup" aria-labelledby="tp-label" onKeyDown={onKey}
+        style={{ "--n": OPEN_TEAMS.length }}>
+        {OPEN_TEAMS.map((t, i) => {
+          const Icon = ICON[t.icon] || IconSpark;
+          const on = value === t.key;
+          return (
+            <button key={t.key} ref={(el) => (refs.current[i] = el)} type="button" role="radio"
+              aria-checked={on} tabIndex={on ? 0 : -1} title={t.blurb}
+              className={"tp-opt" + (on ? " is-on" : "") + (t.live ? "" : " is-soon")} onClick={() => onChange(t.key)}>
+              <span className="tp-icon" aria-hidden="true"><Icon size={16} stroke={1.9} /></span>
+              <span className="tp-name">{t.label}</span>
+              {!t.live && <span className="tp-soon">Soon</span>}
+            </button>
+          );
+        })}
+      </div>
+      {!cur.live && (
+        <p className="tp-note" role="note">
+          {cur.label} requests don’t open in Slice Help yet, so this one can’t be sent. Reach {cur.label} the usual way for now.
+        </p>
+      )}
+    </div>
+  );
+}
 
 // ---------- PHISHING REPORT CARD ----------
 function PhishingCard({ onSubmit }) {
@@ -1311,10 +1443,10 @@ function PhishingCard({ onSubmit }) {
   if (stage === "sent") {
     return (
       <div style={{
-        padding: "24px 26px",
+        padding: "24px 24px",
         background: "#0A8A3E",
-        border: "1px solid #211E1E",
-        borderRadius: 14,
+        border: "1px solid rgba(33,30,30,.14)",
+        borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         color: "#FFFFFF",
         minHeight: 240,
@@ -1323,7 +1455,7 @@ function PhishingCard({ onSubmit }) {
         <div style={{
           width: 52, height: 52, borderRadius: "50%",
           background: "#FFFFFF", color: "#0A8A3E",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center",
           marginBottom: 16,
         }}>
@@ -1331,9 +1463,9 @@ function PhishingCard({ onSubmit }) {
         </div>
         <div style={{
           fontFamily: "var(--font-head)",
-          fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 6,
+          fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 8,
         }}>Report sent to Security</div>
-        <div style={{ fontSize: 13.5, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
+        <div style={{ fontSize: 14, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
           Thanks — we've quarantined the message in your inbox and our Security team is reviewing. You'll hear back within an hour.
         </div>
       </div>
@@ -1343,21 +1475,21 @@ function PhishingCard({ onSubmit }) {
   if (stage === "form") {
     return (
       <div style={{
-        padding: "24px 26px",
-        background: "#FFF0EE",
+        padding: "24px 24px",
+        background: "#FFF4F2",
         border: "1px solid #B92323",
-        borderRadius: 14,
+        borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "4px 10px",
+            padding: "4px 12px",
             background: "#FFFFFF", color: "#DA3327",
             border: "1px solid #DA3327",
             borderRadius: 4,
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 10.5,
+            fontWeight: 600, fontSize: 11,
             letterSpacing: "0.08em", textTransform: "uppercase",
           }}>
             <IconShield size={11} stroke={2.5} /> Security
@@ -1370,20 +1502,20 @@ function PhishingCard({ onSubmit }) {
 
         <div style={{
           fontFamily: "'Archivo', sans-serif",
-          fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
-          marginBottom: 14, lineHeight: 1.25,
+          fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
+          marginBottom: 16, lineHeight: 1.25,
         }}>Report suspicious email</div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 12 }}>
           <input
             placeholder="Sender email (e.g. finance@suspicious.co)"
             value={sender}
             onChange={(e) => setSender(e.target.value)}
             style={{
               width: "100%", boxSizing: "border-box",
-              padding: "10px 12px",
+              padding: "12px 12px",
               background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 4,
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
             }}/>
@@ -1393,9 +1525,9 @@ function PhishingCard({ onSubmit }) {
             onChange={(e) => setSubject(e.target.value)}
             style={{
               width: "100%", boxSizing: "border-box",
-              padding: "10px 12px",
+              padding: "12px 12px",
               background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 4,
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
             }}/>
@@ -1403,16 +1535,16 @@ function PhishingCard({ onSubmit }) {
 
         <div style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
+          fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 8,
         }}>What looked off?</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {REASONS.map((r) => (
             <button key={r.id} onClick={() => setReason(r.id)} style={{
-              padding: "5px 10px",
+              padding: "4px 12px",
               background: reason === r.id ? "#211E1E" : "#FFFFFF",
-              color: reason === r.id ? "#FDC831" : "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
+              color: reason === r.id ? "#FFFFFF" : "#211E1E",
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 700, fontSize: 11,
               letterSpacing: "0.02em",
@@ -1425,14 +1557,14 @@ function PhishingCard({ onSubmit }) {
           onClick={send}
           disabled={!sender && !subject}
           style={{
-            width: "100%", padding: "11px 16px",
+            width: "100%", padding: "12px 16px",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-            background: (sender || subject) ? "#211E1E" : "#E8DFDD",
-            color: (sender || subject) ? "#FDC831" : "#78684C",
-            border: "1px solid #211E1E", borderRadius: 4,
+            background: (sender || subject) ? "#211E1E" : "#E2DCD0",
+            color: (sender || subject) ? "#FFFFFF" : "#78684C",
+            border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
             boxShadow: (sender || subject) ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 12.5,
+            fontWeight: 600, fontSize: 13,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: (sender || subject) ? "pointer" : "not-allowed",
           }}>
@@ -1445,10 +1577,10 @@ function PhishingCard({ onSubmit }) {
   // idle card
   return (
     <div className="phish-card" style={{
-      padding: "24px 26px",
+      padding: "24px 24px",
       background: "#FFFFFF",
       border: "1px solid #B92323",
-      borderRadius: 14,
+      borderRadius: 16,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       position: "relative",
       minHeight: 240,
@@ -1464,15 +1596,15 @@ function PhishingCard({ onSubmit }) {
         pointerEvents: "none",
       }}/>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "4px 10px",
+          padding: "4px 12px",
           background: "#FFFFFF", color: "#DA3327",
           border: "1px solid #DA3327",
           borderRadius: 4,
           fontFamily: "var(--font-mono)",
-          fontWeight: 600, fontSize: 10.5,
+          fontWeight: 600, fontSize: 11,
           letterSpacing: "0.08em", textTransform: "uppercase",
         }}>
           <IconShield size={11} stroke={2.5} /> Security
@@ -1481,16 +1613,16 @@ function PhishingCard({ onSubmit }) {
 
       <div style={{
         fontFamily: "var(--font-head)",
-        fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em", color: "#211E1E",
+        fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", color: "#211E1E",
         lineHeight: 1.15, marginBottom: 8,
       }}>
         Got a suspicious email?
       </div>
-      <div style={{ fontSize: 13.5, color: "#4A3F2E", lineHeight: 1.5, marginBottom: 18, maxWidth: 360 }}>
+      <div style={{ fontSize: 14, color: "#4A3F2E", lineHeight: 1.5, marginBottom: 20, maxWidth: 360 }}>
         One click sends it to Security — we quarantine it, investigate, and alert the rest of Slice if it's a real threat.
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginTop: "auto", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 12, marginTop: "auto", flexWrap: "wrap" }}>
         <button className="phish-btn-primary" onClick={() => setStage("form")}>
           <span className="phish-btn-icon">
             <IconShield size={13} stroke={2.5} />
@@ -1504,8 +1636,8 @@ function PhishingCard({ onSubmit }) {
 
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
-        marginTop: 14, paddingTop: 12, borderTop: "1px dashed rgba(33,30,30,0.2)",
-        fontSize: 11.5, color: "#78684C", fontWeight: 500,
+        marginTop: 16, paddingTop: 12, borderTop: "1px dashed rgba(33,30,30,0.2)",
+        fontSize: 12, color: "#78684C", fontWeight: 500,
       }}>
         <IconBolt size={11} stroke={2.2} />
         <span>Also: forward to <strong style={{ color: "#211E1E", fontFamily: "var(--font-mono)" }}>phishing@slice.com</strong></span>
@@ -1526,7 +1658,7 @@ function PhishingCard({ onSubmit }) {
 // loaded, and nothing at all when there's nothing open, so people with no
 // tickets never see an empty box. Shares myTicketsCache with My Tickets, so
 // coming back to Help paints instantly.
-const OPEN_TICKETS_SHORTCUT_MAX = 3;
+const OPEN_TICKETS_SHORTCUT_MAX = 5;
 function OpenTicketsShortcut({ onOpenTickets }) {
   const [tickets, setTickets] = React.useState(() => myTicketsCache);
   const icons = useCatalogIcons();
@@ -1548,11 +1680,6 @@ function OpenTicketsShortcut({ onOpenTickets }) {
   if (open.length === 0) return null;
   const shown = open.slice(0, OPEN_TICKETS_SHORTCUT_MAX);
   const more = open.length - shown.length;
-  // One plain-language line on where things stand — "who's got the ball".
-  const waitingApproval = open.filter((t) => String(t.approval_status || '').toLowerCase() === 'pending'
-    || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')).length;
-  const waitingOnYou = open.filter((t) => ['waiting', 'on_hold'].includes(String(t.status || '').toLowerCase())).length;
-  const withIt = open.length - waitingApproval - waitingOnYou;
   const openOne = (t) => {
     try { window.__PORTAL_OPEN_TICKET__ = t.ticket_number || t.id; } catch {}
     onOpenTickets && onOpenTickets();
@@ -1563,94 +1690,96 @@ function OpenTicketsShortcut({ onOpenTickets }) {
     const s = String(t.status || '').toLowerCase();
     if (String(t.approval_status || '').toLowerCase() === 'pending'
       || (ticketTypeMeta(t.type).kind === 'request' && s === 'pending')) return { label: 'Awaiting approval', color: '#9A4A00', dot: '#E08A1E' };
-    if (s === 'in_progress') return { label: 'In progress', color: '#7A5A06', dot: '#D9A514' };
-    if (s === 'waiting' || s === 'on_hold' || s === 'pending') return { label: ticketStatusMeta(s).label, color: '#6B5F4A', dot: '#A89A80' };
+    if (s === 'in_progress') return { label: 'In progress', color: '#1C4E8C', dot: '#2563B0' };
+    if (s === 'waiting' || s === 'on_hold' || s === 'pending') return { label: ticketStatusMeta(s).label, color: '#78684C', dot: '#A89C84' };
     return { label: 'Open', color: '#1C4E8C', dot: '#2563B0' };
   };
-  // Same section shape as Shortcuts and System status below it: a heading row,
-  // then a grid of the page's standard interactive surfaces.
+  // Home's one section under the ask box: a heading row (count + "View all"),
+  // then one card of rows. Status pills are the same components My Tickets
+  // uses, so a ticket reads identically on both pages.
   return (
-    <section aria-labelledby="open-tix-title" style={{
-      maxWidth: 1120, margin: "56px auto 0",
-      animation: "fadeUp .8s .32s var(--ease) both",
-    }}>
+    <section aria-labelledby="open-tix-title" className="otx">
       <style>{`
-        .open-tix-headrow { display:flex; align-items:baseline; justify-content:space-between; gap:12px 20px; flex-wrap:wrap; margin-bottom:16px; }
-        .open-tix-title { margin:0; display:flex; align-items:center; gap:8px; font-size:15px; font-weight:600; color:var(--ink); letter-spacing:-.015em; }
-        .open-tix-count { display:inline-grid; place-items:center; min-width:22px; height:22px; padding:0 7px; box-sizing:border-box;
-          background:#211E1E; color:#FDC831; border-radius:999px; font-family:'Archivo',sans-serif; font-size:11.5px; font-weight:900; }
-        .open-tix-sum { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:12.5px; color:#2E2410; font-weight:500; }
-        .open-tix-sum span { display:inline-flex; align-items:center; gap:6px; }
-        .open-tix-sum i { width:7px; height:7px; border-radius:50%; border:1px solid rgba(33,30,30,.35); flex:none; }
-        .open-tix-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; }
-        .open-tix-tile { display:flex; flex-direction:column; gap:12px; padding:18px; text-align:left; font-family:inherit; color:inherit; width:100%; }
-        .open-tix-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
-        .open-tix-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 8px; background:#FFFFFF;
-          border:1px solid currentColor; border-radius:999px; font-family:var(--font-mono); font-size:10.5px; font-weight:600;
-          letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; }
-        .open-tix-chip i { width:7px; height:7px; border-radius:50%; flex:none; }
-        .open-tix-subject { font-size:14px; font-weight:600; color:var(--ink); letter-spacing:-.012em; line-height:1.35;
-          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.7em; }
-        .open-tix-meta { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; margin-top:auto; font-size:12px; color:var(--ink-3); }
-        .open-tix-num { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-weight:700; color:#4A4233; }
-        .open-tix-for { margin-top:-6px; font-size:12px; font-weight:700; color:#5C4916; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .open-tix-more { display:flex; justify-content:flex-end; margin-top:16px; }
-        .open-tix-new { position:absolute; top:-7px; left:-7px; min-width:19px; height:19px; padding:0 5px; box-sizing:border-box; display:grid; place-items:center;
-          background:#DA3327; color:#FFFFFF; border-radius:999px; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:900;
-          box-shadow:0 0 0 2px #FFFFFF; z-index:2; }
+        .otx { max-width:880px; margin:56px auto 0; position:relative; z-index:1; animation:fadeUp .8s .2s var(--ease) both; }
+        .otx-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 4px 16px; }
+        .otx-title { margin:0; display:flex; align-items:center; gap:12px; font:400 24px/1.2 var(--font-head); letter-spacing:-.01em; color:#211E1E; }
+        .otx-count { display:inline-grid; place-items:center; min-width:22px; height:22px; padding:0 8px; box-sizing:border-box;
+          background:#211E1E; color:#FFFFFF; border-radius:999px; font:600 11px/1 var(--font-mono); }
+        .otx-all { display:inline-flex; align-items:center; gap:8px; height:32px; padding:0 4px 0 12px; border-radius:999px;
+          font-size:13px; font-weight:600; color:#4A3F2E; text-decoration:none; transition:color .15s ease, background-color .15s ease; }
+        .otx-all:hover { color:#211E1E; background:rgba(33,30,30,.05); }
+        .otx-all svg { transition:transform .2s var(--ease); }
+        .otx-all:hover svg { transform:translateX(2px); }
+        .otx-card { background:#FFFFFF; border:1px solid rgba(33,30,30,.12); border-radius:16px; padding:8px; }
+        .otx-list { list-style:none; margin:0; padding:0; }
+        .otx-list li + li { border-top:1px solid #F4F0E8; }
+        .otx-list li:hover, .otx-list li:hover + li { border-top-color:transparent; }
+        .otx-row { display:flex; align-items:center; gap:16px; width:100%; min-height:68px; padding:12px 16px; box-sizing:border-box;
+          background:transparent; border:none; border-radius:12px; text-align:left; font-family:inherit; color:inherit; cursor:pointer;
+          transition:background-color .15s ease; }
+        .otx-row:hover, .otx-row:focus-visible { background:#F7F4EF; }
+        .otx-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
+        .otx-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+        .otx-subject { font-size:16px; font-weight:600; color:#211E1E; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .otx-meta { display:flex; align-items:center; flex-wrap:wrap; gap:2px 8px; font-size:13px; color:#9A8E78; }
+        .otx-num { font-family:var(--font-mono); font-weight:600; color:#4A3F2E; }
+        .otx-for { font-weight:600; color:#4A3F2E; }
+        .otx-status { flex:none; display:flex; align-items:center; gap:8px; }
+        .otx-go { flex:none; color:#211E1E; opacity:0; transform:translateX(-4px); transition:opacity .15s ease, transform .2s var(--ease); }
+        .otx-row:hover .otx-go, .otx-row:focus-visible .otx-go { opacity:1; transform:none; }
+        .open-tix-new { position:absolute; top:-6px; left:-6px; min-width:18px; height:18px; padding:0 4px; box-sizing:border-box; display:grid; place-items:center;
+          background:#DA3327; color:#FFFFFF; border-radius:999px; font:700 11px/1 'Archivo',sans-serif; box-shadow:0 0 0 2px #FFFFFF; z-index:2; }
+        @media (max-width: 640px) { .otx { margin-top:40px; } .otx-row { gap:12px; padding:12px 12px; } .otx-go { display:none; } }
+        @media (max-width: 520px) { .otx-status { display:none; } }
       `}</style>
-      <div className="open-tix-headrow">
-        <h2 id="open-tix-title" className="open-tix-title">
-          Your open tickets <span className="open-tix-count" aria-label={`${open.length} open`}>{open.length}</span>
+      <div className="otx-head">
+        <h2 id="open-tix-title" className="otx-title">
+          Your open tickets <span className="otx-count" aria-label={`${open.length} open`}>{open.length}</span>
         </h2>
-        <div className="open-tix-sum">
-          {withIt > 0 && <span><i style={{ background: '#2563B0' }} />{withIt} with the IT Team</span>}
-          {waitingApproval > 0 && <span><i style={{ background: '#E08A1E' }} />{waitingApproval} awaiting approval</span>}
-          {waitingOnYou > 0 && <span><i style={{ background: '#A89A80' }} />{waitingOnYou} on hold</span>}
-        </div>
-      </div>
-      <div className="open-tix-grid">
-        {shown.map((t) => {
-          const app = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null;
-          const chip = chipFor(t);
-          return (
-            <button key={t.id} type="button" className="surface surface-interactive open-tix-tile" onClick={() => openOne(t)}
-              aria-label={`Open ${t.ticket_number || 'ticket'}: ${t.subject || ''} (${chip.label})`}>
-              <span className="open-tix-top">
-                <span style={{ position: 'relative', display: 'inline-flex' }}>
-                  <TicketLeadIcon ticket={t} app={app} size={36} />
-                  {byTicket[String(t.id)] > 0 && (
-                    <span className="open-tix-new" title={`${byTicket[String(t.id)]} new update${byTicket[String(t.id)] === 1 ? '' : 's'}`}>
-                      {byTicket[String(t.id)] > 9 ? '9+' : byTicket[String(t.id)]}
-                    </span>
-                  )}
-                </span>
-                <span className="open-tix-chip" style={{ color: chip.color }}><i style={{ background: chip.dot }} />{chip.label}</span>
-              </span>
-              <span className="open-tix-subject">{t.subject || 'Untitled ticket'}</span>
-              <span className="open-tix-meta">
-                <span className="open-tix-num">{t.ticket_number}</span>
-                <span aria-hidden="true">·</span>
-                <span>{ticketTypeMeta(t.type).label}</span>
-                <span aria-hidden="true">·</span>
-                <span>{relativeTime(t.updated_at || t.created_at)}</span>
-              </span>
-              {(() => {
-                // Same rule as OnBehalfTag, as one quiet line so every tile
-                // keeps the same shape.
-                const ob = resolveOnBehalf(t);
-                if (!ob) return null;
-                const label = ob.viewerIsBeneficiary ? `Opened by ${ob.byP && ob.byP.name}` : `For ${ob.forP && ob.forP.name}`;
-                return /undefined|null/.test(label) ? null : <span className="open-tix-for">{label}</span>;
-              })()}
-            </button>
-          );
-        })}
-      </div>
-      <div className="open-tix-more">
-        <a href="#" className="pill-link" onClick={(e) => { e.preventDefault(); onOpenTickets && onOpenTickets(); }}>
-          {more > 0 ? `See ${more} more in My Tickets` : 'All my tickets'} <span className="pill-link-arrow">→</span>
+        <a href="#" className="otx-all" onClick={(e) => { e.preventDefault(); onOpenTickets && onOpenTickets(); }}>
+          {more > 0 ? `View all ${open.length}` : 'View all'}
+          <IconArrow size={14} stroke={2.2} aria-hidden="true" />
         </a>
+      </div>
+      <div className="otx-card">
+        <ul className="otx-list">
+          {shown.map((t) => {
+            const app = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null;
+            const unseen = byTicket[String(t.id)] || 0;
+            const ob = resolveOnBehalf(t);
+            const obLabel = ob ? (ob.viewerIsBeneficiary ? `Opened by ${ob.byP && ob.byP.name}` : `For ${ob.forP && ob.forP.name}`) : null;
+            const a = String(t.approval_status || '').toLowerCase();
+            const showA = a === 'pending' || a === 'rejected';
+            return (
+              <li key={t.id}>
+                <button type="button" className="otx-row" onClick={() => openOne(t)}
+                  aria-label={`Open ${t.ticket_number || 'ticket'}: ${t.subject || ''}`}>
+                  <span style={{ position: 'relative', display: 'inline-flex', flex: 'none' }}>
+                    <TicketLeadIcon ticket={t} app={app} size={38} />
+                    {unseen > 0 && (
+                      <span className="open-tix-new" title={`${unseen} new update${unseen === 1 ? '' : 's'}`}>{unseen > 9 ? '9+' : unseen}</span>
+                    )}
+                  </span>
+                  <span className="otx-main">
+                    <span className="otx-subject">{t.subject || 'Untitled ticket'}</span>
+                    <span className="otx-meta">
+                      <span className="otx-num">{t.ticket_number}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{ticketTypeMeta(t.type).label}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>Updated {relativeTime(t.updated_at || t.created_at)}</span>
+                      {obLabel && !/undefined|null/.test(obLabel) && (<><span aria-hidden="true">·</span><span className="otx-for">{obLabel}</span></>)}
+                    </span>
+                  </span>
+                  <span className="otx-status">
+                    {showA ? <ApprovalPill state={a} /> : <TicketStatusBadge status={t.status} type={t.type} small />}
+                  </span>
+                  <IconArrow size={15} stroke={2.2} className="otx-go" aria-hidden="true" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </section>
   );
@@ -1679,10 +1808,10 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
   if (stage === "sent") {
     return (
       <div style={{
-        padding: "24px 26px",
+        padding: "24px 24px",
         background: "#0A8A3E",
-        border: "1px solid #211E1E",
-        borderRadius: 14,
+        border: "1px solid rgba(33,30,30,.14)",
+        borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         color: "#FFFFFF",
         minHeight: 240,
@@ -1691,7 +1820,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         <div style={{
           width: 52, height: 52, borderRadius: "50%",
           background: "#FFFFFF", color: "#0A8A3E",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center",
           marginBottom: 16,
         }}>
@@ -1699,9 +1828,9 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         </div>
         <div style={{
           fontFamily: "var(--font-head)",
-          fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 6,
+          fontSize: 24, fontWeight: 400, letterSpacing: "-0.01em", marginBottom: 8,
         }}>Ticket filed</div>
-        <div style={{ fontSize: 13.5, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
+        <div style={{ fontSize: 14, opacity: 0.92, lineHeight: 1.5, maxWidth: 380 }}>
           IT Support has it. You'll get an ack in Slack shortly. Track it in Freshservice any time.
         </div>
       </div>
@@ -1713,21 +1842,21 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
     const canSend = subject.trim().length > 2;
     return (
       <div style={{
-        padding: "24px 26px",
-        background: "#FFFDF4",
-        border: "1px solid #211E1E",
-        borderRadius: 14,
+        padding: "24px 24px",
+        background: "#FFFFFF",
+        border: "1px solid rgba(33,30,30,.14)",
+        borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "4px 10px",
-            background: "#211E1E", color: "#FDC831",
+            padding: "4px 12px",
+            background: "#211E1E", color: "#FFFFFF",
             border: "1px solid #211E1E",
             borderRadius: 4,
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 10.5,
+            fontWeight: 600, fontSize: 11,
             letterSpacing: "0.08em", textTransform: "uppercase",
           }}>
             <IconTicket size={11} stroke={2.5} /> New ticket
@@ -1740,20 +1869,20 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
 
         <div style={{
           fontFamily: "'Archivo', sans-serif",
-          fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
-          marginBottom: 14, lineHeight: 1.25,
+          fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#211E1E",
+          marginBottom: 16, lineHeight: 1.25,
         }}>Submit a ticket</div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 12 }}>
           <input
             placeholder="What's the issue? (e.g. VPN drops every 10 min)"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             style={{
               width: "100%", boxSizing: "border-box",
-              padding: "10px 12px",
+              padding: "12px 12px",
               background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 4,
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
             }}/>
@@ -1764,10 +1893,10 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             rows={3}
             style={{
               width: "100%", boxSizing: "border-box",
-              padding: "10px 12px",
+              padding: "12px 12px",
               background: "#FFFFFF",
-              border: "1px solid #211E1E", borderRadius: 4,
-              fontSize: 12.5, color: "#211E1E",
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
+              fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
               resize: "vertical",
             }}/>
@@ -1775,21 +1904,21 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
 
         <div style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
+          fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 8,
         }}>How urgent?</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {URGENCIES.map((u) => (
             <button key={u.id} onClick={() => setUrgency(u.id)} style={{
-              padding: "6px 10px",
+              padding: "8px 12px",
               background: urgency === u.id ? "#211E1E" : "#FFFFFF",
-              color: urgency === u.id ? "#FDC831" : "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
+              color: urgency === u.id ? "#FFFFFF" : "#211E1E",
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 700, fontSize: 11,
               letterSpacing: "0.02em",
               cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 6,
+              display: "flex", alignItems: "center", gap: 8,
             }}>
               {u.label}
             </button>
@@ -1800,14 +1929,14 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           onClick={send}
           disabled={!canSend}
           style={{
-            width: "100%", padding: "11px 16px",
+            width: "100%", padding: "12px 16px",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-            background: canSend ? "#FDC831" : "#E8DFDD",
-            color: "#211E1E",
-            border: "1px solid #211E1E", borderRadius: 4,
+            background: canSend ? "#211E1E" : "#E2DCD0",
+            color: canSend ? "#FFFFFF" : "#211E1E",
+            border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
             boxShadow: canSend ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 12.5,
+            fontWeight: 600, fontSize: 13,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: canSend ? "pointer" : "not-allowed",
           }}>
@@ -1820,25 +1949,25 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
   // Idle state — 2 paths
   return (
     <div className="oncall-card" style={{
-      padding: "24px 26px",
+      padding: "24px 24px",
       background: "#FFFFFF",
-      border: "1px solid #211E1E",
-      borderRadius: 14,
+      border: "1px solid rgba(33,30,30,.14)",
+      borderRadius: 16,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       position: "relative",
       minHeight: 240,
       display: "flex", flexDirection: "column",
     }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "4px 10px",
-          background: "#211E1E", color: "#FDC831",
+          padding: "4px 12px",
+          background: "#211E1E", color: "#FFFFFF",
           border: "1px solid #211E1E",
           borderRadius: 4,
           fontFamily: "var(--font-mono)",
-          fontWeight: 600, fontSize: 10.5,
+          fontWeight: 600, fontSize: 11,
           letterSpacing: "0.08em", textTransform: "uppercase",
         }}>
           <IconBolt size={11} stroke={2.5} /> IT Support
@@ -1847,11 +1976,11 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
 
       <div style={{
         fontFamily: "var(--font-head)",
-        fontSize: 18, fontWeight: 400, letterSpacing: "-0.01em", color: "#211E1E",
+        fontSize: 20, fontWeight: 400, letterSpacing: "-0.01em", color: "#211E1E",
         marginBottom: 4, lineHeight: 1.25,
       }}>Need a hand?</div>
       <div style={{
-        fontSize: 12.5, color: "#78684C", fontWeight: 500,
+        fontSize: 13, color: "#78684C", fontWeight: 500,
         marginBottom: 16, lineHeight: 1.4,
       }}>
         Urgent? Ping us on Slack. Everything else — drop a ticket.
@@ -1861,14 +1990,14 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
       <button className="oncall-btn-secondary" onClick={() => onOpenTickets ? onOpenTickets() : setStage("form")}>
         <div className="oncall-ticket-icon" style={{
           width: 32, height: 32, borderRadius: 8,
-          background: "#FFF9E6",
-          border: "1px solid #211E1E",
+          background: "#F4F0E8",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center", flexShrink: 0,
         }}>
           {/* Real ticket icon — admit-ticket / coupon style with serrated edge */}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a2 2 0 0 0 0 4V15.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5z"
-              fill="#FDC831" stroke="#211E1E" strokeWidth="1.8" strokeLinejoin="round"/>
+              fill="#211E1E" stroke="#211E1E" strokeWidth="1.8" strokeLinejoin="round"/>
             <path d="M14 7v10" stroke="#211E1E" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1.5 2.5"/>
             <circle cx="9" cy="11" r="0.7" fill="#211E1E"/>
             <circle cx="9" cy="13.5" r="0.7" fill="#211E1E"/>
@@ -1877,7 +2006,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontFamily: "'Archivo', sans-serif",
-            fontSize: 13.5, fontWeight: 800, letterSpacing: "-0.01em", color: "#211E1E",
+            fontSize: 14, fontWeight: 800, letterSpacing: "-0.01em", color: "#211E1E",
             marginBottom: 1,
           }}>
             My tickets
@@ -1896,10 +2025,10 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
 
       {/* Divider */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        margin: "14px 0",
+        display: "flex", alignItems: "center", gap: 12,
+        margin: "16px 0",
         fontFamily: "var(--font-mono)",
-        fontSize: 10, fontWeight: 600, letterSpacing: "0.1em",
+        fontSize: 11, fontWeight: 600, letterSpacing: "0.1em",
         color: "#78684C", textTransform: "uppercase",
       }}>
         <div style={{ flex: 1, height: 1.5, background: "rgba(33,30,30,0.15)" }}/>
@@ -1924,7 +2053,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
         <div className="oncall-slack-icon" style={{
           width: 36, height: 36, borderRadius: 8,
           background: "#FFFFFF",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center", flexShrink: 0,
         }}>
           {/* Real Slack mark — official 4-color rounded hashmark */}
@@ -1948,17 +2077,17 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             #it-support on Slack
           </div>
           <div style={{
-            fontSize: 11.5, color: "#5C4916", fontWeight: 600, lineHeight: 1.3,
+            fontSize: 12, color: "#5C4916", fontWeight: 600, lineHeight: 1.3,
           }}>
             Urgent matters only
           </div>
         </div>
         <div style={{
           padding: "4px 8px",
-          background: "#211E1E", color: "#FDC831",
+          background: "#211E1E", color: "#FFFFFF",
           borderRadius: 4,
           fontFamily: "'Archivo', sans-serif",
-          fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em",
+          fontSize: 11, fontWeight: 900, letterSpacing: "0.08em",
         }}>OPEN →</div>
       </a>
     </div>
@@ -2044,12 +2173,12 @@ function QuestionFlow({ query, onBack, onDone }) {
         marginBottom: 24,
       }}>
         <button onClick={back} style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "7px 12px 7px 10px",
-          background: "#FFFFFF", border: "1px solid #211E1E",
+          display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "8px 12px 8px 12px",
+          background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)",
           borderRadius: 4, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           fontFamily: "var(--font-mono)",
-          fontWeight: 600, fontSize: 11.5,
+          fontWeight: 600, fontSize: 12,
           letterSpacing: "0.04em", textTransform: "uppercase",
           color: "#211E1E", cursor: "pointer",
           transition: "transform .15s ease, box-shadow .15s ease, background .15s",
@@ -2057,7 +2186,7 @@ function QuestionFlow({ query, onBack, onDone }) {
         onMouseEnter={(e)=>{
           e.currentTarget.style.transform="translate(0, 0)";
           e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-          e.currentTarget.style.background="#FFF9E6";
+          e.currentTarget.style.background="#F4F0E8";
           const arr = e.currentTarget.querySelector("[data-arrow]");
           if (arr) arr.style.transform = "translateX(-3px)";
         }}
@@ -2083,15 +2212,15 @@ function QuestionFlow({ query, onBack, onDone }) {
         </button>
 
         {!thinking && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className="eyebrow" style={{ color: "#211E1E", fontSize: 10.5 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="eyebrow" style={{ color: "#211E1E", fontSize: 11 }}>
               Step {step + 1} of {total}
             </span>
             <div style={{
               display: "flex", gap: 0,
               width: 140, height: 10,
               background: "#FFFFFF",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 4,
               overflow: "hidden",
             }}>
@@ -2110,8 +2239,8 @@ function QuestionFlow({ query, onBack, onDone }) {
 
       {/* Conversation header — quiet, no card, S avatar for assistant feel */}
       <div style={{
-        padding: "0 0 18px",
-        marginBottom: 18,
+        padding: "0 0 20px",
+        marginBottom: 20,
         borderBottom: "1px solid rgba(33,30,30,0.14)",
       }}>
         {thinking ? (
@@ -2119,11 +2248,11 @@ function QuestionFlow({ query, onBack, onDone }) {
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",
-                background: "#FDC831", color: "#211E1E",
+                background: "#F4F0E8", color: "#211E1E",
                 display: "grid", placeItems: "center", flexShrink: 0,
                 fontSize: 11, fontWeight: 900,
                 fontFamily: "'Archivo', sans-serif",
-                border: "1px solid #211E1E",
+                border: "1px solid rgba(33,30,30,.14)",
                 animation: "pizzaPulse 1.4s ease-in-out infinite",
               }}>S</div>
               <TypingDots />
@@ -2138,22 +2267,22 @@ function QuestionFlow({ query, onBack, onDone }) {
           }}>
             <div style={{
               width: 28, height: 28, borderRadius: "50%",
-              background: "#FDC831", color: "#211E1E",
+              background: "#F4F0E8", color: "#211E1E",
               display: "grid", placeItems: "center", flexShrink: 0,
               fontSize: 11, fontWeight: 900,
               fontFamily: "'Archivo', sans-serif",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               marginTop: 2,
             }}>S</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontSize: 15, color: "#211E1E", lineHeight: 1.45,
+                fontSize: 16, color: "#211E1E", lineHeight: 1.45,
                 fontWeight: 500,
               }}>
                 Looks like a{" "}
                 <span style={{
                   fontWeight: 800, color: "#211E1E",
-                  borderBottom: "1px solid #FDC831",
+                  borderBottom: "1px solid rgba(33,30,30,.18)",
                   paddingBottom: 1,
                 }}>
                   {route.category.toLowerCase()}
@@ -2179,12 +2308,12 @@ function QuestionFlow({ query, onBack, onDone }) {
       {/* Question */}
       {!thinking && question &&
       <div key={step} style={{ animation: "fadeUp .4s var(--ease) both" }}>
-          <div className="eyebrow" style={{ marginBottom: 10, color: "#78684C" }}>
+          <div className="eyebrow" style={{ marginBottom: 12, color: "#78684C" }}>
             Question {step + 1}
           </div>
 
           <h2 style={{
-            fontSize: 28, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.2,
+            fontSize: 32, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.2,
             margin: "0 0 24px", color: "#211E1E",
             fontFamily: "var(--font-head)",
           }}>
@@ -2192,7 +2321,7 @@ function QuestionFlow({ query, onBack, onDone }) {
           </h2>
 
           {question.type === "choice" &&
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {question.options.map((opt, i) =>
           <ChoiceCard
             key={opt.id}
@@ -2207,7 +2336,7 @@ function QuestionFlow({ query, onBack, onDone }) {
         }
 
           {question.type === "multi" &&
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
               {question.options.map((opt, i) => {
             const arr = Array.isArray(answer) ? answer : [];
             const sel = arr.includes(opt.id);
@@ -2227,7 +2356,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               <button
             onClick={() => setAnswers({ ...answers, [question.id]: ["__none__"] })}
             style={{
-              padding: "10px 16px",
+              padding: "12px 16px",
               border: "1px dashed #211E1E",
               borderRadius: 4,
               background: "transparent",
@@ -2251,12 +2380,12 @@ function QuestionFlow({ query, onBack, onDone }) {
           rows={4}
           style={{
             width: "100%",
-            border: "1px solid #211E1E",
-            borderRadius: 14,
+            border: "1px solid rgba(33,30,30,.14)",
+            borderRadius: 16,
             background: "#FFFFFF",
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-            padding: "14px 16px",
-            fontSize: 15, lineHeight: 1.5, color: "#211E1E",
+            padding: "16px 16px",
+            fontSize: 16, lineHeight: 1.5, color: "#211E1E",
             resize: "vertical",
             transition: "transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), opacity .2s var(--ease)",
             fontFamily: "inherit",
@@ -2265,12 +2394,12 @@ function QuestionFlow({ query, onBack, onDone }) {
 
         }
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14, marginTop: 36 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 16, marginTop: 40 }}>
             {step < total - 1 && (
               <button onClick={next} style={{
                 background: "transparent",
                 border: "none",
-                padding: "10px 14px",
+                padding: "12px 16px",
                 fontFamily: "var(--font-mono)",
                 fontWeight: 600, fontSize: 12,
                 letterSpacing: "0.06em", textTransform: "uppercase",
@@ -2288,15 +2417,15 @@ function QuestionFlow({ query, onBack, onDone }) {
               disabled={!canContinue()}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
-                padding: "12px 22px",
-                background: canContinue() ? "#FDC831" : "#E8E1D0",
-                border: "1px solid #211E1E",
+                padding: "12px 24px",
+                background: canContinue() ? "#211E1E" : "#EFE8DA",
+                border: "1px solid rgba(33,30,30,.14)",
                 borderRadius: 4,
                 boxShadow: canContinue() ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                 fontFamily: "var(--font-mono)",
                 fontWeight: 600, fontSize: 13,
                 letterSpacing: "0.04em", textTransform: "uppercase",
-                color: "#211E1E",
+                color: canContinue() ? "#FFFFFF" : "#211E1E",
                 cursor: canContinue() ? "pointer" : "not-allowed",
                 opacity: canContinue() ? 1 : 0.5,
                 transition: "transform .15s ease, box-shadow .15s ease, background .15s",
@@ -2305,7 +2434,7 @@ function QuestionFlow({ query, onBack, onDone }) {
                 if(!canContinue()) return;
                 e.currentTarget.style.transform="translate(0, 0)";
                 e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-                e.currentTarget.style.background="#FFD757";
+                e.currentTarget.style.background="#2E2A28";
                 const arr = e.currentTarget.querySelector("[data-arrow]");
                 if (arr) arr.style.transform = "translateX(3px)";
               }}
@@ -2313,7 +2442,7 @@ function QuestionFlow({ query, onBack, onDone }) {
                 if(!canContinue()) return;
                 e.currentTarget.style.transform="none";
                 e.currentTarget.style.boxShadow="0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-                e.currentTarget.style.background="#FDC831";
+                e.currentTarget.style.background="#211E1E";
                 const arr = e.currentTarget.querySelector("[data-arrow]");
                 if (arr) arr.style.transform = "translateX(0)";
               }}
@@ -2353,12 +2482,12 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
   return (
     <div className="page" style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 0" }}>
       <button onClick={onBack} style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        padding: "7px 12px 7px 10px", marginBottom: 24,
-        background: "#FFFFFF", border: "1px solid #211E1E",
+        display: "inline-flex", alignItems: "center", gap: 8,
+        padding: "8px 12px 8px 12px", marginBottom: 24,
+        background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 4, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         fontFamily: "var(--font-mono)",
-        fontWeight: 600, fontSize: 11.5,
+        fontWeight: 600, fontSize: 12,
         letterSpacing: "0.04em", textTransform: "uppercase",
         color: "#211E1E", cursor: "pointer",
         transition: "transform .15s ease, box-shadow .15s ease",
@@ -2370,7 +2499,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
       </button>
 
       {/* Two-column: guides + tickets */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 28, alignItems: "flex-start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 32, alignItems: "flex-start" }}>
         {/* How-to guides */}
         <section>
           <SectionHead
@@ -2378,7 +2507,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
             title="How‑to guides"
             subtitle="Self‑serve fixes that usually work. Walk through one before filing a ticket." />
           
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {guides.map((g, i) =>
             <GuideCard key={g.id} guide={g} index={i} onOpen={() => onOpenGuide(g)} />
             )}
@@ -2392,7 +2521,7 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
             title="File a ticket"
             subtitle="Pre‑filled from your answers. Pick the best match and send." />
           
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {tickets.map((t, i) =>
             <TicketCard
               key={t.id}
@@ -2408,19 +2537,19 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
           </div>
 
           <div style={{
-            marginTop: 24, padding: "18px 20px",
+            marginTop: 24, padding: "20px 20px",
             background: "#211E1E",
             color: "#FFFFFF",
             border: "1px solid #211E1E",
-            borderRadius: 14,
+            borderRadius: 16,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-            display: "flex", gap: 14, alignItems: "center"
+            display: "flex", gap: 16, alignItems: "center"
           }}>
             <div style={{
               width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
-              background: "#FDC831", color: "#211E1E",
+              background: "#F4F0E8", color: "#211E1E",
               display: "grid", placeItems: "center",
-              border: "1px solid #FDC831",
+              border: "1px solid rgba(33,30,30,.18)",
             }}>
               <IconSlack size={18} stroke={2} />
             </div>
@@ -2431,14 +2560,14 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
               }}>
                 {t("chatPrompt")}
               </div>
-              <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.72)", marginTop: 3 }}>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", marginTop: 3 }}>
                 {t("chatSub")}
               </div>
             </div>
             <button style={{
-              padding: "9px 16px",
-              background: "#FDC831",
-              border: "1px solid #211E1E",
+              padding: "8px 16px",
+              background: "#F4F0E8",
+              border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 4,
               boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               fontFamily: "var(--font-mono)",
@@ -2464,11 +2593,11 @@ function SectionHead({ kicker, title, subtitle, style }) {
       <div style={{
         display: "inline-block",
         fontFamily: "var(--font-mono)",
-        fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.08em",
+        fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em",
         color: "#211E1E", fontWeight: 600, marginBottom: 8,
         padding: "3px 8px",
-        background: "#FDC831",
-        border: "1px solid #211E1E",
+        background: "#F4F0E8",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 4,
       }}>{kicker}</div>
       <h2 style={{
@@ -2477,7 +2606,7 @@ function SectionHead({ kicker, title, subtitle, style }) {
       }}>
         {title}
       </h2>
-      <p style={{ fontSize: 13.5, color: "#4A3F2E", margin: 0, lineHeight: 1.5 }}>
+      <p style={{ fontSize: 14, color: "#4A3F2E", margin: 0, lineHeight: 1.5 }}>
         {subtitle}
       </p>
     </div>);
@@ -2492,56 +2621,56 @@ function GuideCard({ guide, index, onOpen }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        padding: "16px 18px",
+        padding: "16px 20px",
         background: "#FFFFFF",
-        border: "1px solid #211E1E",
-        borderRadius: 10,
+        border: "1px solid rgba(33,30,30,.14)",
+        borderRadius: 12,
         boxShadow: hover ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         transform: hover ? "translate(0, 0)" : "none",
         cursor: "pointer",
         transition: "transform .15s ease, box-shadow .15s ease",
         animation: `fadeUp .5s ${index * 60}ms var(--ease) both`,
       }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
         <div style={{
-          width: 40, height: 40, borderRadius: 6, flexShrink: 0,
-          background: guide.hot ? "#FDC831" : "#FFF9E6",
-          border: "1px solid #211E1E",
+          width: 40, height: 40, borderRadius: 8, flexShrink: 0,
+          background: guide.hot ? "#F4F0E8" : "#F4F0E8",
+          border: "1px solid rgba(33,30,30,.14)",
           color: "#211E1E",
           display: "grid", placeItems: "center"
         }}>
           <IconBook size={18} stroke={2} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
             <span style={{
-              padding: "2px 7px",
+              padding: "2px 8px",
               background: "#FFFFFF",
-              border: "1px solid #211E1E",
-              borderRadius: 3,
+              border: "1px solid rgba(33,30,30,.14)",
+              borderRadius: 4,
               fontFamily: "var(--font-mono)",
-              fontSize: 10, fontWeight: 600,
+              fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
               color: "#211E1E",
             }}>{guide.tag}</span>
             {guide.hot && <span style={{
-              padding: "2px 7px",
+              padding: "2px 8px",
               background: "#211E1E",
-              color: "#FDC831",
+              color: "#FFFFFF",
               border: "1px solid #211E1E",
-              borderRadius: 3,
+              borderRadius: 4,
               fontFamily: "var(--font-mono)",
-              fontSize: 10, fontWeight: 600,
+              fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
             }}>★ Popular</span>}
           </div>
           <div style={{
             fontFamily: "'Archivo', sans-serif",
-            fontSize: 15, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.015em", marginBottom: 6, lineHeight: 1.3,
+            fontSize: 16, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.015em", marginBottom: 8, lineHeight: 1.3,
           }}>
             {guide.title}
           </div>
-          <div style={{ fontSize: 12, color: "#78684C", display: "flex", gap: 14, fontWeight: 500 }}>
+          <div style={{ fontSize: 12, color: "#78684C", display: "flex", gap: 16, fontWeight: 500 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <IconClock size={11} stroke={2} />{guide.time}
             </span>
@@ -2550,12 +2679,12 @@ function GuideCard({ guide, index, onOpen }) {
         </div>
         <div style={{
           width: 28, height: 28, borderRadius: "50%",
-          background: hover ? "#FDC831" : "transparent",
-          border: "1px solid #211E1E",
+          background: hover ? "#F4F0E8" : "transparent",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center",
           color: "#211E1E",
           transition: "background .15s ease",
-          marginTop: 6,
+          marginTop: 8,
           flexShrink: 0,
         }}>
           <IconArrow size={13} stroke={2.5} />
@@ -2568,13 +2697,13 @@ function GuideCard({ guide, index, onOpen }) {
 function RelatedRow({ ticket, index }) {
   const statusColor = ticket.status === "Resolved" || ticket.status === "Approved" || ticket.status === "Shipped" ? "#0A8A3E" :
     ticket.status === "Investigating" ? "#B8860B" : "#4A3F2E";
-  const statusBg = ticket.status === "Resolved" || ticket.status === "Approved" || ticket.status === "Shipped" ? "#E8F5EC" :
-    ticket.status === "Investigating" ? "#FFF3C4" : "#F4EFE2";
+  const statusBg = ticket.status === "Resolved" || ticket.status === "Approved" || ticket.status === "Shipped" ? "#E7F5EC" :
+    ticket.status === "Investigating" ? "#F4F0E8" : "#EFE8DA";
   return (
     <div style={{
-      padding: "12px 14px",
+      padding: "12px 16px",
       background: "#FFFFFF",
-      border: "1px solid #211E1E",
+      border: "1px solid rgba(33,30,30,.14)",
       borderTop: index === 0 ? "2px solid #211E1E" : "none",
       borderBottomLeftRadius: 0,
       borderBottomRightRadius: 0,
@@ -2582,39 +2711,39 @@ function RelatedRow({ ticket, index }) {
       animation: `fadeUp .5s ${index * 60}ms var(--ease) both`,
     }}>
       <div style={{
-        fontSize: 10.5,
+        fontSize: 11,
         fontFamily: "'Archivo', sans-serif",
         fontWeight: 800, letterSpacing: "0.04em",
         color: "#211E1E", minWidth: 64,
-        padding: "3px 6px",
-        background: "#FFF9E6",
-        border: "1px solid #211E1E",
-        borderRadius: 3,
+        padding: "3px 8px",
+        background: "#F4F0E8",
+        border: "1px solid rgba(33,30,30,.14)",
+        borderRadius: 4,
         textAlign: "center",
       }}>{ticket.id}</div>
-      <div style={{ flex: 1, fontSize: 13.5, color: "#211E1E", fontWeight: 600, letterSpacing: "-0.01em", minWidth: 0 }}>
+      <div style={{ flex: 1, fontSize: 14, color: "#211E1E", fontWeight: 600, letterSpacing: "-0.01em", minWidth: 0 }}>
         {ticket.title}
       </div>
       <span style={{
         padding: "2px 8px",
         background: statusBg,
         border: `1.5px solid ${statusColor}`,
-        borderRadius: 3,
+        borderRadius: 4,
         fontFamily: "var(--font-mono)",
-        fontSize: 10, fontWeight: 600,
+        fontSize: 11, fontWeight: 600,
         letterSpacing: "0.04em", textTransform: "uppercase",
         color: statusColor,
       }}>{ticket.status}</span>
-      <div style={{ fontSize: 11.5, color: "#78684C", minWidth: 58, textAlign: "right", fontWeight: 500 }}>{ticket.when}</div>
+      <div style={{ fontSize: 12, color: "#78684C", minWidth: 58, textAlign: "right", fontWeight: 500 }}>{ticket.when}</div>
       <div style={{
         fontSize: 11,
         fontFamily: "'Archivo', sans-serif",
         fontWeight: 800, letterSpacing: "0.02em",
         color: "#211E1E",
         padding: "3px 8px",
-        background: "#FDC831",
-        border: "1px solid #211E1E",
-        borderRadius: 3,
+        background: "#F4F0E8",
+        border: "1px solid rgba(33,30,30,.14)",
+        borderRadius: 4,
       }}>
         {Math.round(ticket.similar * 100)}%
       </div>
@@ -2626,35 +2755,35 @@ function TicketCard({ ticket, onFile, filed, index }) {
   const [hover, setHover] = useState(false);
   return (
     <div style={{
-      padding: "20px 22px",
-      background: filed ? "#E8F5EC" : "#FFFFFF",
-      border: "1px solid #211E1E",
-      borderRadius: 10,
+      padding: "20px 24px",
+      background: filed ? "#E7F5EC" : "#FFFFFF",
+      border: "1px solid rgba(33,30,30,.14)",
+      borderRadius: 12,
       boxShadow: filed ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       animation: `fadeUp .5s ${index * 80}ms var(--ease) both`,
       transition: "background .35s ease, box-shadow .35s ease",
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
             <span style={{
               padding: "3px 8px",
               background: filed ? "#0A8A3E" : "#211E1E",
               color: "#FFFFFF",
               border: `1.5px solid ${filed ? "#0A8A3E" : "#211E1E"}`,
-              borderRadius: 3,
+              borderRadius: 4,
               fontFamily: "var(--font-mono)",
-              fontSize: 10.5, fontWeight: 600,
+              fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
             }}>{ticket.priority}</span>
             {ticket.hot && <span style={{
               padding: "3px 8px",
-              background: "#FDC831",
+              background: "#F4F0E8",
               color: "#211E1E",
-              border: "1px solid #211E1E",
-              borderRadius: 3,
+              border: "1px solid rgba(33,30,30,.14)",
+              borderRadius: 4,
               fontFamily: "var(--font-mono)",
-              fontSize: 10.5, fontWeight: 600,
+              fontSize: 11, fontWeight: 600,
               letterSpacing: "0.04em", textTransform: "uppercase",
             }}>★ Recommended</span>}
           </div>
@@ -2664,24 +2793,24 @@ function TicketCard({ ticket, onFile, filed, index }) {
           }}>
             {ticket.title}
           </div>
-          <div style={{ fontSize: 12.5, color: "#78684C", marginTop: 4, fontWeight: 500 }}>
+          <div style={{ fontSize: 13, color: "#78684C", marginTop: 4, fontWeight: 500 }}>
             {ticket.team}
           </div>
         </div>
       </div>
       <div style={{
-        padding: "10px 12px",
-        background: "#FFF9E6",
-        border: "1px solid #211E1E",
-        borderRadius: 6,
-        fontSize: 12, marginBottom: 14,
+        padding: "12px 12px",
+        background: "#F4F0E8",
+        border: "1px solid rgba(33,30,30,.14)",
+        borderRadius: 8,
+        fontSize: 12, marginBottom: 16,
       }}>
         <div style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 9.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
+          fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
           color: "#78684C", marginBottom: 3,
         }}>Historical avg</div>
-        <div style={{ color: "#211E1E", fontWeight: 700, fontSize: 12.5 }}>{ticket.avg}</div>
+        <div style={{ color: "#211E1E", fontWeight: 700, fontSize: 13 }}>{ticket.avg}</div>
       </div>
       <button
         onClick={onFile}
@@ -2692,9 +2821,9 @@ function TicketCard({ ticket, onFile, filed, index }) {
           width: "100%",
           padding: "12px 16px",
           display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-          background: filed ? "#0A8A3E" : "#FDC831",
-          color: filed ? "#FFFFFF" : "#211E1E",
-          border: "1px solid #211E1E",
+          background: filed ? "#0A8A3E" : "#211E1E",
+          color: "#FFFFFF",
+          border: "1px solid rgba(33,30,30,.14)",
           borderRadius: 4,
           boxShadow: filed ? "none" : (hover ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"),
           transform: !filed && hover ? "translate(0, 0)" : "none",
@@ -2743,10 +2872,10 @@ function GuideSheet({ guide, onClose }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(580px, 100%)", height: "100%",
-          background: "#FFF9E6",
-          borderLeft: "1px solid #211E1E",
-          boxShadow: "-12px 0 0 #211E1E",
-          padding: "28px 32px 36px",
+          background: "#F4F0E8",
+          borderLeft: "1px solid rgba(33,30,30,.14)",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06)",
+          padding: "32px 32px 40px",
           overflowY: "auto",
           animation: "sheetIn .4s var(--ease) both"
         }}>
@@ -2756,12 +2885,12 @@ function GuideSheet({ guide, onClose }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "5px 10px",
-            background: "#FDC831",
-            border: "1px solid #211E1E",
+            padding: "4px 12px",
+            background: "#F4F0E8",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 4,
             fontFamily: "var(--font-mono)",
-            fontSize: 10.5, fontWeight: 600,
+            fontSize: 11, fontWeight: 600,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E",
           }}>
@@ -2770,7 +2899,7 @@ function GuideSheet({ guide, onClose }) {
           <button onClick={onClose} style={{
             width: 32, height: 32,
             background: "#FFFFFF",
-            border: "1px solid #211E1E",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
@@ -2782,12 +2911,12 @@ function GuideSheet({ guide, onClose }) {
         <h1 style={{
           fontFamily: "var(--font-head)",
           fontSize: 32, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.1,
-          margin: "0 0 10px", color: "#211E1E",
+          margin: "0 0 12px", color: "#211E1E",
         }}>
           {guide.title}
         </h1>
-        <p style={{ fontSize: 14, color: "#4A3F2E", lineHeight: 1.55, marginTop: 0, marginBottom: 28 }}>
-          A short walkthrough. If you get stuck at any step, return to the IT Hub and your context is saved.
+        <p style={{ fontSize: 14, color: "#4A3F2E", lineHeight: 1.55, marginTop: 0, marginBottom: 32 }}>
+          A short walkthrough. If you get stuck at any step, return to Slice Help and your context is saved.
         </p>
 
         <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -2796,21 +2925,21 @@ function GuideSheet({ guide, onClose }) {
             display: "grid", gridTemplateColumns: "36px 1fr", gap: 16,
             padding: "16px 16px",
             background: "#FFFFFF",
-            border: "1px solid #211E1E",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 8,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             marginBottom: 12,
           }}>
               <div style={{
               width: 30, height: 30, borderRadius: "50%",
-              background: "#FDC831",
-              border: "1px solid #211E1E",
+              background: "#F4F0E8",
+              border: "1px solid rgba(33,30,30,.14)",
               color: "#211E1E",
               display: "grid", placeItems: "center",
               fontFamily: "'Archivo', sans-serif",
               fontSize: 13, fontWeight: 800,
             }}>{i + 1}</div>
-              <div style={{ fontSize: 14.5, color: "#211E1E", lineHeight: 1.55, paddingTop: 4, fontWeight: 500 }}>
+              <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.55, paddingTop: 4, fontWeight: 500 }}>
                 {s}
               </div>
             </li>
@@ -2818,10 +2947,10 @@ function GuideSheet({ guide, onClose }) {
         </ol>
 
         <div style={{
-          marginTop: 28, padding: "18px 20px",
+          marginTop: 32, padding: "20px 20px",
           background: "#FFFFFF",
-          border: "1px solid #211E1E",
-          borderRadius: 10,
+          border: "1px solid rgba(33,30,30,.14)",
+          borderRadius: 12,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           display: "flex", alignItems: "center", gap: 12,
         }}>
@@ -2833,27 +2962,27 @@ function GuideSheet({ guide, onClose }) {
             Did this resolve it?
           </div>
           <button style={{
-            padding: "8px 14px",
+            padding: "8px 16px",
             background: "#FFFFFF",
-            border: "1px solid #211E1E",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 11.5,
+            fontWeight: 600, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E", cursor: "pointer",
           }}>No, file ticket</button>
           <button style={{
-            padding: "8px 14px",
-            background: "#FDC831",
-            border: "1px solid #211E1E",
+            padding: "8px 16px",
+            background: "#F4F0E8",
+            border: "1px solid rgba(33,30,30,.14)",
             borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             fontFamily: "var(--font-mono)",
-            fontWeight: 600, fontSize: 11.5,
+            fontWeight: 600, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E", cursor: "pointer",
-            display: "inline-flex", alignItems: "center", gap: 6,
+            display: "inline-flex", alignItems: "center", gap: 8,
           }}>
             <IconCheck size={12} stroke={2.8} /> Yes, fixed it
           </button>
@@ -2879,18 +3008,18 @@ function FiledToast({ ticket, onClose, onView }) {
       position: "fixed", bottom: 28, right: 28, zIndex: 80,
       width: 380,
       background: "#FFFFFF",
-      border: "1px solid #211E1E",
-      borderRadius: 10,
+      border: "1px solid rgba(33,30,30,.14)",
+      borderRadius: 12,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-      padding: "18px 20px",
+      padding: "20px 20px",
       animation: "toastIn .4s var(--ease) both",
     }}>
       <style>{`@keyframes toastIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }`}</style>
-      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         <div style={{
           width: 38, height: 38, borderRadius: "50%",
           background: "#0A8A3E",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           color: "#FFFFFF",
           display: "grid", placeItems: "center", flexShrink: 0,
         }}>
@@ -2904,18 +3033,18 @@ function FiledToast({ ticket, onClose, onView }) {
           }}>Ticket filed</div>
           <div style={{
             fontFamily: "'Archivo', sans-serif",
-            fontSize: 15, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.015em",
+            fontSize: 16, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.015em",
           }}>
             {ref}
           </div>
-          <div style={{ fontSize: 12.5, color: "#4A3F2E", marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: "#4A3F2E", marginTop: 8, lineHeight: 1.5 }}>
             <strong style={{ color: "#211E1E" }}>{ticket.team}</strong> will get back to you shortly. We'll email you as it moves.
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             <button onClick={onView} style={{
-              padding: "7px 12px",
-              background: "#FDC831",
-              border: "1px solid #211E1E",
+              padding: "8px 12px",
+              background: "#F4F0E8",
+              border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 4,
               boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               fontFamily: "var(--font-mono)",
@@ -2924,7 +3053,7 @@ function FiledToast({ ticket, onClose, onView }) {
               color: "#211E1E", cursor: "pointer",
             }}>View ticket</button>
             <button onClick={onClose} style={{
-              padding: "7px 12px",
+              padding: "8px 12px",
               background: "transparent",
               border: "none",
               fontFamily: "var(--font-mono)",
@@ -3047,7 +3176,14 @@ function App() {
           // Standalone: carry the query string across — dropping it used to
           // strip params like ?guide / ?ticket mid-navigation; the effects
           // that own each param add/remove theirs via replaceState.
-          try { window.history.pushState({ stage: next }, "", withBase(nextPath) + window.location.search); } catch {}
+          // ?ticket= belongs to My Tickets: leaving it must not carry the
+          // number along, or a refresh on Home would reopen that ticket.
+          try {
+            const qs = new URLSearchParams(window.location.search);
+            if (next !== "tickets") qs.delete("ticket");
+            const q = qs.toString();
+            window.history.pushState({ stage: next }, "", withBase(nextPath) + (q ? "?" + q : ""));
+          } catch {}
         }
       }
       return next;
@@ -3120,12 +3256,23 @@ function App() {
   // rewrites the address bar, then land on the Tickets page — MyTicketsView picks
   // it up and opens it. Survives login: main.jsx keeps ?ticket through the SSO
   // ?next= round-trip, so the user returns straight to the ticket after signing in.
+  // Read ?ticket during App's FIRST RENDER, not in an effect: child effects
+  // run before parent effects, and MyTicketsView's address-bar sync strips
+  // ?ticket on its own mount — by the time an effect here ran, the number was
+  // already gone and the link landed on the list instead of the ticket.
+  const [deepTicket] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const tnum = new URLSearchParams(window.location.search).get("ticket");
+      if (tnum) window.__PORTAL_OPEN_TICKET__ = tnum;
+      return tnum || null;
+    } catch { return null; }
+  });
   React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    const tnum = new URLSearchParams(window.location.search).get("ticket");
-    if (!tnum) return;
-    window.__PORTAL_OPEN_TICKET__ = tnum;
-    openTickets("mine");
+    if (!deepTicket) return;
+    // Only switch stage when the link didn't already land on /tickets — a
+    // remount there would make the list consume the handoff twice.
+    if (stage !== "tickets") openTickets("mine");
   }, []);
   // Deep-link: land on the request page when `?item=N` came in on a non-/request
   // path (e.g. /portal/?item=5). setStage pushes the /request path; the modal's
@@ -3256,7 +3403,7 @@ function App() {
     const blocks = [/[.!?]$/.test(firstQ) ? firstQ : firstQ + '.'];
     if (triage.length) blocks.push(triage.map((p) => `${p.label} — ${p.answer}`).join('\n'));
     if (more.length) blocks.push('More detail:\n' + more.map((m) => '- ' + m).join('\n'));
-    if (tried.length) blocks.push('The IT Hub suggested these guides, but they didn’t solve it:\n' + tried.map((g) => '- ' + g).join('\n'));
+    if (tried.length) blocks.push('Slice Help suggested these guides, but they didn’t solve it:\n' + tried.map((g) => '- ' + g).join('\n'));
     if (reasons.length) blocks.push('What didn’t work: ' + reasons.join(', ') + '.');
     const det = detectAccessRequest([firstQ, ...more].join('. '));
     setTicketDraft({
@@ -3473,7 +3620,8 @@ function App() {
         initialTab={ticketsTab}
         onBack={goHome}
         onReportIssue={() => setTicketDraft({ subject: "", description: "", type: "incident", priority: "medium" })}
-        onRequest={() => openCatalog()} />
+        onRequest={() => openCatalog()}
+        onRequestItem={(id) => openCatalog({ itemId: id })} />
       }
 
       {stage === "report" && ticketDraft &&
@@ -3492,6 +3640,7 @@ function App() {
         asPage
         initialItemId={catalogReq && catalogReq.itemId}
         initialCustom={catalogReq && catalogReq.custom != null ? catalogReq.custom : null}
+        initialTeam={catalogReq && catalogReq.team}
         initialQuery={catalogReq && catalogReq.query}
         // Back (and Cancel) land on My Tickets — where requests live — rather
         // than wherever the catalog was opened from.
@@ -3524,7 +3673,7 @@ function App() {
         <TweakSection label="Voice" />
         <TweakRadio label="Tone" value={tweaks.voice} options={voiceOptions}
         onChange={(v) => setTweaksState("voice", v)} />
-        <div style={{ fontSize: 10.5, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
+        <div style={{ fontSize: 11, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
           {tweaks.voice === "concierge" && "Warm, first‑name, hospitable."}
           {tweaks.voice === "precise" && "Direct utility. No warm‑up."}
           {tweaks.voice === "playful" && "Friendly with character."}
@@ -3532,7 +3681,7 @@ function App() {
         <TweakSection label="Gesture" />
         <TweakRadio label="Motion" value={tweaks.gesture} options={gestureOptions}
         onChange={(v) => setTweaksState("gesture", v)} />
-        <div style={{ fontSize: 10.5, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
+        <div style={{ fontSize: 11, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
           {tweaks.gesture === "still" && "Animations off. Instant."}
           {tweaks.gesture === "smooth" && "Measured ease-out. Always."}
           {tweaks.gesture === "springy" && "Bouncy overshoot, toy‑like."}
@@ -3540,7 +3689,7 @@ function App() {
         <TweakSection label="Help guide" />
         <TweakRadio label="Step-by-step UI" value={tweaks.guideStyle} options={guideStyleOptions}
         onChange={(v) => setTweaksState("guideStyle", v)} />
-        <div style={{ fontSize: 10.5, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
+        <div style={{ fontSize: 11, color: "rgba(41,38,27,.5)", lineHeight: 1.4, marginTop: -4 }}>
           {tweaks.guideStyle === "guided" && "Full-screen, one step at a time, with progress + branches."}
           {tweaks.guideStyle === "legacy" && "Original side sheet — all steps in one scroll."}
         </div>
@@ -3603,6 +3752,7 @@ const IconBase = ({ children, size = 18, stroke = 1.5, ...rest }) => (
 const IconSearch = (p) => <IconBase {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></IconBase>;
 const IconArrow  = (p) => <IconBase {...p}><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></IconBase>;
 const IconArrowLeft = (p) => <IconBase {...p}><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></IconBase>;
+const IconChat   = (p) => <IconBase {...p}><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></IconBase>;
 const IconSpark  = (p) => <IconBase {...p}><path d="M12 3v3"/><path d="M12 18v3"/><path d="M3 12h3"/><path d="M18 12h3"/><path d="m5.6 5.6 2.1 2.1"/><path d="m16.3 16.3 2.1 2.1"/><path d="m5.6 18.4 2.1-2.1"/><path d="m16.3 7.7 2.1-2.1"/></IconBase>;
 const IconLaptop = (p) => <IconBase {...p}><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M2 20h20"/></IconBase>;
 const IconWifi   = (p) => <IconBase {...p}><path d="M5 12.55a11 11 0 0 1 14 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></IconBase>;
@@ -3725,6 +3875,15 @@ const notifStore = (() => {
     if (typeof window === 'undefined' || typeof ReadableStream === 'undefined') return;
     const ctl = new AbortController();
     streamCtl = ctl;
+    // One stream per PAGE, not per module instance: a hot reload (or anything
+    // that re-runs this module) used to start a second stream while the first
+    // kept reconnecting forever; after a few, the browser's 6 connections per
+    // host were all streams and every other request hung. The page-wide handle
+    // closes the previous stream and tells it not to come back.
+    try {
+      if (window.__sliceNotifStream && window.__sliceNotifStream !== ctl) window.__sliceNotifStream.abort();
+      window.__sliceNotifStream = ctl;
+    } catch {}
     // No "hello" within 12s means something between us and the server is
     // buffering the stream — give up on it and rely on polling for a while.
     const helloTimer = setTimeout(() => { if (!state.live) ctl.abort(); }, 12000);
@@ -3752,12 +3911,12 @@ const notifStore = (() => {
       }
     } catch { /* fall through to reconnect */ }
     clearTimeout(helloTimer);
-    if (streamCtl !== ctl) return;           // superseded
+    if (streamCtl !== ctl || window.__sliceNotifStream !== ctl) return;   // superseded (here or by a newer instance)
     if (state.live) set({ live: false });
     schedulePoll();
     // The server ends every stream after ~10 minutes (so it re-checks auth);
     // reconnect, backing off when it keeps failing.
-    setTimeout(() => { if (streamCtl === ctl) openStream(); }, retryMs);
+    setTimeout(() => { if (streamCtl === ctl && window.__sliceNotifStream === ctl) openStream(); }, retryMs);
     retryMs = Math.min(retryMs * 2, 60000);
   }
 
@@ -3899,7 +4058,13 @@ const IconLifebuoy = (p) => <IconBase {...p}><circle cx="12" cy="12" r="9"/><cir
 // screenshot rather than a photo, unlike the camera it replaced.
 const IconScreenshot = (p) => <IconBase {...p}><path d="M3 8V6.5A3.5 3.5 0 0 1 6.5 3H8M16 3h1.5A3.5 3.5 0 0 1 21 6.5V8M21 16v1.5a3.5 3.5 0 0 1-3.5 3.5H16M8 21H6.5A3.5 3.5 0 0 1 3 17.5V16"/><path d="M12 9v6M9 12h6"/></IconBase>;
 const IconPulse = (p) => <IconBase {...p}><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></IconBase>;
-const NAV_ICONS = { Help: IconLifebuoy, Knowledge: IconBook, Status: IconPulse, "My Tickets": IconTicket };
+// Top-bar icons, shown when the bar is too narrow for labels: one family
+// (24-grid, rounded joins), drawn to read at 18px on charcoal.
+const NavIconHome = (p) => <IconBase {...p}><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></IconBase>;
+const NavIconKnowledge = (p) => <IconBase {...p}><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></IconBase>;
+const NavIconStatus = (p) => <IconBase {...p}><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></IconBase>;
+const NavIconTickets = (p) => <IconBase {...p}><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></IconBase>;
+const NAV_ICONS = { Help: NavIconHome, Knowledge: NavIconKnowledge, Status: NavIconStatus, "My Tickets": NavIconTickets };
 
 // Selected-section outline pill for the top bar. Not SlideIndicator: the pill
 // glides to the tab you pick, stretching a little in flight (its leading edge
@@ -3913,6 +4078,10 @@ const PILL_SWELL_AT = 0.4;  // when the landing swell starts
 const PILL_SWELL_PX = 6;    // how far the neighbours get pushed
 const PILL_INTRO_DELAY_MS = 350; // first load: beat before the ring selects the section
 const pillEase = (t) => 1 - Math.pow(1 - t, 4);
+// The brand already reads "Slice Help", so the Help tab shows as Home. The
+// label is display-only; "Help" stays the routing key.
+const NAV_LABEL = { Help: "Home" };
+
 function TopnavPill({ activeKey }) {
   const ref = React.useRef(null);
   const painted = React.useRef(null); // { l, r } last drawn
@@ -4035,13 +4204,13 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
   };
 
   return (
-    <nav className={"topnav" + (scrolled ? " is-scrolled" : "")} aria-label="IT Hub">
-      <button onClick={() => { setPick((n) => n + 1); onHome && onHome(); }} className="topnav-brand" aria-label="IT Hub home">
-        <img src={withBase("/assets/slice-wordmark-yellow.svg")} alt="Slice" width="48" height="35" />
-        <span>IT Hub</span>
+    <nav className={"topnav" + (scrolled ? " is-scrolled" : "")} aria-label="Slice Help">
+      <button onClick={() => { setPick((n) => n + 1); onHome && onHome(); }} className="topnav-brand" aria-label="Slice Help home">
+        <img src={withBase("/assets/slice-wordmark-white.svg")} alt="Slice" width="48" height="35" />
+        <span>Help</span>
       </button>
 
-      <div ref={trackRef} className="topnav-links has-slider" role="tablist" aria-label="IT Hub sections"
+      <div ref={trackRef} className="topnav-links has-slider" role="tablist" aria-label="Slice Help sections"
         onMouseLeave={() => setGlide(null)}>
         <span aria-hidden="true" className={"topnav-glide" + (glide ? " is-on" : "")}
           style={glide ? { width: glide.w, height: glide.h, transform: `translate(${glide.x}px, ${glide.y}px)` } : undefined} />
@@ -4052,12 +4221,12 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
           const n = l === "My Tickets" ? unreadTickets : 0;
           return (
             <button key={l} type="button" role="tab" aria-selected={isActive} aria-current={isActive ? "page" : undefined}
-              title={l} aria-label={n > 0 ? `${l} (${n} with unread updates)` : l}
+              title={NAV_LABEL[l] || l} aria-label={n > 0 ? `${NAV_LABEL[l] || l} (${n} with unread updates)` : (NAV_LABEL[l] || l)}
               className={"topnav-link" + (isActive ? " is-active" : "")}
               onMouseEnter={isActive ? () => setGlide(null) : pointAt} onFocus={isActive ? undefined : pointAt}
               onClick={() => { setGlide(null); setPick((n) => n + 1); setActiveLocal(l); onNavigate && onNavigate(l); }}>
-              <Icon size={15} stroke={2} />
-              <span className="topnav-lbl">{l}</span>
+              <Icon size={18} stroke={1.75} />
+              <span className="topnav-lbl">{NAV_LABEL[l] || l}</span>
               {n > 0 && <span className="topnav-badge">{n > 9 ? "9+" : n}</span>}
             </button>
           );
@@ -4090,8 +4259,8 @@ function ItServicesButton() {
       className="back-to-slicedesk"
       style={{
         height: 28,
-        padding: "0 9px",
-        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "0 8px",
+        display: "inline-flex", alignItems: "center", gap: 8,
         background: "rgba(255,255,255,.04)",
         color: "#FFFFFF",
         borderRadius: 999, border: "1px solid rgba(255,255,255,.22)",
@@ -4213,6 +4382,17 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
     if (unreadCount > prevUnread.current) setRing((n) => n + 1);
     prevUnread.current = unreadCount;
   }, [unreadCount]);
+  // While anything is unread it also rings now and then (first after 1.5s,
+  // then every 10s) until the menu is opened; pointing at it rings it too
+  // (CSS :hover). Reduced motion: still.
+  const hasUnread = unreadCount > 0;
+  React.useEffect(() => {
+    if (!hasUnread || pop.open) return undefined;
+    try { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined; } catch {}
+    const first = setTimeout(() => setRing((n) => n + 1), 1500);
+    const every = setInterval(() => setRing((n) => n + 1), 10000);
+    return () => { clearTimeout(first); clearInterval(every); };
+  }, [hasUnread, pop.open]);
 
   // Group rows under Today / Yesterday / Earlier, in order.
   const groups = [];
@@ -4487,14 +4667,14 @@ function Footer() {
   // Palette of pill backgrounds that read against black text + heart.
   // Order is hand-picked to feel like a celebration cycling through the brand.
   const PALETTE = [
-    { bg: "#FFFFFF", heart: "#FDC831", spark: "#FDC831" }, // default Slice yellow heart
-    { bg: "#FDC831", heart: "#FFFFFF", spark: "#211E1E" }, // mustard pop
-    { bg: "#FFE5A8", heart: "#B92323", spark: "#B92323" }, // cream + cherry
+    { bg: "#FFFFFF", heart: "#DA3327", spark: "#DA3327" }, // default Slice yellow heart
+    { bg: "#F4F0E8", heart: "#DA3327", spark: "#211E1E" }, // mustard pop
+    { bg: "#F4F0E8", heart: "#B92323", spark: "#B92323" }, // cream + cherry
     { bg: "#C7E8B8", heart: "#0A8A3E", spark: "#0A8A3E" }, // mint + leaf
-    { bg: "#BFE0F5", heart: "#1E5FB2", spark: "#1E5FB2" }, // sky + ink
+    { bg: "#BFE0F5", heart: "#2563B0", spark: "#2563B0" }, // sky + ink
     { bg: "#F4C5DC", heart: "#9B2D6B", spark: "#9B2D6B" }, // bubblegum
     { bg: "#E0CFF5", heart: "#5B2A9B", spark: "#5B2A9B" }, // grape
-    { bg: "#FFB89A", heart: "#B94A0F", spark: "#B94A0F" }, // peach + rust
+    { bg: "#F4F0E8", heart: "#B94A0F", spark: "#B94A0F" }, // peach + rust
   ];
   // Only cycle once they're hammering the button — otherwise stay on default.
   const styleIdx = streak >= 3 ? (streak - 2) % PALETTE.length : 0;
@@ -4518,7 +4698,7 @@ function Footer() {
       // to the bottom of the viewport on short pages; paddingTop keeps the
       // footer separated from content on long pages.
       margin: "auto auto 0",
-      padding: "80px 28px 24px",
+      padding: "80px 32px 24px",
       width: "100%", flexShrink: 0,
       display: "flex", justifyContent: "center",
     }}>
@@ -4545,8 +4725,8 @@ function Footer() {
         onClick={pulse}
         aria-label="Say hi to the Slice IT team"
         style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          padding: "4px 10px",
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "4px 12px",
           background: skin.bg,
           border: "1px solid rgba(33,30,30,.18)",
           borderRadius: 999,
@@ -4567,7 +4747,7 @@ function Footer() {
       >
         <span>Built by the</span>
         <span style={{
-          fontFamily: "var(--font-mono)", fontWeight: 500, fontSize: 10.5,
+          fontFamily: "var(--font-mono)", fontWeight: 500, fontSize: 11,
           letterSpacing: ".04em", textTransform: "uppercase", color: "#211E1E",
         }}>Slice IT Team</span>
         <span style={{
@@ -4599,7 +4779,7 @@ function Footer() {
             }}
           >
             <path d="M12 20.5s-8.5-5-8.5-11.2A4.8 4.8 0 0 1 12 5.3a4.8 4.8 0 0 1 8.5 4c0 6.2-8.5 11.2-8.5 11.2Z"
-              fill={skin.heart} stroke="#000000" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+              fill={skin.heart} stroke="#211E1E" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
         </span>
       </button>
@@ -4627,7 +4807,7 @@ function Card({ children, style, onClick, interactive }) {
 function Pill({ tone = "neutral", children, small }) {
   const toneClass = tone === "green" ? "tone-green" : tone === "amber" ? "tone-amber" : tone === "red" ? "tone-red" : tone === "accent" ? "tone-accent" : "";
   return (
-    <span className={`pill-flat ${toneClass}`} style={small ? { padding: "2px 8px", fontSize: 10.5 } : undefined}>
+    <span className={`pill-flat ${toneClass}`} style={small ? { padding: "2px 8px", fontSize: 11 } : undefined}>
       {children}
     </span>
   );
@@ -4638,7 +4818,7 @@ function Chip({ icon, label, onClick }) {
   const Icon = window[icon];
   return (
     <button onClick={onClick} className="chip-flat">
-      <Icon size={14} stroke={2.5} style={{color: "#000000"}} />
+      <Icon size={14} stroke={2.5} style={{color: "#211E1E"}} />
       {label}
     </button>
   );
@@ -4653,7 +4833,7 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
         if (selected) return;
         e.currentTarget.style.transform = "translate(0, 0)";
         e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-        e.currentTarget.style.background = "#FFF9E6";
+        e.currentTarget.style.background = "#F4F0E8";
       }}
       onMouseLeave={(e) => {
         if (selected) return;
@@ -4676,12 +4856,12 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
       }}
       style={{
         textAlign: "left",
-        display: "flex", alignItems: "flex-start", gap: 14,
-        padding: "16px 18px",
+        display: "flex", alignItems: "flex-start", gap: 16,
+        padding: "16px 20px",
         width: "100%",
-        background: selected ? "#FDC831" : "#FFFFFF",
-        border: "1px solid #211E1E",
-        borderRadius: 14,
+        background: selected ? "#F4F0E8" : "#FFFFFF",
+        border: "1px solid rgba(33,30,30,.14)",
+        borderRadius: 16,
         cursor: "pointer",
         transition: "transform .15s var(--ease), box-shadow .15s var(--ease), background .15s",
         boxShadow: selected ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -4692,17 +4872,17 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
     >
       <div style={{
         width: 22, height: 22, borderRadius: "50%",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         background: selected ? "#211E1E" : "#FFFFFF",
         display: "grid", placeItems: "center",
         transition: "transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), opacity .2s var(--ease)",
         marginTop: 1, flexShrink: 0,
       }}>
-        {selected && <IconCheck size={12} stroke={3} style={{color: "#FDC831"}} />}
+        {selected && <IconCheck size={12} stroke={3} style={{color: "#FFFFFF"}} />}
       </div>
       <div style={{flex: 1}}>
-        <div style={{fontSize: 14.5, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.012em"}}>{title}</div>
-        {hint && <div style={{fontSize: 12.5, color: "#4A3F2E", marginTop: 3}}>{hint}</div>}
+        <div style={{fontSize: 14, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.012em"}}>{title}</div>
+        {hint && <div style={{fontSize: 13, color: "#4A3F2E", marginTop: 3}}>{hint}</div>}
       </div>
     </button>
   );
@@ -4715,9 +4895,9 @@ function MultiChip({ selected, title, onSelect, index }) {
       onClick={onSelect}
       style={{
         display: "inline-flex", alignItems: "center", gap: 8,
-        padding: "10px 16px",
+        padding: "12px 16px",
         background: selected ? "#211E1E" : "#FFFFFF",
-        color: selected ? "#FDC831" : "#211E1E",
+        color: selected ? "#FFFFFF" : "#211E1E",
         border: `2px solid ${selected ? "#211E1E" : "#211E1E"}`,
         borderRadius: 4,
         fontSize: 13, fontWeight: 700,
@@ -4733,7 +4913,7 @@ function MultiChip({ selected, title, onSelect, index }) {
         if (selected) return;
         e.currentTarget.style.transform = "translate(0, 0)";
         e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)";
-        e.currentTarget.style.background = "#FFF9E6";
+        e.currentTarget.style.background = "#F4F0E8";
       }}
       onMouseLeave={(e) => {
         if (selected) return;
@@ -4767,12 +4947,12 @@ function MultiChip({ selected, title, onSelect, index }) {
 // Progress dots
 function Progress({ current, total }) {
   return (
-    <div style={{display:"flex", gap: 6, alignItems:"center"}}>
+    <div style={{display:"flex", gap: 8, alignItems:"center"}}>
       {Array.from({length: total}).map((_, i) => (
         <div key={i} style={{
           width: i === current ? 28 : 10, height: 10, borderRadius: 999,
           background: i <= current ? "#211E1E" : "#FFFFFF",
-          border: "1px solid #211E1E",
+          border: "1px solid rgba(33,30,30,.14)",
           transition: "width .4s var(--ease), transform .4s var(--ease), box-shadow .4s var(--ease), background-color .4s var(--ease), color .4s var(--ease), border-color .4s var(--ease), opacity .4s var(--ease)",
         }}/>
       ))}
@@ -4849,9 +5029,9 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
     <div
       style={{
         margin: "16px 0 0",
-        padding: "14px 18px",
-        background: "#FFF9E6",
-        border: "1px solid #211E1E",
+        padding: "16px 20px",
+        background: "#F4F0E8",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 12,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
         display: "flex",
@@ -4865,8 +5045,8 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
         style={{
           flexShrink: 0,
           width: 28, height: 28, borderRadius: 8,
-          background: "#FDC831",
-          border: "1px solid #211E1E",
+          background: "#F4F0E8",
+          border: "1px solid rgba(33,30,30,.14)",
           display: "grid", placeItems: "center",
           fontSize: 14,
         }}
@@ -4874,14 +5054,14 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
+          fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
           textTransform: "uppercase", color: "#78684C",
           marginBottom: 4,
         }}>Tip</div>
         <div
           key={step}
           style={{
-            fontSize: 13.5, lineHeight: 1.5, color: "#211E1E",
+            fontSize: 14, lineHeight: 1.5, color: "#211E1E",
             animation: "fadeUp .4s var(--ease) both",
           }}
         >
@@ -4902,7 +5082,7 @@ function LoadingPatter({ messages = PATIENCE_MESSAGES, intervalMs = 1500, style 
     <span
       key={i}
       style={{
-        fontSize: 12.5, color: "#78684C", fontWeight: 500,
+        fontSize: 13, color: "#78684C", fontWeight: 500,
         display: "inline-block",
         animation: "fadeUp .35s var(--ease) both",
         ...style,
@@ -4930,8 +5110,8 @@ function GlobalKeyframes() {
         75% { transform: scaleX(1) translateY(1px) rotate(0.8deg); }
       }
       @keyframes pizzaPulse {
-        0%, 100% { transform: scale(1) rotate(0deg); box-shadow: 0 0 0 0 rgba(253,200,49,0); }
-        50%      { transform: scale(1.06) rotate(-3deg); box-shadow: 0 0 0 4px rgba(253,200,49,0.35); }
+        0%, 100% { transform: scale(1) rotate(0deg); box-shadow: 0 0 0 0 rgba(33,30,30,.08); }
+        50%      { transform: scale(1.06) rotate(-3deg); box-shadow: 0 0 0 4px rgba(33,30,30,.1); }
       }
     `}</style>
   );
@@ -4980,37 +5160,37 @@ function NotificationsPage({ onBack, onOpenTickets }) {
   return (
     <div className="page" style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <style>{`
-        .np-row { display:flex; align-items:flex-start; gap:14px; width:100%; padding:16px 18px; background:transparent; border:0;
-          border-bottom:1.5px solid #E7E1D4; cursor:pointer; text-align:left; font-family:inherit; color:inherit; position:relative;
+        .np-row { display:flex; align-items:flex-start; gap:16px; width:100%; padding:16px 20px; background:transparent; border:0;
+          border-bottom:1.5px solid #E2DCD0; cursor:pointer; text-align:left; font-family:inherit; color:inherit; position:relative;
           transition:background .14s ease; }
         .np-row:last-child { border-bottom:0; }
-        .np-row:hover { background:#FBF6E9; }
-        .np-row.is-unread { background:#FFF8DC; }
-        .np-row.is-unread:hover { background:#FFF1C2; }
+        .np-row:hover { background:#F4F0E8; }
+        .np-row.is-unread { background:#F4F0E8; }
+        .np-row.is-unread:hover { background:#F4F0E8; }
         .np-row:focus-visible { outline:2px solid #211E1E; outline-offset:-2px; }
-        .np-row .notif-kind { width:40px; height:40px; border-radius:10px; }
+        .np-row .notif-kind { width:40px; height:40px; border-radius:12px; }
         .np-title { font-family:'Archivo',sans-serif; font-size:14px; font-weight:700; color:#211E1E; letter-spacing:-.005em; }
         .np-row.is-unread .np-title { font-weight:900; }
-        .np-ticket { font-size:12.5px; color:#5A4B28; margin-top:2px; }
-        .np-body { font-size:13px; color:#4A4233; line-height:1.5; margin-top:6px; }
-        .np-body.is-quote { font-style:italic; padding-left:10px; border-left:3px solid #E7E1D4; }
-        .np-tag { display:inline-block; margin-top:8px; font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:.06em;
-          text-transform:uppercase; color:#4A3F2E; padding:2px 7px; background:#FFF9E6; border:1px solid #211E1E; border-radius:3px; }
+        .np-ticket { font-size:13px; color:#5A4B28; margin-top:2px; }
+        .np-body { font-size:13px; color:#4A3F2E; line-height:1.5; margin-top:8px; }
+        .np-body.is-quote { font-style:italic; padding-left:12px; border-left:3px solid #E2DCD0; }
+        .np-tag { display:inline-block; margin-top:8px; font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.06em;
+          text-transform:uppercase; color:#4A3F2E; padding:2px 8px; background:#F4F0E8; border:1px solid rgba(33,30,30,.14); border-radius:4px; }
         .np-when { font-size:11px; color:#8A7A4E; font-weight:600; font-family:'Archivo',sans-serif; flex-shrink:0; white-space:nowrap; }
         .np-x { flex-shrink:0; width:26px; height:26px; background:transparent; border:1px solid transparent; border-radius:999px;
           display:grid; place-items:center; cursor:pointer; color:#78684C; }
         .np-x:hover { background:#FFFFFF; border-color:#211E1E; color:#211E1E; }
         .np-dot { position:absolute; left:6px; top:50%; transform:translateY(-50%); width:7px; height:7px; border-radius:50%; background:#E8534E; }
       `}</style>
-      <div style={{ background: "#F7F4EF", borderBottom: "1px solid #211E1E", padding: "20px 32px" }}>
+      <div style={{ background: "#F7F4EF", borderBottom: "1px solid rgba(33,30,30,.14)", padding: "20px 32px" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <button onClick={onBack} className="kb-back-btn">
             <svg className="kb-back-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>
-            Back to IT Hub
+            Back to Slice Help
           </button>
           <button type="button" onClick={markAllRead} disabled={unreadCount === 0}
             style={{
-              padding: "8px 14px", background: unreadCount ? "#FFFFFF" : "#F7F4EF",
+              padding: "8px 16px", background: unreadCount ? "#FFFFFF" : "#F7F4EF",
               border: "1px solid #211E1E", borderRadius: 999, boxShadow: unreadCount ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
               fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 12, letterSpacing: "0.04em", textTransform: "uppercase",
               color: "#211E1E", cursor: unreadCount === 0 ? "default" : "pointer", opacity: unreadCount === 0 ? 0.5 : 1,
@@ -5022,7 +5202,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
 
       <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 80px" }}>
         <h1 style={{ fontFamily: "var(--font-head)", fontSize: 40, fontWeight: 400, letterSpacing: "-0.01em", lineHeight: 1.02, margin: "0 0 8px", color: "#211E1E" }}>Notifications</h1>
-        <p style={{ margin: "0 0 22px", fontSize: 14, color: "#4A3F2E", fontWeight: 500 }}>
+        <p style={{ margin: "0 0 24px", fontSize: 14, color: "#4A3F2E", fontWeight: 500 }}>
           Replies from IT and changes to your tickets — status, approvals and priority. Your own actions never show up here.
         </p>
 
@@ -5037,19 +5217,19 @@ function NotificationsPage({ onBack, onOpenTickets }) {
         {!ready ? (
           <TicketsNotice title="Loading notifications…" />
         ) : filtered.length === 0 ? (
-          <div style={{ padding: "48px 24px", textAlign: "center", background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14 }}>
-            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: "#211E1E", marginBottom: 6 }}>
+          <div style={{ padding: "48px 24px", textAlign: "center", background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 16 }}>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: "#211E1E", marginBottom: 8 }}>
               {items.length ? "Nothing here" : "You're all caught up"}
             </div>
-            <div style={{ fontSize: 13.5, color: "#78684C" }}>
+            <div style={{ fontSize: 14, color: "#78684C" }}>
               {items.length ? "No notifications match this filter." : "When IT replies or something changes on one of your tickets, it lands here."}
             </div>
           </div>
         ) : (
           [...grouped.entries()].map(([group, list]) => (
-            <div key={group} style={{ marginBottom: 28 }}>
-              <div className="eyebrow" style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 10 }}>{group}</div>
-              <div style={{ background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 14, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)", overflow: "hidden" }}>
+            <div key={group} style={{ marginBottom: 32 }}>
+              <div className="eyebrow" style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 12 }}>{group}</div>
+              <div style={{ background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)", borderRadius: 16, boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)", overflow: "hidden" }}>
                 {list.map((it) => (
                   <div key={it.id} role="button" tabIndex={0} onClick={() => openIt(it)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openIt(it); } }}
@@ -5128,7 +5308,7 @@ function NotificationsPage({ onBack, onOpenTickets }) {
 const __TWEAKS_STYLE = `
   .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
     max-height:calc(100vh - 32px);display:flex;flex-direction:column;
-    background:rgba(250,249,247,.78);color:#29261b;
+    background:rgba(250,249,247,.78);color:#2E2A28;
     -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
     border:.5px solid rgba(255,255,255,.6);border-radius:14px;
     box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
@@ -5138,7 +5318,7 @@ const __TWEAKS_STYLE = `
   .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
   .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
     width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
-  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#2E2A28}
   .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
     overflow-y:auto;overflow-x:hidden;min-height:0;
     scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
@@ -5589,7 +5769,7 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
     // presentation of the same header, so leaving one behind would make the
     // logo change size depending on which shell happened to render. A shade
     // smaller than the page version, because a modal header band is tighter.
-    <span style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 12, background: "#FFFFFF", border: "1px solid #211E1E", display: "grid", placeItems: "center", overflow: "hidden" }}>
+    <span style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 12, background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)", display: "grid", placeItems: "center", overflow: "hidden" }}>
       {typeof icon === "string"
         ? <img src={icon} alt="" width="34" height="34" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
         : icon}
@@ -5604,24 +5784,24 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
       <div className="overlay-panel-in" onClick={e => e.stopPropagation()} style={{
         width: "100%", maxWidth,
         background: "#FFFFFF",
-        border: "1px solid #211E1E", borderRadius: 12,
+        border: "1px solid rgba(33,30,30,.14)", borderRadius: 12,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         <div style={{
-          padding: "16px 22px",
-          borderBottom: "1px solid #211E1E",
+          padding: "16px 24px",
+          borderBottom: "1px solid rgba(33,30,30,.14)",
           display: "flex", alignItems: "center", gap: 12,
         }}>
           {logo}
           <div style={{ minWidth: 0 }}>
-            {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 4 }}>{kicker}</div>}
+            {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 11, marginBottom: 4 }}>{kicker}</div>}
             <h2 style={{
               fontFamily: "var(--font-head)", fontSize: 20, fontWeight: 400,
               letterSpacing: "-0.01em", color: "#211E1E", margin: 0,
             }}>{title}</h2>
           </div>
         </div>
-        <div style={{ padding: "18px 22px" }}>{children}</div>
+        <div style={{ padding: "20px 24px" }}>{children}</div>
       </div>
     </div>
   ), document.body);
@@ -5685,7 +5865,7 @@ function PageShell({ title, kicker, subtitle, onClose, children, icon, backLabel
 }
 
 const btnPrimary = {
-  padding: "10px 16px",
+  padding: "12px 16px",
   background: "#211E1E", color: "#FFFFFF",
   border: "1px solid #211E1E", borderRadius: 4,
   boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
@@ -5694,9 +5874,9 @@ const btnPrimary = {
   cursor: "pointer",
 };
 const btnSecondary = {
-  padding: "10px 16px",
+  padding: "12px 16px",
   background: "#FFFFFF", color: "#211E1E",
-  border: "1px solid #211E1E", borderRadius: 4,
+  border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
   fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 12,
   letterSpacing: "0.04em", textTransform: "uppercase",
   cursor: "pointer",
@@ -5706,16 +5886,6 @@ const btnSecondary = {
 // the clarifying answers, the assistant's suggestion + guides) so the user just
 // reviews and sends — no re-typing. Posts to /api/tickets (→ hub proxy → ticket
 // module 101) with the signed-in user as requester.
-// Common problems, one click from a blank report — fills the subject so the
-// person only has to describe what they see.
-const REPORT_SHORTCUTS = [
-  { label: "Wi‑Fi isn't working", subject: "Wi-Fi isn't working", Icon: IconWifi },
-  { label: 'VPN won’t connect', subject: "VPN won't connect", Icon: IconShield },
-  { label: 'Can’t log in', subject: "Can't log in", Icon: IconKey },
-  { label: 'Laptop running slow', subject: 'Laptop running slow', Icon: IconLaptop },
-  { label: 'Email problem', subject: 'Email isn’t working', Icon: IconMail },
-  { label: 'Screen / accessory', subject: 'Monitor or accessory not working', Icon: IconPlug },
-];
 const URGENCY_OPTIONS = [
   { value: 'low', label: 'Low', hint: 'Whenever you can', dot: '#0A8A3E' },
   { value: 'medium', label: 'Medium', hint: 'Soon, but I can work', dot: '#B8860B' },
@@ -5729,7 +5899,7 @@ const URGENCY_OPTIONS = [
 // services/urgentAlerts.js), and says so before they submit.
 // `compact`: the small segmented version used in the request form's side
 // panel (bars over the label, one quiet track).
-function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, compact = false }) {
+function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, compact = false, teamKey = 'it' }) {
   // Critical interrupts the whole team, so picking it asks once. Saying no
   // leaves the previous choice in place.
   const [asking, setAsking] = React.useState(false);
@@ -5742,7 +5912,8 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, com
       {compact
         ? <span className="rqx-k">{label}</span>
         : <div className={labelStyle ? undefined : 'rep-label'} style={labelStyle}>{label}</div>}
-      <div className={'rep-urgency' + (compact ? ' is-compact' : '')} role="radiogroup" aria-label={label}>
+      <div className={'rep-urgency' + (compact ? ' is-compact has-slider' : '')} role="radiogroup" aria-label={label}>
+        {compact && <SlideIndicator activeKey={value} radius={8} />}
         {URGENCY_OPTIONS.map((o) => (
           <button key={o.value} type="button" role="radio" aria-checked={value === o.value}
             data-level={o.value} title={o.hint}
@@ -5758,14 +5929,14 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, com
       {value === 'critical' && (
         <div className={'rep-crit-note' + (compact ? ' is-compact' : '')} role="note">
           <span aria-hidden="true">🚨</span>
-          <span>{compact ? 'Alerts the IT Team on Slack right away.' : 'The IT Team gets an alert on Slack as soon as you send this, so someone picks it up right away.'}</span>
+          <span>{compact ? critCopy(teamKey).short : critCopy(teamKey).note}</span>
         </div>
       )}
       {asking && (
         <ConfirmDialog
           kicker="Critical"
           title="Is this really critical?"
-          body="Critical alerts the whole IT Team on Slack right away. Use it when you can’t work at all, or many people are affected. For anything else, High still goes to the top of the queue."
+          body={critCopy(teamKey).body}
           tone="danger"
           icon={<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>}
           confirmLabel="Yes, it’s critical"
@@ -5777,12 +5948,38 @@ function UrgencyPicker({ value, onChange, label = 'How urgent?', labelStyle, com
   );
 }
 
+// An unsent "Report an issue" survives a reload or a wander to another page.
+const REPORT_DRAFT_KEY = "slicehelp.reportDraft.v1";
+function readReportDraft() {
+  try {
+    const j = JSON.parse(window.localStorage.getItem(REPORT_DRAFT_KEY) || "null");
+    return j && ((j.subject || "").trim() || (j.description || "").trim()) ? j : null;
+  } catch { return null; }
+}
+function writeReportDraft(d) {
+  try {
+    if (!d || (!(d.subject || "").trim() && !(d.description || "").trim())) window.localStorage.removeItem(REPORT_DRAFT_KEY);
+    else window.localStorage.setItem(REPORT_DRAFT_KEY, JSON.stringify(d));
+  } catch {}
+}
+
 function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrowseCatalog }) {
   const Shell = asPage ? PageShell : ModalShell;
-  const [subject, setSubject] = React.useState(draft.subject || "");
-  const [description, setDescription] = React.useState(draft.description || "");
-  const [type, setType] = React.useState(draft.type || "incident");
-  const [priority, setPriority] = React.useState(draft.priority || "medium");
+  // A pre-filled draft (chat, a guide, the screenshot flow) always wins over a
+  // saved one; only a blank "Report an issue" picks up where you left off.
+  const [restored, setRestored] = React.useState(() => {
+    const given = (draft.subject && draft.subject.trim()) || (draft.description && draft.description.trim());
+    return given ? null : readReportDraft();
+  });
+  const [subject, setSubject] = React.useState(draft.subject || (restored && restored.subject) || "");
+  const [description, setDescription] = React.useState(draft.description || (restored && restored.description) || "");
+  const [type, setType] = React.useState(draft.type || (restored && restored.type) || "incident");
+  const [priority, setPriority] = React.useState(draft.priority || (restored && restored.priority) || "medium");
+  const [team, setTeam] = React.useState(() => {
+    const k = (restored && restored.team) || 'it';
+    return OPEN_TEAMS.some((t) => t.key === k) ? k : 'it';
+  });
+  const teamInfo = helpTeam(team);
   // A draft can arrive with files already attached (the screenshot flow).
   const [attachFiles, setAttachFiles] = React.useState(() => (Array.isArray(draft.files) ? draft.files.filter(Boolean) : []));
   const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
@@ -5801,6 +5998,23 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
   // pre-filled from chat / a guide.
   const prefilled = !!((draft.subject && draft.subject.trim()) || (draft.description && draft.description.trim()));
 
+  // Save as you type (fresh reports only), debounced; cleared once sent.
+  React.useEffect(() => {
+    if (prefilled || result) return undefined;
+    const t = setTimeout(() => writeReportDraft({ subject, description, type, priority, team }), 300);
+    return () => clearTimeout(t);
+  }, [prefilled, result, subject, description, type, priority, team]);
+  const discardDraft = () => {
+    writeReportDraft(null); setRestored(null);
+    setSubject(''); setDescription(''); setType('incident'); setPriority('medium'); setTeam('it');
+    setTimeout(() => subjectRef.current && subjectRef.current.focus(), 30);
+  };
+
+  // "Access to Figma" is a request, not an issue: the catalog adds the right
+  // approver automatically, so point there instead of filing it blind.
+  const looks = detectAccessRequest(subject + ' ' + description);
+  const showCatalogNudge = team === 'it' && !!onBrowseCatalog && (type === 'service_request' || (looks.isRequest && !looks.isProblem));
+
   // Screenshots can be dropped anywhere on the form, or pasted (⌘V) while
   // typing — the fastest way to show IT what's on screen.
   const addFiles = (list) => {
@@ -5813,6 +6027,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
       : new File([f], `screenshot-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}${i ? '-' + i : ''}.png`, { type: f.type || 'image/png' }))]);
   };
   const onPaste = (e) => {
+    if (e.defaultPrevented) return; // the text box already took it
     const files = [...((e.clipboardData && e.clipboardData.files) || [])];
     if (files.length) { e.preventDefault(); addFiles(files); }
   };
@@ -5820,10 +6035,12 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
     onDragEnter: (e) => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setDragging(true); } },
     onDragOver: (e) => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); },
     onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); },
-    onDrop: (e) => { if (e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); } },
+    onDrop: (e) => { setDragging(false); if (e.defaultPrevented) return; if (e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); addFiles(e.dataTransfer.files); } },
   };
 
   const submit = async () => {
+    if (busy) return;
+    if (!helpTeam(team).live) return; // never route another team's issue to IT
     if (!subject.trim()) {
       setSubjectErr("Add a short summary so IT knows what this is about.");
       if (subjectRef.current) subjectRef.current.focus();
@@ -5842,6 +6059,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
         try { await uploadAttachments(data.id || data.ticket_number, attachFiles); }
         catch (e) { setAttachWarn("Your ticket was created. " + (e.message || "An attachment didn’t upload.") + " You can add it from the ticket."); }
       }
+      writeReportDraft(null);
       setResult(data);
     } catch (e) {
       setError(e.message || "Couldn't create the ticket.");
@@ -5861,7 +6079,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
     const urgent = priority === 'high' || priority === 'critical';
     const steps = [
       { key: 'sent', title: 'Ticket sent', body: `Saved as ${num}.`, state: 'done' },
-      { key: 'triage', title: 'IT takes a look', body: priority === 'critical' ? 'Marked critical — the IT Team has been alerted on Slack.' : urgent ? 'Marked urgent — it goes to the top of the queue.' : 'Someone from the IT Team picks it up and may ask a question.', state: 'current' },
+      { key: 'triage', title: teamInfo.label + ' takes a look', body: priority === 'critical' ? critCopy(teamInfo.key).done : teamify(urgent ? 'Marked urgent — it goes to the top of the queue.' : 'Someone from the IT Team picks it up and may ask a question.', teamInfo.key), state: 'current' },
       { key: 'fix', title: 'Fixed', body: 'You’ll get a reply here and by email at every step.', state: 'todo' },
     ];
     return (
@@ -5872,7 +6090,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
           </span>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="done-what"><span>{subject.trim()}</span></div>
-            <div className="done-sub">With the IT Team{urgent ? ' · urgent' : ''}</div>
+            <div className="done-sub">With the {teamDisplayName(teamInfo.key)}{urgent ? ' · urgent' : ''}</div>
           </div>
           {num && (
             <button type="button" className="done-num" title="Copy ticket number"
@@ -5912,85 +6130,99 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
     );
   }
 
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
+  };
+  const KINDS = [['incident', 'Broken', 'It used to work, or it errors'], ['service_request', 'Need something', 'A setup or a change']];
+
   return (
     <Shell title={prefilled ? "Review & send" : "Report an issue"}
       kicker={asPage ? undefined : (prefilled ? "Pre-filled — edit anything, then send" : "Tell us what's broken")}
-      onClose={onClose} backLabel="Back" maxWidth={asPage ? 820 : 640} centered>
-      <div className={'rep-form' + (dragging ? ' is-dragging' : '')} {...dragProps} onPaste={onPaste}>
+      onClose={onClose} backLabel="Back" maxWidth={asPage ? 1040 : 640} centered bare={asPage}>
+      <div className={'rqx rep-x' + (asPage ? '' : ' is-stacked') + (dragging ? ' is-dragging' : '')}
+        {...dragProps} onPaste={onPaste} onKeyDown={onKeyDown}>
         {dragging && (
           <div className="rep-drop" aria-hidden="true">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V4" /><path d="m6 10 6-6 6 6" /><path d="M4 20h16" /></svg>
             Drop to attach
           </div>
         )}
-        {prefilled && (
-          <div className="rep-prefill">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-            We filled this in from what you told us — change anything, then send.
-          </div>
-        )}
+        <div className="rqx-main">
+          {prefilled && (
+            <div className="rep-banner">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              <span>We filled this in from what you told us — change anything, then send.</span>
+            </div>
+          )}
+          {!prefilled && restored && (
+            <div className="rep-banner">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
+              <span>Picked up your unsent draft.</span>
+              <button type="button" className="rep-banner-btn" onClick={discardDraft}>Start over</button>
+            </div>
+          )}
 
-        <label className="rep-label" htmlFor="rep-subject">What’s wrong?</label>
-        <input id="rep-subject" ref={subjectRef} className={'rep-input rep-input-lg' + (subjectErr ? ' has-error' : '')}
-          value={subject}
-          onChange={(e) => { setSubject(e.target.value); if (subjectErr && e.target.value.trim()) setSubjectErr(''); }}
-          onBlur={() => { if (subjectErr && subject.trim()) setSubjectErr(''); }}
-          placeholder="e.g. Zoom won’t open after the latest update" autoFocus
-          aria-invalid={!!subjectErr} aria-describedby={subjectErr ? 'rep-subject-err' : undefined} />
-        {subjectErr && <div id="rep-subject-err" className="rep-error" role="alert">{subjectErr}</div>}
-        {!subject.trim() && !prefilled && (
-          <div className="rep-shortcuts" aria-label="Common issues">
-            {REPORT_SHORTCUTS.map(({ label, subject: sub, Icon }) => (
-              <button key={label} type="button" className="rep-shortcut"
-                onClick={() => { setSubject(sub); setSubjectErr(''); setTimeout(() => descRef.current && descRef.current.focus(), 30); }}>
-                <Icon size={14} />{label}
+          {!prefilled && <TeamPicker value={team} onChange={(k) => { setTeam(k); setError(''); }} />}
+
+          <FieldBlock k="subject" label="What’s wrong?" required err={subjectErr} htmlFor="rep-subject">
+            <input id="rep-subject" ref={subjectRef} className={'cf-input' + (subjectErr ? ' is-invalid' : '')}
+              value={subject} maxLength={200}
+              onChange={(e) => { setSubject(e.target.value); if (subjectErr && e.target.value.trim()) setSubjectErr(''); }}
+              placeholder={teamInfo.issue || "Describe the problem"} autoFocus
+              aria-invalid={!!subjectErr} />
+          </FieldBlock>
+
+          <FieldBlock k="desc" label="Tell us more" htmlFor="rep-desc">
+            <ComposerField id="rep-desc" minHeight={130} maxLength={8000} value={description} onChange={setDescription}
+              placeholder="What happened, what you expected, and anything you’ve already tried."
+              files={attachFiles} onFilesChange={setAttachFiles} disabled={busy} />
+          </FieldBlock>
+
+          {showCatalogNudge && (
+            <div className="rep-nudge-x" role="note">
+              <span>
+                <b>Need access to an app?</b> Request it from the catalog — the right approver is added for you, so it moves faster.
+              </span>
+              <button type="button" className="btn btn-outline rep-nudge-btn" onClick={onBrowseCatalog}>Browse apps</button>
+            </div>
+          )}
+
+          <div className="rqx-extras">
+            <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
+          </div>
+          {error && !asPage && <p className="rq-inline-err" role="alert">{error}</p>}
+        </div>
+
+        <aside className="rqx-side" aria-label="Summary">
+          <div className="rqx-card">
+            <GoesToRow teamKey={teamInfo.key} soon />
+            <div className="rqx-card-row">
+              <span className="rqx-k">Kind</span>
+              <div className="rep-kind" role="radiogroup" aria-label="Kind">
+                {KINDS.map(([v, l, h]) => (
+                  <button key={v} type="button" role="radio" aria-checked={type === v} title={h}
+                    className={'rep-kind-opt' + (type === v ? ' is-on' : '')} onClick={() => setType(v)}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div className="rqx-card-row rqx-urgency">
+              <UrgencyPicker value={priority} onChange={setPriority} label="Urgency" compact teamKey={teamInfo.key} />
+            </div>
+            {who && (
+              <div className="rqx-card-row">
+                <span className="rqx-k">From</span>
+                <span className="rqx-people"><span className="rqx-person"><PersonAvatar name={who} size={20} self />You</span></span>
+              </div>
+            )}
+            <div className="rqx-cta">
+              {error && asPage && <div className="rqx-err">{error}</div>}
+              <button className="btn btn-primary rqx-submit" onClick={submit} disabled={busy || !teamInfo.live} aria-busy={busy || undefined}>
+                {busy && <span className="tkt-life-spin rq-btn-spin" aria-hidden="true" />}{busy ? busyLabel : !teamInfo.live ? teamInfo.label + ' opens soon' : 'Send to ' + teamInfo.label}
               </button>
-            ))}
+              <button className="rqx-cancel" onClick={onClose} disabled={busy}>Cancel</button>
+            </div>
           </div>
-        )}
-
-        <label className="rep-label" htmlFor="rep-desc">Tell us more <span className="rep-opt">(optional)</span></label>
-        <textarea id="rep-desc" ref={descRef} className="rep-input rep-textarea" value={description} onChange={(e) => setDescription(e.target.value)}
-          placeholder="What happened, what you expected, and anything you’ve already tried. Paste a screenshot here with ⌘V." />
-
-        <div className="rep-label">What kind?</div>
-        <div className="rep-seg" role="radiogroup" aria-label="What kind">
-          {[['incident', 'Something’s broken', 'It used to work, or it errors'], ['service_request', 'I need something', 'Access, a setup, or a change']].map(([v, l, h]) => (
-            <button key={v} type="button" role="radio" aria-checked={type === v} className={'rep-seg-opt' + (type === v ? ' is-on' : '')} onClick={() => setType(v)}>
-              <span className="rep-seg-radio" aria-hidden="true" />
-              <span><span className="rep-seg-title">{l}</span><span className="rep-seg-hint">{h}</span></span>
-            </button>
-          ))}
-        </div>
-        {type === 'service_request' && onBrowseCatalog && (
-          <div className="rep-nudge">
-            Asking for an app or access? It’s faster from the catalog — the right approver is added for you.
-            <button type="button" className="tkt-link" onClick={onBrowseCatalog}>Browse apps & services →</button>
-          </div>
-        )}
-
-        <UrgencyPicker value={priority} onChange={setPriority} />
-
-        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
-
-        <div className="rep-label">Screenshots & files <span className="rep-opt">(optional)</span></div>
-        <div className="rep-attach">
-          <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
-          <span className="rep-attach-hint">or drag them onto this page · paste with ⌘V</span>
-        </div>
-
-        {error && <p className="rep-error" role="alert" style={{ marginTop: 16 }}>{error}</p>}
-
-        <div className={asPage ? 'pg-actions' : 'rep-actions'}>
-          {who && <span className="rep-who">Sending as <b>{who}</b></span>}
-          <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="tkt-life-btn is-send" onClick={submit} disabled={busy} style={{ minWidth: 150 }}>
-            {busy
-              ? <span className="tkt-life-spin" aria-hidden="true" />
-              : <svg className="tkt-send-plane" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7Z" /></svg>}
-            {busy ? busyLabel : 'Send to IT'}
-          </button>
-        </div>
+        </aside>
       </div>
     </Shell>
   );
@@ -6008,10 +6240,10 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
 
 // Shared tokens so every ticket surface looks the same.
 const TK = {
-  ink: '#211E1E', cheese: '#FDC831', cream: '#FFFDF4', muted: '#78684C', red: '#B92323',
-  field: { width: '100%', padding: '10px 12px', border: '1px solid #211E1E', borderRadius: 7, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
-  label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#55503F', marginBottom: 6, marginTop: 14 },
-  card: { background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' },
+  ink: '#211E1E', cheese: '#FDC831', cream: '#FFFFFF', muted: '#78684C', red: '#B92323',
+  field: { width: '100%', padding: '12px 12px', border: '1px solid rgba(33,30,30,.14)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
+  label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#4A3F2E', marginBottom: 8, marginTop: 16 },
+  card: { background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)' },
   // Spread onto a TK.card row to make it feel clickable (lift on hover, press in).
   rowTransition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)',
 };
@@ -6286,18 +6518,18 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
   const link = () => { const u = window.prompt('Link URL:'); if (u) exec('createLink', u); };
   const image = () => { const u = window.prompt('Image URL:'); if (u) exec('insertImage', u); };
 
-  const tbBtn = { width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 6, border: 'none', background: 'transparent', color: '#6B5F4B', cursor: disabled ? 'default' : 'pointer', transition: 'background .12s, color .12s' };
-  const Sep = () => <span style={{ width: 1, height: 16, background: '#E4DDCD', margin: '0 3px' }} />;
+  const tbBtn = { width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 8, border: 'none', background: 'transparent', color: '#78684C', cursor: disabled ? 'default' : 'pointer', transition: 'background .12s, color .12s' };
+  const Sep = () => <span style={{ width: 1, height: 16, background: '#E2DCD0', margin: '0 3px' }} />;
   const TB = ({ title, onClick, children }) => (
     <button type="button" title={title} disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onClick}
       onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.background = 'rgba(33,30,30,.08)'; e.currentTarget.style.color = '#211E1E'; } }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B5F4B'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#78684C'; }}
       style={tbBtn}>{children}</button>
   );
 
   return (
     <div className="rr-shell" style={{ border: '1px solid rgba(33,30,30,.22)', borderRadius: 12, background: '#FFFFFF', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, padding: '5px 7px', borderBottom: '1px solid #EFEAE0', background: '#FBF8F2' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, padding: '4px 8px', borderBottom: '1px solid #EFE8DA', background: '#F7F4EF' }}>
         <TB title="Bold (⌘B)" onClick={() => exec('bold')}><RTIcon d={["M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"]} /></TB>
         <TB title="Italic (⌘I)" onClick={() => exec('italic')}><RTIcon extra={<><line x1="19" x2="10" y1="4" y2="4" /><line x1="14" x2="5" y1="20" y2="20" /><line x1="15" x2="9" y1="4" y2="20" /></>} /></TB>
         <TB title="Underline (⌘U)" onClick={() => exec('underline')}><RTIcon d={["M6 4v6a6 6 0 0 0 12 0V4"]} extra={<line x1="4" x2="20" y1="20" y2="20" />} /></TB>
@@ -6311,7 +6543,7 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
         <Sep />
         <label title="Text color" style={{ ...tbBtn, position: 'relative' }}
           onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.background = 'rgba(33,30,30,.08)'; e.currentTarget.style.color = '#211E1E'; } }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B5F4B'; }}>
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#78684C'; }}>
           <RTIcon d={["M4 20h16", "m6 16 6-12 6 12", "M8 12h8"]} />
           <input type="color" disabled={disabled} onChange={(e) => color(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
         </label>
@@ -6321,11 +6553,11 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
         <TB title="Clear formatting" onClick={() => exec('removeFormat')}><RTIcon d={["M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21", "m5.082 11.09 8.828 8.828"]} /></TB>
       </div>
       <div style={{ position: 'relative' }}>
-        {empty && <div style={{ position: 'absolute', top: 10, left: 13, color: '#9A8E78', fontSize: 14.5, pointerEvents: 'none' }}>{placeholder}</div>}
+        {empty && <div style={{ position: 'absolute', top: 10, left: 13, color: '#9A8E78', fontSize: 14, pointerEvents: 'none' }}>{placeholder}</div>}
         <div ref={ref} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label={placeholder}
           spellCheck onInput={emit}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); onSubmit && onSubmit(); } }}
-          style={{ minHeight: 110, maxHeight: 300, overflowY: 'auto', padding: '10px 13px', fontSize: 14.5, lineHeight: 1.5, color: '#211E1E', outline: 'none', wordBreak: 'break-word' }}
+          style={{ minHeight: 110, maxHeight: 300, overflowY: 'auto', padding: '12px 12px', fontSize: 14, lineHeight: 1.5, color: '#211E1E', outline: 'none', wordBreak: 'break-word' }}
         />
       </div>
     </div>
@@ -6338,14 +6570,37 @@ function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
 // tickets (there the plain button drives the reopen-confirm flow instead).
 function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend }) {
   const [open, setOpen] = React.useState(false);
+  const [pos, setPos] = React.useState(null); // where the menu sits (fixed, from the button)
+  const [askCrit, setAskCrit] = React.useState(null); // send opts waiting on the critical confirm
   const wrapRef = React.useRef(null);
+  const menuRef = React.useRef(null);
+  // The menu is portaled to <body> so the reply box (overflow: hidden) can't
+  // clip it. It opens above the button, or below when there's no room above.
+  const place = React.useCallback(() => {
+    const r = wrapRef.current && wrapRef.current.getBoundingClientRect();
+    if (!r) return;
+    const up = r.top > 200;
+    setPos({ right: Math.max(8, window.innerWidth - r.right), ...(up ? { bottom: window.innerHeight - r.top + 8 } : { top: r.bottom + 8 }) });
+  }, []);
   React.useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    if (!open) return undefined;
+    place();
+    const inside = (el) => (wrapRef.current && wrapRef.current.contains(el)) || (menuRef.current && menuRef.current.contains(el));
+    const onDoc = (e) => { if (!inside(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const onMove = () => setOpen(false);
     document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); });
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onMove);
+    const sc = document.querySelector('.page-scroll');
+    sc && sc.addEventListener('scroll', onMove, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onMove);
+      sc && sc.removeEventListener('scroll', onMove);
+    };
+  }, [open, place]);
 
   const pr = String((ticket && ticket.priority) || '').toLowerCase();
   const ArrowUp = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>;
@@ -6356,7 +6611,13 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend 
   // No send options on a reopen or a declined request (nothing to resolve).
   const showMenu = !reopenOnReply && !declined && items.length > 0;
 
-  const choose = (opts) => { setOpen(false); onSend(opts); };
+  // Raising to critical alerts the whole team, so it asks first (same dialog
+  // as the priority control and the request form).
+  const choose = (opts) => {
+    setOpen(false);
+    if (opts && opts.priority === 'critical') { setAskCrit(opts); return; }
+    onSend(opts);
+  };
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', display: 'inline-flex' }}>
@@ -6376,26 +6637,38 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend 
           </button>
         )}
       </div>
-      {showMenu && open && (
-        <div role="menu" style={{
-          position: 'absolute', bottom: 'calc(100% + 6px)', right: 0, minWidth: 250, zIndex: 60,
-          background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', overflow: 'hidden',
+      {showMenu && open && pos && ReactDOM.createPortal((
+        <div ref={menuRef} role="menu" className="send-menu" style={{
+          position: 'fixed', right: pos.right, ...(pos.bottom != null ? { bottom: pos.bottom } : { top: pos.top }), minWidth: 260, zIndex: 80, padding: 4,
+          background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 12,
+          boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 16px 40px -12px rgba(33,30,30,.3)',
         }}>
           {items.map((it, i) => (
             <button key={it.key} role="menuitem" disabled={disabled} onClick={() => choose(it.opts)}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#F7F4EF'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#F4F0E8'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
-                padding: '11px 14px', background: '#FFFFFF', border: 'none',
-                borderBottom: i < items.length - 1 ? '1px solid #EFEAE0' : 'none',
-                cursor: 'pointer', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, color: '#211E1E',
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
+                minHeight: 38, padding: '8px 12px', background: 'transparent', border: 'none', borderRadius: 8,
+                cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 14, color: '#211E1E',
               }}>
               <span style={{ color: it.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{it.icon}</span>
               {it.label}
             </button>
           ))}
         </div>
+      ), document.body)}
+      {askCrit && (
+        <ConfirmDialog
+          kicker="Critical"
+          title="Send and raise to critical?"
+          body={critCopy(ticketTeamKey(ticket)).body}
+          tone="danger"
+          icon={<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>}
+          confirmLabel="Send as critical"
+          cancelLabel="Not critical"
+          onConfirm={() => { onSend(askCrit); return true; }}
+          onDone={() => setAskCrit(null)} />
       )}
     </div>
   );
@@ -6404,7 +6677,7 @@ function ReplySend({ ticket, sending, disabled, reopenOnReply, declined, onSend 
 // A stable, readable avatar colour per person, so a long thread shows at a
 // glance who said what (and two IT people never look like one).
 const CONVO_TINTS = [
-  ['#DCE8FA', '#1C4E8C'], ['#DDF1E4', '#0A6E31'], ['#EEE7FB', '#5B3CB0'], ['#FFE9D2', '#9A4A00'],
+  ['#DCE8FA', '#1C4E8C'], ['#DDF1E4', '#0A6E31'], ['#EEE7FB', '#5B3CB0'], ['#F4F0E8', '#9A4A00'],
   ['#E2F4F1', '#0F766E'], ['#FBE4EC', '#9D2B55'], ['#EAEDF1', '#3E4C5E'],
 ];
 function convoTint(name) {
@@ -6445,18 +6718,18 @@ function ConversationDay({ label }) {
 // `files` renders under the bubble — the attachments sent WITH this message,
 // so "here's the screenshot" and the screenshot read as one reply.
 // `onOpenImage` makes inline images in the body open in the lightbox.
-function ConversationMessage({ mine, name, time, stamp, body, children, files, onOpenImage, compact }) {
+function ConversationMessage({ mine, name, time, stamp, body, children, files, onOpenImage, compact, teamName = 'IT Team' }) {
   const isGeneric = !name || /^it team$/i.test(name);
   const initials = mine ? ticketInitials(name) : (isGeneric ? 'IT' : ticketInitials(name));
-  const [bg, fg] = mine ? ['#FDC831', '#211E1E'] : (isGeneric ? ['#211E1E', '#FDC831'] : convoTint(name));
+  const [bg, fg] = mine ? ['#FFFFFF', '#211E1E'] : (isGeneric ? ['#211E1E', '#FFFFFF'] : convoTint(name));
   return (
     <div className={'convo-msg' + (mine ? ' is-mine' : ' is-agent') + (compact ? ' is-compact' : '')}>
-      <span className="convo-avatar" aria-hidden="true" style={compact ? undefined : { background: bg, color: fg }}>{compact ? null : initials}</span>
+      <span className="convo-avatar" aria-hidden="true" style={compact ? undefined : { background: bg, color: fg, ...(mine ? { boxShadow: 'inset 0 0 0 1.5px #211E1E' } : {}) }}>{compact ? null : initials}</span>
       <div className="convo-col">
         {!compact && (
           <div className="convo-head">
             <span className="convo-name">{mine ? 'You' : (name || 'IT Team')}</span>
-            {!mine && !isGeneric && <span className="convo-role">IT Team</span>}
+            {!mine && !isGeneric && <span className="convo-role">{teamName}</span>}
             {time && <time className="convo-time" title={stamp}>{time}</time>}
           </div>
         )}
@@ -6536,12 +6809,12 @@ function useAttachmentObjectUrl(source) {
 function AttachmentItem({ name, source, size, isImage, onOpenImage }) {
   const { url, loading, err } = useAttachmentObjectUrl(source);
   const paperclip = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
-  const chip = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 10, fontSize: 13, color: '#211E1E', textDecoration: 'none' };
+  const chip = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 12, fontSize: 13, color: '#211E1E', textDecoration: 'none' };
   if (isImage && url && !err) {
     const thumb = (
       <>
         <img src={url} alt={name} style={{ display: 'block', maxWidth: 260, maxHeight: 220, objectFit: 'cover' }} />
-        <span style={{ display: 'block', padding: '7px 10px', fontSize: 12, color: '#5C5240', borderTop: '1px solid #F0EADC', background: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+        <span style={{ display: 'block', padding: '8px 12px', fontSize: 12, color: '#4A3F2E', borderTop: '1px solid #EFE8DA', background: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
       </>
     );
     const frame = { display: 'inline-block', border: '1px solid rgba(33,30,30,.16)', borderRadius: 12, overflow: 'hidden', background: '#FFFFFF', maxWidth: 260, padding: 0, cursor: 'zoom-in' };
@@ -6590,9 +6863,9 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
         {(files || []).length > 0 && <span className="tkt-attach-n" aria-label={`${files.length} attached`}>{files.length}</span>}
       </button>
       {(files || []).length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
           {files.map((f, i) => (
-            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 8px 5px 10px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 10, fontSize: 12.5, color: '#211E1E', maxWidth: 280 }}>
+            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 8px 4px 12px', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.16)', borderRadius: 12, fontSize: 13, color: '#211E1E', maxWidth: 280 }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
               <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(f.size)}</span>
               {!disabled && (
@@ -6602,7 +6875,7 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
           ))}
         </div>
       )}
-      {err && <p style={{ color: '#B92323', fontSize: 12.5, marginTop: 6 }}>{err}</p>}
+      {err && <p style={{ color: '#B92323', fontSize: 13, marginTop: 8 }}>{err}</p>}
     </div>
   );
 }
@@ -6652,13 +6925,14 @@ function ComposerField({ id, value, onChange, placeholder, invalid, files, onFil
       )}
       <div className="cmp-bar">
         <input ref={inputRef} type="file" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
-        <button type="button" className="cmp-attach" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()}>
+        <button type="button" className="cmp-attach" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()}
+          title="Attach files — you can also drop or paste a screenshot here">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
           Attach{list.length ? ` · ${list.length}` : ''}
         </button>
-        <span className="cmp-hint">{drag ? 'Drop to attach' : 'or drop / paste a screenshot'}</span>
+        {drag && <span className="cmp-hint">Drop to attach</span>}
       </div>
-      {err && <p className="cf-err" role="alert" style={{ margin: '0 12px 10px' }}><RqIcon name="alert" size={13} />{err}</p>}
+      {err && <p className="cf-err" role="alert" style={{ margin: '0 12px 12px' }}><RqIcon name="alert" size={13} />{err}</p>}
     </div>
   );
 }
@@ -6670,19 +6944,19 @@ function ticketStatusMeta(status) {
     open:        { label: 'Open',        bg: '#2563B0', fg: '#FFFFFF', bd: '#1C4E8C' },
     new:         { label: 'New',         bg: '#2563B0', fg: '#FFFFFF', bd: '#1C4E8C' },
     in_progress: { label: 'In progress', bg: '#B5830F', fg: '#FFFFFF', bd: '#8E6709' },
-    pending:     { label: 'Pending',     bg: '#D1730F', fg: '#FFFFFF', bd: '#A85B0B' },
-    waiting:     { label: 'Waiting',     bg: '#D1730F', fg: '#FFFFFF', bd: '#A85B0B' },
-    on_hold:     { label: 'On hold',     bg: '#D1730F', fg: '#FFFFFF', bd: '#A85B0B' },
-    resolved:    { label: 'Resolved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#076E31' },
+    pending:     { label: 'Pending',     bg: '#E08A1E', fg: '#FFFFFF', bd: '#9A4A00' },
+    waiting:     { label: 'Waiting',     bg: '#E08A1E', fg: '#FFFFFF', bd: '#9A4A00' },
+    on_hold:     { label: 'On hold',     bg: '#E08A1E', fg: '#FFFFFF', bd: '#9A4A00' },
+    resolved:    { label: 'Resolved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#0A6E31' },
     closed:      { label: 'Closed',      bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
-    approved:    { label: 'Approved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#076E31' },
+    approved:    { label: 'Approved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#0A6E31' },
     // An approval status rendered in the ticket-status slot. The module stores
     // 'rejected' on the approval while the ticket becomes 'cancelled'; both are
     // shown as "Declined" so the portal and the agent app don't use two words
     // for one outcome. The stored status is deliberately NOT renamed —
     // 'cancelled' is load-bearing in user-authored automation rules and saved
     // views in the ticket module. Relabel the display instead.
-    rejected:    { label: 'Declined',    bg: '#B92323', fg: '#FFFFFF', bd: '#8E1A1A' },
+    rejected:    { label: 'Declined',    bg: '#B92323', fg: '#FFFFFF', bd: '#8A1E17' },
     // 'cancelled' is NOT "Declined". It is the ticket status for BOTH outcomes
     // — an approver declining and the requester withdrawing — so on its own it
     // can't tell you which happened. The approval status is what separates
@@ -6695,7 +6969,7 @@ function ticketStatusMeta(status) {
     // did.
     cancelled:   { label: 'Cancelled',   bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
   };
-  return map[s] || { label: status || 'Unknown', bg: '#5C564C', fg: '#FFFFFF', bd: '#46413A' };
+  return map[s] || { label: status || 'Unknown', bg: '#4A3F2E', fg: '#FFFFFF', bd: '#4A3F2E' };
 }
 
 // The "two logics", as a label: incident → Issue, service_request → Request.
@@ -6770,12 +7044,12 @@ function matchCatalogItem(catalog, text) {
 }
 
 const STATUS_TINT = {
-  open: '#ECE7DD', new: '#ECE7DD', in_progress: '#FFF1C2',
-  pending: '#FDEFD9', waiting: '#FDEFD9', on_hold: '#FDEFD9',
-  resolved: '#DFF1E5', approved: '#DFF1E5', closed: '#F1ECE2', cancelled: '#F1ECE2', rejected: '#FBE3E0',
+  open: '#EFE8DA', new: '#EFE8DA', in_progress: '#E6EEF9',
+  pending: '#F4F0E8', waiting: '#F4F0E8', on_hold: '#F4F0E8',
+  resolved: '#E7F5EC', approved: '#E7F5EC', closed: '#F4F0E8', cancelled: '#F4F0E8', rejected: '#FFF4F2',
 };
 const STATUS_DOT = {
-  open: '#211E1E', new: '#211E1E', in_progress: '#FDC831',
+  open: '#211E1E', new: '#211E1E', in_progress: '#2563B0',
   pending: '#E08A1E', waiting: '#E08A1E', on_hold: '#E08A1E',
   resolved: '#0A8A3E', approved: '#0A8A3E', closed: '#9A8E78', cancelled: '#9A8E78', rejected: '#DA3327',
 };
@@ -6788,13 +7062,13 @@ function TicketStatusBadge({ status, small, label, type }) {
   // so a list of tickets reads calm and the dot carries the meaning.
   const s = String(status || '').toLowerCase();
   const dot = isReqPending ? '#E08A1E' : (STATUS_DOT[s] || '#9A8E78');
-  const tint = isReqPending ? '#FDEFD9' : (STATUS_TINT[s] || '#F1ECE2');
+  const tint = isReqPending ? '#F4F0E8' : (STATUS_TINT[s] || '#F4F0E8');
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 7,
+      display: 'inline-flex', alignItems: 'center', gap: 8,
       padding: small ? '3px 10px 3px 8px' : '5px 12px 5px 10px',
       background: tint, color: '#211E1E', border: 'none',
-      borderRadius: 999, fontSize: small ? 12 : 12.5, fontWeight: 600,
+      borderRadius: 999, fontSize: small ? 12 : 13, fontWeight: 600,
       fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
       whiteSpace: 'nowrap', lineHeight: 1.2,
     }}>
@@ -6812,9 +7086,9 @@ function TicketTypeBadge({ type }) {
       display: 'inline-flex', alignItems: 'center',
       padding: '2px 8px',
       background: filled ? '#211E1E' : '#FFFFFF',
-      color: filled ? '#FDC831' : '#211E1E',
-      border: '1px solid #211E1E', borderRadius: 4,
-      fontSize: 10, fontWeight: 600, fontFamily: "var(--font-mono)",
+      color: filled ? '#FFFFFF' : '#211E1E',
+      border: '1px solid rgba(33,30,30,.14)', borderRadius: 4,
+      fontSize: 11, fontWeight: 600, fontFamily: "var(--font-mono)",
       letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap',
     }}>{m.label}</span>
   );
@@ -6823,10 +7097,10 @@ function TicketTypeBadge({ type }) {
 // A muted state panel (loading / empty / error) used across the ticket views.
 function TicketsNotice({ title, body, action, onAction }) {
   return (
-    <div style={{ ...TK.card, padding: '32px 26px', textAlign: 'center' }}>
-      <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 16, fontWeight: 800, color: '#211E1E', marginBottom: 6 }}>{title}</div>
-      {body && <div style={{ fontSize: 13.5, color: '#78684C', lineHeight: 1.5, maxWidth: 460, margin: '0 auto' }}>{body}</div>}
-      {action && <button onClick={onAction} className="btn btn-primary" style={{ marginTop: 18 }}>{action}</button>}
+    <div style={{ ...TK.card, padding: '32px 24px', textAlign: 'center' }}>
+      <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 16, fontWeight: 800, color: '#211E1E', marginBottom: 8 }}>{title}</div>
+      {body && <div style={{ fontSize: 14, color: '#78684C', lineHeight: 1.5, maxWidth: 460, margin: '0 auto' }}>{body}</div>}
+      {action && <button onClick={onAction} className="btn btn-primary" style={{ marginTop: 20 }}>{action}</button>}
     </div>
   );
 }
@@ -6912,9 +7186,41 @@ const _selectStackItems = (items) => {
   // `total` drives the "+N" card and the subtitle's count. Three logos are
   // decoration; a real number is the reason to click — it's the only thing
   // on the bar that says how much is actually behind it.
-  return { preview: scored.slice(0, CTA_ICON_COUNT), total: scored.length };
+  return { preview: scored.slice(0, CTA_ICON_COUNT), top: scored.slice(0, 8), total: scored.length };
 };
-const _EMPTY_STACK = { preview: [], total: 0 };
+const _EMPTY_STACK = { preview: [], top: [], total: 0 };
+
+// A small rotating deck of the most-requested apps: three logos fanned out;
+// every couple of seconds the front one slides off and the next app comes in
+// at the back. Pauses while `paused` (the card is hovered/focused) and holds
+// still for prefers-reduced-motion.
+function AppDeck({ apps, paused }) {
+  const [k, setK] = React.useState(0);
+  const n = apps.length;
+  const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  React.useEffect(() => {
+    if (n <= 3 || paused || reduce) return undefined;
+    const t = setInterval(() => setK((x) => x + 1), 2200);
+    return () => clearInterval(t);
+  }, [n, paused, reduce]);
+  if (!n) return null;
+  // Slots: -1 leaving, 0..2 visible (front → back), 3 waiting to come in.
+  // With only four apps the leaving and incoming slot are the same app, so
+  // each app takes the first slot it lands in (visible ones win).
+  const seen = new Set();
+  const slots = n <= 3 ? apps.map((a, i) => ({ a, slot: i }))
+    : [0, 1, 2, -1, 3].map((slot) => ({ a: apps[(((k + slot) % n) + n) % n], slot }))
+      .filter(({ a }) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
+  return (
+    <span className="app-deck" aria-hidden="true">
+      {slots.map(({ a, slot }) => (
+        <span key={a.id} className="app-deck-card" data-slot={slot}>
+          {a.icon_url ? <img src={a.icon_url} alt="" width="56" height="56" decoding="async" /> : <span className="app-deck-letter">{a.name.charAt(0).toUpperCase()}</span>}
+        </span>
+      ))}
+    </span>
+  );
+}
 function useCatalogStackItems() {
   return useCatalogSlice(_selectStackItems, _EMPTY_STACK);
 }
@@ -6929,7 +7235,7 @@ function AppIcon({ name, iconUrl, size = 30, className }) {
   }
   return (
     <span className={className} style={{
-      width: size, height: size, borderRadius: Math.round(size * 0.24), background: '#FBF0CB', border: 'none', boxShadow: '0 0 0 1px rgba(33,30,30,.08)',
+      width: size, height: size, borderRadius: Math.round(size * 0.24), background: '#F4F0E8', border: 'none', boxShadow: '0 0 0 1px rgba(33,30,30,.08)',
       display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif",
       fontSize: Math.round(size * 0.46), color: '#211E1E', flexShrink: 0,
     }}>{String(name || '?').charAt(0).toUpperCase()}</span>
@@ -6953,18 +7259,18 @@ const IconPhone = (p) => <IconBase {...p}><rect x="6" y="2.5" width="12" height=
 // tint; the small red "!" corner (TicketLeadIcon) is what still marks it as a
 // problem rather than a request.
 const ISSUE_TOPICS = [
-  { key: 'security', label: 'Security',        re: /phish|suspicious|scam|malware|virus|hack|compromis|spam/, Glyph: IconShield,    bg: '#FDE7E4', fg: '#B42318' },
-  { key: 'vpn',      label: 'VPN',             re: /\bvpn\b|globalprotect|global protect|remote access|tunnel/, Glyph: IconGlobeLock, bg: '#E4EEFB', fg: '#1C4E8C' },
-  { key: 'account',  label: 'Sign-in',         re: /password|passcode|\bmfa\b|2fa|two.factor|authenticat|log ?in|sign ?in|locked out|onelogin|okta|sso\b|credential/, Glyph: IconKey, bg: '#EEE7FB', fg: '#5B3CB0' },
-  { key: 'network',  label: 'Wi-Fi',           re: /wi-?fi|wireless|internet|network|ethernet|router|no connection|offline|dns\b/, Glyph: IconWifi, bg: '#E2F4F1', fg: '#0F766E' },
-  { key: 'email',    label: 'Email',           re: /outlook|e-?mail|\bmail\b|inbox|gmail|calendar|invite/, Glyph: IconMail, bg: '#E6F0FA', fg: '#1D5F99' },
-  { key: 'slack',    label: 'Slack',           re: /\bslack\b|huddle/, Glyph: IconSlack, bg: '#F3E6F1', fg: '#6B2367' },
-  { key: 'audio',    label: 'Audio & video',   re: /headset|headphone|\bmic\b|microphone|audio|sound|speaker|jabra|webcam|camera|\bccp\b|zoom call/, Glyph: IconHeadset, bg: '#FFF1DB', fg: '#A15C07' },
-  { key: 'display',  label: 'Display',         re: /monitor|display|screen|\bdock\b|docking|hdmi|usb-?c|flicker|projector/, Glyph: IconMonitor, bg: '#EAEDF1', fg: '#3E4C5E' },
-  { key: 'printer',  label: 'Printer',         re: /printer|print|scanner|scan\b|toner/, Glyph: IconPrinter, bg: '#EDEAE4', fg: '#55503F' },
-  { key: 'phone',    label: 'Phone',           re: /iphone|android|mobile|phone|\bipad\b|tablet/, Glyph: IconPhone, bg: '#E8F1E6', fg: '#2F6B2A' },
-  { key: 'access',   label: 'Access',          re: /permission|access denied|no access|can'?t access|cannot access|\b403\b|unauthori[sz]ed/, Glyph: IconLock, bg: '#EEE7FB', fg: '#5B3CB0' },
-  { key: 'device',   label: 'Computer',        re: /laptop|macbook|\bmac\b|computer|\bpc\b|windows|slow|battery|keyboard|trackpad|mouse|freez|crash|won'?t (start|boot|turn on)|update/, Glyph: IconLaptop, bg: '#F1ECE2', fg: '#4A3F2E' },
+  { key: 'security', label: 'Security',        re: /phish|suspicious|scam|malware|virus|hack|compromis|spam/, Glyph: IconShield,    bg: '#FFF4F2', fg: '#B92323' },
+  { key: 'vpn',      label: 'VPN',             re: /\bvpn\b|globalprotect|global protect|remote access|tunnel/, Glyph: IconGlobeLock, bg: '#E6EEF9', fg: '#1C4E8C' },
+  { key: 'account',  label: 'Sign-in',         re: /password|passcode|\bmfa\b|2fa|two.factor|authenticat|log ?in|sign ?in|locked out|onelogin|okta|sso\b|credential/, Glyph: IconKey, bg: '#E6EEF9', fg: '#5B3CB0' },
+  { key: 'network',  label: 'Wi-Fi',           re: /wi-?fi|wireless|internet|network|ethernet|router|no connection|offline|dns\b/, Glyph: IconWifi, bg: '#E7F5EC', fg: '#0F766E' },
+  { key: 'email',    label: 'Email',           re: /outlook|e-?mail|\bmail\b|inbox|gmail|calendar|invite/, Glyph: IconMail, bg: '#E6EEF9', fg: '#1C4E8C' },
+  { key: 'slack',    label: 'Slack',           re: /\bslack\b|huddle/, Glyph: IconSlack, bg: '#E6EEF9', fg: '#6B2367' },
+  { key: 'audio',    label: 'Audio & video',   re: /headset|headphone|\bmic\b|microphone|audio|sound|speaker|jabra|webcam|camera|\bccp\b|zoom call/, Glyph: IconHeadset, bg: '#F4F0E8', fg: '#9A4A00' },
+  { key: 'display',  label: 'Display',         re: /monitor|display|screen|\bdock\b|docking|hdmi|usb-?c|flicker|projector/, Glyph: IconMonitor, bg: '#E6EEF9', fg: '#3E4C5E' },
+  { key: 'printer',  label: 'Printer',         re: /printer|print|scanner|scan\b|toner/, Glyph: IconPrinter, bg: '#F4F0E8', fg: '#4A3F2E' },
+  { key: 'phone',    label: 'Phone',           re: /iphone|android|mobile|phone|\bipad\b|tablet/, Glyph: IconPhone, bg: '#E7F5EC', fg: '#0A6E31' },
+  { key: 'access',   label: 'Access',          re: /permission|access denied|no access|can'?t access|cannot access|\b403\b|unauthori[sz]ed/, Glyph: IconLock, bg: '#E6EEF9', fg: '#5B3CB0' },
+  { key: 'device',   label: 'Computer',        re: /laptop|macbook|\bmac\b|computer|\bpc\b|windows|slow|battery|keyboard|trackpad|mouse|freez|crash|won'?t (start|boot|turn on)|update/, Glyph: IconLaptop, bg: '#F4F0E8', fg: '#4A3F2E' },
 ];
 function issueTopic(ticket) {
   const t = ticket || {};
@@ -6983,15 +7289,18 @@ function TicketLeadIcon({ ticket, app, size = 34, className }) {
   // One neutral tile for every non-app ticket — white, hairline, charcoal
   // glyph — so the list reads as one system next to real app logos instead
   // of a patchwork of pastel boxes. The glyph alone says what it's about.
+  const team = ticketTeamKey(ticket);
   const isRequest = ticketTypeMeta(ticket && ticket.type).kind === 'request';
-  const topic = isRequest ? null : issueTopic(ticket);
-  const Glyph = isRequest ? IconSpark : (topic ? topic.Glyph : IconAlert);
+  // Another team's ticket wears that team's icon (HR, Finance…): its topic
+  // glyphs are IT's (Wi-Fi, laptop…), so they'd say the wrong thing.
+  const topic = isRequest || team !== 'it' ? null : issueTopic(ticket);
+  const Glyph = team !== 'it' ? teamIcon(team) : isRequest ? IconSpark : (topic ? topic.Glyph : IconAlert);
   const bg = '#FFFFFF';
   const fg = '#211E1E';
   const flag = !isRequest && topic && size >= 28;
   const flagSize = Math.max(13, Math.round(size * 0.36));
   return (
-    <span className={className} title={topic ? `Issue · ${topic.label}` : undefined} style={{
+    <span className={className} title={team !== 'it' ? helpTeam(team).label : topic ? `Issue · ${topic.label}` : undefined} style={{
       position: 'relative', width: size, height: size, borderRadius: Math.round(size * 0.24), flexShrink: 0, background: bg,
       border: '1px solid rgba(33,30,30,.18)', display: 'grid', placeItems: 'center', boxSizing: 'border-box',
     }}>
@@ -7020,7 +7329,7 @@ function ApprovalPill({ state }) {
     // badge whenever the approval is pending or rejected, so it — not the
     // badge — is what a user actually sees on a declined request. Relabelling
     // only the badge left the portal still saying "Rejected".
-    rejected: { label: 'Declined',         color: '#8E1A1A', dot: '#B92323' },
+    rejected: { label: 'Declined',         color: '#8A1E17', dot: '#B92323' },
     // No entry for 'cancelled': a withdrawn approval renders nothing here, and
     // the status badge takes the slot back and says "Cancelled". The outcome
     // belongs to the ticket, not to an approval nobody ever answered.
@@ -7028,10 +7337,10 @@ function ApprovalPill({ state }) {
   if (!meta) return null;
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 12px 5px 10px',
-      background: { pending: '#FDEFD9', approved: '#DFF1E5', rejected: '#FBE3E0' }[String(state || '').toLowerCase()] || '#F1ECE2',
+      display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 12px',
+      background: { pending: '#F4F0E8', approved: '#E7F5EC', rejected: '#FFF4F2' }[String(state || '').toLowerCase()] || '#F4F0E8',
       color: '#211E1E', border: 'none', borderRadius: 999,
-      fontSize: 12.5, fontWeight: 600, fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
+      fontSize: 13, fontWeight: 600, fontFamily: "'Archivo', sans-serif", letterSpacing: '-0.005em',
       whiteSpace: 'nowrap', lineHeight: 1.2,
     }}>
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot, flexShrink: 0 }} />
@@ -7060,7 +7369,7 @@ function TicketNumber({ value, size = 13 }) {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') copy(e); }}
       title="Copy ticket number"
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         fontSize: size, fontWeight: 700, color: '#211E1E', letterSpacing: '0.01em', userSelect: 'all',
       }}>
@@ -7073,8 +7382,13 @@ function TicketNumber({ value, size = 13 }) {
 }
 
 // ── Full page — tabs over My Tickets + Approvals, plus the two create paths ──
-function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) {
-  const { preview: reqStack, total: reqTotal } = useCatalogStackItems();
+function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest, onRequestItem }) {
+  const { preview: reqStack, top: reqTop, total: reqTotal } = useCatalogStackItems();
+  const [reqHover, setReqHover] = React.useState(false);
+  // An unsent "Report an issue" (see REPORT_DRAFT_KEY) turns the card into
+  // "continue your draft", so half-written reports don't get lost.
+  const [reportDraft] = React.useState(() => readReportDraft());
+  const quickApps = (reqTop || []).slice(0, 3);
   const [tab, setTab] = React.useState(initialTab === 'approvals' ? 'approvals' : 'mine');
   const [query, setQuery] = React.useState('');
   // When a ticket/approval detail is open, hide the page chrome (title, tabs,
@@ -7109,55 +7423,15 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
   return (
     <div className="page" style={{ background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       {!detailOpen && (
-      <div style={{ background: 'var(--bg)', padding: '34px 32px 8px' }}>
+      <div style={{ background: 'var(--bg)', padding: '32px 32px 8px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
           {/* Just the title — the two start buttons below already say what the
               page is for. No Back button: this is a top-level section, the nav
               is right there. */}
-          <div className="tkt-head">
-            <div style={{ minWidth: 0 }}>
-              <h1 className="tkt-title">My tickets</h1>
-            </div>
-          </div>
-          {/* The two ways to start something — big, side by side, first thing
-              under the title. They used to be small buttons in the corner and
-              people walked straight past them. */}
-          <div className="tkt-start">
-            <button onClick={() => onReportIssue && onReportIssue()} className="tkt-start-card">
-              <span className="tkt-start-ic" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" />
-                </svg>
-              </span>
-              <span className="tkt-start-text">
-                <span className="tkt-start-title">Report an issue</span>
-                <span className="tkt-start-sub">Something broken, slow or not working</span>
-              </span>
-              <span className="tkt-start-go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></span>
-            </button>
-            <button onClick={() => onRequest && onRequest()} className="tkt-start-card is-request">
-              {reqStack.length > 0 ? (
-                <span className="tkt-start-stack" aria-hidden="true">
-                  {reqStack.slice(0, 3).map((it) => (
-                    <span key={it.id} className="tkt-start-chip" title={it.name}>
-                      {it.icon_url
-                        ? <img src={it.icon_url} alt="" width="48" height="48" decoding="async" />
-                        : String(it.name || '?').charAt(0).toUpperCase()}
-                    </span>
-                  ))}
-                </span>
-              ) : (
-                <span className="tkt-start-ic" aria-hidden="true">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                </span>
-              )}
-              <span className="tkt-start-text">
-                <span className="tkt-start-title">Request something</span>
-                <span className="tkt-start-sub">Apps, access and hardware{reqTotal > 0 ? ` · ${reqTotal} available` : ''}</span>
-              </span>
-              <span className="tkt-start-go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></span>
-            </button>
-          </div>
+          <h1 className="sr-only">My tickets</h1>
+          {/* Tabs lead the page. Under them, on My tickets only, the two ways
+              to start something (Report / Request) — Approvals is for deciding
+              on other people's requests, so the cards would only be noise. */}
           <div className="tkt-tabsrow">
             <style>{`
               /* Segmented switch — one track holds both options, so it reads as a
@@ -7169,34 +7443,34 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
               /* View tabs, search on the right of the same row. No full-width
                  rule underneath — the selected tab's charcoal underline
                  (SlideIndicator) is enough. */
-              .tkt-tabsrow { display:flex; align-items:flex-end; gap:16px; margin-top:28px; flex-wrap:wrap; }
-              .tkt-switch { position:relative; display:inline-flex; gap:6px; align-self:stretch; }
+              .tkt-tabsrow { display:flex; align-items:flex-end; gap:16px; margin-top:32px; flex-wrap:wrap; }
+              .tkt-switch { position:relative; display:inline-flex; gap:8px; align-self:stretch; }
               .tkt-switch .tab-slider { background:transparent !important; box-shadow:inset 0 -2px 0 #211E1E !important; border-radius:0 !important; }
-              .tkt-tab { position:relative; z-index:1; justify-content:center; padding:12px 4px 13px; margin:0 8px; cursor:pointer;
+              .tkt-tab { position:relative; z-index:1; justify-content:center; padding:12px 4px 12px; margin:0 8px; cursor:pointer;
                 border:none; background:transparent; color:#78684C;
-                font-family:'Archivo',sans-serif; font-weight:650; font-size:15px; letter-spacing:-0.005em;
+                font-family:'Archivo',sans-serif; font-weight:650; font-size:16px; letter-spacing:-0.005em;
                 display:inline-flex; align-items:center; gap:8px; transition: color .16s ease; }
               .tkt-tab:first-child, .tkt-switch > .tab-slider + .tkt-tab { margin-left:0; }
               .tkt-tab.is-idle:hover { color:#211E1E; }
               .tkt-tab.is-active { color:#211E1E; }
-              .tkt-tabsrow > div:last-child { margin-bottom:10px; }
+              .tkt-tabsrow > div:last-child { margin-bottom:12px; }
               /* Header actions — flat, no hard shadows. Secondary is an outline,
                  primary is charcoal with a cheese label like every primary CTA. */
-              .tkt-action { display:inline-flex; align-items:center; gap:9px; height:42px; padding:0 18px 0 12px; cursor:pointer;
+              .tkt-action { display:inline-flex; align-items:center; gap:8px; height:42px; padding:0 20px 0 12px; cursor:pointer;
                 background:#FFFFFF; color:#211E1E; border:1px solid rgba(33,30,30,.22); border-radius:12px;
                 font-family:'Archivo',sans-serif; font-weight:650; font-size:14px; letter-spacing:-0.005em;
                 transition: background .16s ease, border-color .16s ease, box-shadow .16s ease; }
-              .tkt-action:hover { background:#FFF6D6; border-color:#211E1E; }
+              .tkt-action:hover { background:#F4F0E8; border-color:rgba(33,30,30,.4); }
               .tkt-action:focus-visible { outline:2px solid #211E1E; outline-offset:2px; }
               .tkt-action.is-primary { background:#211E1E; border-color:#211E1E; color:#FFFFFF; }
-              .tkt-action.is-primary:hover { background:#211E1E; box-shadow:0 0 0 3px rgba(253,200,49,.6); }
+              .tkt-action.is-primary:hover { background:#2E2A28; box-shadow:none; }
               /* Leading marks on the two actions. */
               .tkt-action { padding-left:12px; }
               .tkt-action-glyph { width:26px; height:26px; flex:none; display:grid; place-items:center; border-radius:50%;
                 border:1px solid rgba(33,30,30,.18); background:#F7F4EF; color:#211E1E;
                 transition: transform .3s cubic-bezier(.34,1.56,.64,1), background .18s ease; }
               .tkt-action-issue:hover .tkt-action-glyph { animation: tktGlyphNudge .5s ease both; background:#FFFFFF; }
-              .tkt-action.is-primary .tkt-action-glyph { background:#211E1E; color:#FDC831; }
+              .tkt-action.is-primary .tkt-action-glyph { background:#211E1E; color:#FFFFFF; }
               .tkt-action.is-primary:hover .tkt-action-glyph { transform: rotate(90deg); }
               @keyframes tktGlyphNudge {
                 0% { transform: rotate(0); } 25% { transform: rotate(-12deg) scale(1.08); }
@@ -7230,6 +7504,49 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
                 placeholder={tab === 'approvals' ? 'Search approvals…' : 'Search tickets, apps, numbers…'} />
             </div>
           </div>
+          {tab === 'mine' && <div className="tkt-start">
+            <button onClick={() => onReportIssue && onReportIssue()} className={'tkt-start-card is-report' + (reportDraft ? ' has-draft' : '')}>
+              {/* Same monochrome tiles as the My Tickets menu in the top bar. */}
+              <span className="tkt-start-ic" aria-hidden="true">
+                {reportDraft
+                  ? <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  : <IconAlert size={19} stroke={1.9} />}
+              </span>
+              <span className="tkt-start-text">
+                <span className="tkt-start-title">{reportDraft ? 'Continue your report' : 'Report an issue'}</span>
+                <span className="tkt-start-sub">{reportDraft ? `Draft: “${(reportDraft.subject || reportDraft.description || '').trim()}”` : 'Something broken or not working'}</span>
+              </span>
+              <span className="tkt-start-go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></span>
+            </button>
+            {/* The wide card. The whole card opens the catalog; the quick picks
+                skip the search and open that app's request form directly. A div
+                (not a button) because it holds other buttons. */}
+            <div className="tkt-start-card is-request"
+              onClick={() => onRequest && onRequest()}
+              onMouseEnter={() => setReqHover(true)} onMouseLeave={() => setReqHover(false)}>
+              <button type="button" className="tkt-start-main" onClick={(e) => { e.stopPropagation(); onRequest && onRequest(); }}
+                onFocus={() => setReqHover(true)} onBlur={() => setReqHover(false)}>
+                {reqTop && reqTop.length
+                  ? <AppDeck apps={reqTop} paused={reqHover} />
+                  : <span className="tkt-start-ic" aria-hidden="true"><IconSpark size={19} stroke={1.9} /></span>}
+                <span className="tkt-start-text">
+                  <span className="tkt-start-title">Request something</span>
+                  <span className="tkt-start-sub">Apps, access and hardware{reqTotal > 0 ? ` · ${reqTotal} available` : ''}</span>
+                </span>
+              </button>
+              {onRequestItem && quickApps.length > 0 && (
+                <span className="tkt-quick" role="group" aria-label="Popular apps">
+                  {quickApps.map((a) => (
+                    <button key={a.id} type="button" className="tkt-quick-chip" title={`Request ${a.name}`}
+                      onClick={(e) => { e.stopPropagation(); onRequestItem(a.id); }}>
+                      {a.name}
+                    </button>
+                  ))}
+                </span>
+              )}
+              <span className="tkt-start-go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></span>
+            </div>
+          </div>}
         </div>
       </div>
       )}
@@ -7322,7 +7639,8 @@ function SlideIndicator({ activeKey, radius = 9 }) {
     const track = ref.current && ref.current.parentElement;
     if (!track) return undefined;
     const measure = () => {
-      const tab = track.querySelector('[role="tab"][aria-selected="true"]');
+      // Follows the selected tab, or the checked option in a radio group.
+      const tab = track.querySelector('[role="tab"][aria-selected="true"], [role="radio"][aria-checked="true"]');
       setBox(tab ? { x: tab.offsetLeft, y: tab.offsetTop, w: tab.offsetWidth, h: tab.offsetHeight } : null);
     };
     measure();
@@ -7353,10 +7671,11 @@ function TicketsTab({ label, active, onClick, badge }) {
       {label}
       {n > 0 && (
         <span aria-label={`${n} unseen update${n === 1 ? '' : 's'}`} style={{
-          minWidth: 20, height: 20, padding: '0 6px', boxSizing: 'border-box',
+          minWidth: 20, height: 20, padding: '0 8px', boxSizing: 'border-box',
           display: 'inline-grid', placeItems: 'center',
-          background: active ? '#211E1E' : '#FDC831', color: active ? '#FDC831' : '#211E1E',
-          borderRadius: 999, fontSize: 11, fontWeight: 500, lineHeight: 1,
+          // Same red as the top bar's unread badge: "something needs you".
+          background: '#DA3327', color: '#FFFFFF',
+          borderRadius: 999, fontSize: 11, fontWeight: 600, lineHeight: 1,
           fontFamily: 'var(--font-mono)',
         }}>{n > 9 ? '9+' : n}</span>
       )}
@@ -7422,16 +7741,16 @@ function OnBehalfBanner({ ticket }) {
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: 8,
-      padding: '5px 12px 5px 5px', marginBottom: 10,
-      background: '#FFF9EC', border: '1px solid #211E1E', borderRadius: 999,
+      padding: '4px 12px 4px 4px', marginBottom: 12,
+      background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)', borderRadius: 999,
       boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', maxWidth: '100%',
     }}>
       <span aria-hidden="true" style={{
         width: 21, height: 21, borderRadius: 999, flexShrink: 0, boxSizing: 'border-box',
-        background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center',
+        background: '#F4F0E8', border: '1px solid rgba(33,30,30,.18)', display: 'grid', placeItems: 'center',
         fontFamily: "'Archivo', sans-serif", fontSize: 9, fontWeight: 900, color: '#211E1E', lineHeight: 1,
       }}>{obInitials(person.name)}</span>
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: '#55503F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: '#4A3F2E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {text}
       </span>
     </div>
@@ -7460,17 +7779,17 @@ function OnBehalfTag({ ticket, size = 11 }) {
   const label = `${prefix} ${name}`;
   return (
     <span title={label} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px 2px 3px',
+      display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px 2px 3px',
       background: '#FFFFFF', border: '1px solid rgba(33,30,30,.18)', borderRadius: 999,
       whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden',
     }}>
       {/* Initials avatar — the person this ticket is for, at a glance. */}
       <span aria-hidden="true" style={{
         width: 17, height: 17, borderRadius: 999, flexShrink: 0, boxSizing: 'border-box',
-        background: '#FDC831', border: 'none', display: 'grid', placeItems: 'center',
+        background: '#F4F0E8', border: 'none', display: 'grid', placeItems: 'center',
         fontFamily: "'Archivo', sans-serif", fontSize: 7.5, fontWeight: 700, color: '#211E1E', lineHeight: 1,
       }}>{initials}</span>
-      <span style={{ fontSize: size, fontWeight: 600, color: '#7A6E58', flexShrink: 0 }}>{prefix}</span>
+      <span style={{ fontSize: size, fontWeight: 600, color: '#78684C', flexShrink: 0 }}>{prefix}</span>
       <span style={{ fontSize: size, fontWeight: 800, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
     </span>
   );
@@ -7536,10 +7855,10 @@ function Hl({ text, tokens }) {
 // the real ones land.
 function TicketListSkeleton({ rows = 4 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} aria-busy="true" aria-label="Loading your tickets">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }} aria-busy="true" aria-label="Loading your tickets">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="tkt-skel-row" style={{ ...TK.card, padding: '15px 18px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', animationDelay: `${i * 70}ms` }}>
-          <span className="tkt-skel" style={{ width: 44, height: 44, borderRadius: 10 }} />
+        <div key={i} className="tkt-skel-row" style={{ ...TK.card, padding: '16px 20px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', animationDelay: `${i * 70}ms` }}>
+          <span className="tkt-skel" style={{ width: 44, height: 44, borderRadius: 12 }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span className="tkt-skel" style={{ width: 150, height: 11 }} />
             <span className="tkt-skel" style={{ width: `${62 - i * 7}%`, height: 14 }} />
@@ -7726,6 +8045,8 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   const hasOnBehalf = st.tickets.some(isOnBehalf);
   const onBehalfList = searched.filter(isOnBehalf);
   const forOthersCount = onBehalfList.length;
+  // No separate team filter: each row shows its team (number prefix + icon)
+  // and search matches "HR" / "IT-…" numbers.
   const faceted = searched.filter((t) => isOnBehalf(t) === forOthers);
 
   // Most-recently-active first. The server already orders by updated_at, but we
@@ -7828,12 +8149,12 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   }
   if (st.tickets.length === 0) {
     return (
-      <div style={{ ...TK.card, padding: '34px 28px', textAlign: 'center' }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: '#211E1E', marginBottom: 6 }}>No tickets yet</div>
-        <div style={{ fontSize: 13.5, color: '#78684C', lineHeight: 1.5, maxWidth: 480, margin: '0 auto 20px' }}>
+      <div style={{ ...TK.card, padding: '32px 32px', textAlign: 'center' }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: '#211E1E', marginBottom: 8 }}>No tickets yet</div>
+        <div style={{ fontSize: 14, color: '#78684C', lineHeight: 1.5, maxWidth: 480, margin: '0 auto 20px' }}>
           When something’s broken, report an issue. When you need access to an app or service, raise a request — it’ll go for approval if it needs one.
         </div>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => onReportIssue && onReportIssue()} className="btn btn-outline">Report an issue</button>
           <button onClick={() => onRequest && onRequest()} className="btn btn-primary">Request something</button>
         </div>
@@ -7848,32 +8169,32 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           have on-behalf tickets). Counts reflect the current search + facet, so
           they also flag matches sitting in the other view. */}
       <style>{`
-        .tkt-forothers { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; padding:12px 14px 12px 16px;
-          background:#FFF6D6; color:#211E1E; border:1px solid rgba(33,30,30,.14); border-radius:12px;
+        .tkt-forothers { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 16px; padding:12px 16px 12px 16px;
+          background:#FFFFFF; color:#211E1E; border:1px solid rgba(33,30,30,.12); border-radius:12px;
           animation: tktForOthersIn .28s cubic-bezier(.22,.61,.36,1) both; }
         .tkt-forothers b { display:block; font-family:'Archivo',sans-serif; font-size:14px; font-weight:650; letter-spacing:-.01em; }
-        .tkt-forothers-sub { display:block; font-size:12.5px; color:#78684C; margin-top:2px; }
+        .tkt-forothers-sub { display:block; font-size:13px; color:#78684C; margin-top:2px; }
         .tkt-forothers-stack { display:flex; flex:none; }
-        .tkt-forothers-av { width:30px; height:30px; margin-left:-8px; border-radius:50%; display:grid; place-items:center; background:#FDC831; color:#211E1E;
-          border:2px solid #FFF6D6; font-family:'Archivo',sans-serif; font-size:10.5px; font-weight:700; }
+        .tkt-forothers-av { width:30px; height:30px; margin-left:-8px; border-radius:50%; display:grid; place-items:center; background:#F4F0E8; color:#211E1E;
+          border:2px solid #FFFFFF; font-family:'Archivo',sans-serif; font-size:11px; font-weight:700; }
         .tkt-forothers-av:first-child { margin-left:0; }
-        .tkt-forothers-back { margin-left:auto; height:34px; padding:0 12px; border-radius:10px; border:1px solid rgba(33,30,30,.22); background:#FFFFFF; color:#211E1E; cursor:pointer;
+        .tkt-forothers-back { margin-left:auto; height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(33,30,30,.22); background:#FFFFFF; color:#211E1E; cursor:pointer;
           font-family:'Archivo',sans-serif; font-weight:650; font-size:13px; }
-        .tkt-forothers-back:hover { border-color:#211E1E; box-shadow:0 0 0 3px rgba(253,200,49,.55); }
+        .tkt-forothers-back:hover { border-color:#211E1E; background:#F4F0E8; }
         @keyframes tktForOthersIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
         @media (prefers-reduced-motion: reduce) { .tkt-forothers { animation:none; } }
 
         /* "Requested for others" toggle pill — white when off, cheese when on,
            with a small ✕ hinting the second click clears it. */
-        .tkt-facet { position:relative; display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 10px; cursor:pointer;
-          background:transparent; color:#5C5240; border:none; border-radius:8px;
+        .tkt-facet { position:relative; display:inline-flex; align-items:center; gap:8px; height:34px; padding:0 12px; cursor:pointer;
+          background:transparent; color:#4A3F2E; border:none; border-radius:8px;
           font-family:'Archivo',sans-serif; font-weight:600; font-size:13px;
           transition: background .16s ease, color .16s ease; }
         .tkt-facet:hover { background:rgba(33,30,30,.06); color:#211E1E; }
-        .tkt-facet-n { flex-shrink:0; min-width:20px; padding:2px 6px; box-sizing:border-box; border-radius:999px;
-          background:#FDC831; color:#211E1E; font:600 11px/1.2 var(--font-mono); text-align:center; }
+        .tkt-facet-n { flex-shrink:0; min-width:20px; padding:2px 8px; box-sizing:border-box; border-radius:999px;
+          background:#F4F0E8; color:#211E1E; font:600 11px/1.2 var(--font-mono); text-align:center; }
         .tkt-facet-x { display:grid; place-items:center; width:17px; height:17px; margin-left:2px;
-          background:#211E1E; color:#FDC831; border-radius:999px; font-size:9.5px; font-weight:900; line-height:1; }
+          background:#211E1E; color:#FFFFFF; border-radius:999px; font-size:11px; font-weight:900; line-height:1; }
         .tkt-facet-dot { position:absolute; top:6px; right:4px; width:6px; height:6px; border-radius:999px; background:#E0A800; }
 
         @media (prefers-reduced-motion: reduce) {
@@ -7881,7 +8202,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           .tkt-facet-menu { animation:none; }
         }
       `}</style>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div className="tkt-seg has-slider" role="tablist" aria-label="Ticket state">
           <SlideIndicator activeKey={view} radius={8} />
           {[['open', 'Open', openList.length, unseenOpen], ['closed', 'Closed', closedList.length, unseenClosed]].map(([key, label, n, dot]) => {
@@ -7939,22 +8260,22 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
                 ? `${view === 'open' ? closedList.length : openList.length} ${view === 'open' ? 'closed' : 'open'} ticket${(view === 'open' ? closedList.length : openList.length) === 1 ? '' : 's'} match${(view === 'open' ? closedList.length : openList.length) === 1 ? 'es' : ''} though.`
                 : forOthers ? 'Nothing in the tickets you requested for others, either.' : 'Try fewer words, a ticket number, or an app name.'}
             </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
               {(view === 'open' ? closedList.length : openList.length) > 0 && (
-                <button type="button" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 12.5 }}
+                <button type="button" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}
                   onClick={() => setView(view === 'open' ? 'closed' : 'open')}>
                   Show {view === 'open' ? closedList.length : openList.length} {view === 'open' ? 'closed' : 'open'}
                 </button>
               )}
               {onQueryChange && (
-                <button type="button" className="btn btn-outline" style={{ padding: '8px 16px', fontSize: 12.5 }} onClick={() => onQueryChange('')}>
+                <button type="button" className="btn btn-outline" style={{ padding: '8px 16px', fontSize: 13 }} onClick={() => onQueryChange('')}>
                   Clear search
                 </button>
               )}
             </div>
           </div>
         ) : (
-        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>
+        <div style={{ ...TK.card, padding: '24px 24px', textAlign: 'center', fontSize: 14, color: '#78684C' }}>
           {forOthers
               ? `No ${view} tickets requested for others.` + (view === 'open' && closedList.length ? ` ${closedList.length} closed one${closedList.length === 1 ? '' : 's'} — check the Closed view.` : '')
               : view === 'open'
@@ -7993,7 +8314,11 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
                 <span className="tkt-row-sep" aria-hidden="true" />
                 <span>{kind.label}</span>
                 <OnBehalfTag ticket={t} />
-                {t.created_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>Opened {relativeTime(t.created_at)}</span></>}
+                {/* Open tickets say when they were opened; closed ones say how and
+                    when they ended ("Resolved 4d ago", "Declined 2d ago"). */}
+                {ticketBucket(t.status) === 'open'
+                  ? (t.created_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>Opened {relativeTime(t.created_at)}</span></>)
+                  : ((t.resolved_at || t.closed_at || t.updated_at) && <><span className="tkt-row-sep" aria-hidden="true" /><span>{String(t.approval_status || '').toLowerCase() === 'rejected' ? 'Declined' : ticketStatusMeta(t.status).label} {relativeTime(t.resolved_at || t.closed_at || t.updated_at)}</span></>)}
               </div>
             </div>
             <div className="tkt-row-status">
@@ -8012,13 +8337,13 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
         })}
       </div>
       {shown.length > PAGE_SIZE && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginTop: 18, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 20, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: '#78684C', fontWeight: 600 }}>
             Showing {pageStart + 1}–{Math.min(shown.length, pageStart + PAGE_SIZE)} of {shown.length}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button className="tkt-nav-btn is-prev is-wide" onClick={() => goToPage(safePage - 1)} disabled={safePage === 0} aria-label="Previous page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></svg>Prev</button>
-            <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 800, color: '#55503F', minWidth: 92, textAlign: 'center' }}>
+            <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#4A3F2E', minWidth: 92, textAlign: 'center' }}>
               Page {safePage + 1} of {pageCount}
             </span>
             <button className="tkt-nav-btn is-next is-wide" onClick={() => goToPage(safePage + 1)} disabled={safePage >= pageCount - 1} aria-label="Next page">Next<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg></button>
@@ -8099,12 +8424,12 @@ function ApprovalSummary({ approval, ticket }) {
   // only for a payload that predates it.
   const STATE = {
     approved:   { label: 'Approved',   dot: '#0A8A3E', txt: '#0A8A3E' },
-    pending:    { label: 'Pending',    dot: '#FDC831', txt: '#211E1E' },
-    waiting:    { label: 'Up next',    dot: '#D8D2C4', txt: '#8A8275' },
+    pending:    { label: 'Pending',    dot: '#E08A1E', txt: '#211E1E' },
+    waiting:    { label: 'Up next',    dot: '#E2DCD0', txt: '#9A8E78' },
     rejected:   { label: 'Declined',   dot: '#B92323', txt: '#B92323' },
-    skipped:    { label: 'Not needed', dot: '#D8D2C4', txt: '#8A8275' },
-    not_needed: { label: 'Not needed', dot: '#D8D2C4', txt: '#8A8275' },
-    withdrawn:  { label: 'Withdrawn',  dot: '#D8D2C4', txt: '#8A8275' },
+    skipped:    { label: 'Not needed', dot: '#E2DCD0', txt: '#9A8E78' },
+    not_needed: { label: 'Not needed', dot: '#E2DCD0', txt: '#9A8E78' },
+    withdrawn:  { label: 'Withdrawn',  dot: '#E2DCD0', txt: '#9A8E78' },
   };
   const inferred = (s) => {
     const isReject = status === 'rejected' && current && s.order === current.order;
@@ -8115,7 +8440,7 @@ function ApprovalSummary({ approval, ticket }) {
 
   if (stages.length === 0) {
     return (
-      <div style={{ padding: '12px 14px', fontSize: 13, color: '#55503F' }}>
+      <div style={{ padding: '12px 16px', fontSize: 13, color: '#4A3F2E' }}>
         {status === 'approved' ? 'This request was approved.' : status === 'rejected' ? 'This request was declined.' : 'Waiting for approval — you’ll be notified once it’s decided.'}
       </div>
     );
@@ -8124,7 +8449,7 @@ function ApprovalSummary({ approval, ticket }) {
   return (
     <div>
       {status === 'pending' && stages.length > 1 && (
-        <div style={{ padding: '9px 14px', fontSize: 11.5, fontWeight: 700, color: '#78684C', background: '#FBF8F0', borderBottom: '1px solid #F0EBE0' }}>
+        <div style={{ padding: '8px 16px', fontSize: 12, fontWeight: 700, color: '#78684C', background: '#F4F0E8', borderBottom: '1px solid #EFE8DA' }}>
           {done} of {stages.length} approvals done
         </div>
       )}
@@ -8134,13 +8459,13 @@ function ApprovalSummary({ approval, ticket }) {
         const isCur = key === 'pending';
         const line = approverLine(s, actions, currentApprovers, isCur);
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: i ? '1px solid #F0EBE0' : 'none', background: isCur ? '#FFFBEB' : 'transparent' }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: i ? '1px solid #EFE8DA' : 'none', background: isCur ? '#F4F0E8' : 'transparent' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: meta.dot, border: '1px solid #211E1E', flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name || `Step ${i + 1}`}</span>
-              {line ? <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#4A4233', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null}
+              {line ? <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#4A3F2E', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null}
             </span>
-            <span style={{ fontSize: 10.5, fontWeight: 600, color: meta.txt, fontFamily: "var(--font-mono)", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{meta.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: meta.txt, fontFamily: "var(--font-mono)", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{meta.label}</span>
           </div>
         );
       })}
@@ -8172,12 +8497,12 @@ function approvalStageStates(approval, ticket) {
 
 const APPROVAL_STEP_ICON = {
   approved: { bg: '#0A8A3E', fg: '#FFFFFF', path: <path d="m6 12.5 4 4 8-9" /> },
-  pending:  { bg: '#FDC831', fg: '#211E1E', path: <><circle cx="12" cy="12" r="7.5" /><path d="M12 8v4.2l2.6 1.6" /></> },
-  waiting:  { bg: '#FFFFFF', fg: '#8A8275', path: <path d="M8 12h8" /> },
+  pending:  { bg: '#F4F0E8', fg: '#211E1E', path: <><circle cx="12" cy="12" r="7.5" /><path d="M12 8v4.2l2.6 1.6" /></> },
+  waiting:  { bg: '#FFFFFF', fg: '#9A8E78', path: <path d="M8 12h8" /> },
   rejected: { bg: '#B92323', fg: '#FFFFFF', path: <path d="m8 8 8 8M16 8l-8 8" /> },
-  skipped:  { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
-  not_needed: { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
-  withdrawn:  { bg: '#F1ECE2', fg: '#8A8275', path: <path d="M8 12h8" /> },
+  skipped:  { bg: '#F4F0E8', fg: '#9A8E78', path: <path d="M8 12h8" /> },
+  not_needed: { bg: '#F4F0E8', fg: '#9A8E78', path: <path d="M8 12h8" /> },
+  withdrawn:  { bg: '#F4F0E8', fg: '#9A8E78', path: <path d="M8 12h8" /> },
 };
 
 // "Approvals" control on the ticket page. It used to be a plain button with
@@ -8214,25 +8539,25 @@ function ApprovalsButton({ approval, ticket }) {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <style>{`
-        .appr-btn { display:inline-flex; align-items:center; gap:10px; padding:6px 12px 6px 8px; min-height:38px; box-sizing:border-box;
-          background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:10px; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); cursor:pointer;
+        .appr-btn { display:inline-flex; align-items:center; gap:12px; padding:8px 12px 8px 8px; min-height:38px; box-sizing:border-box;
+          background:#FFFFFF; color:#211E1E; border:1px solid rgba(33,30,30,.14); border-radius:12px; box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); cursor:pointer;
           font-family:inherit; text-align:left; transition:transform .16s cubic-bezier(.22,.61,.36,1), box-shadow .16s cubic-bezier(.22,.61,.36,1); }
         .appr-btn:hover { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .appr-btn:active { transform:translate(0, 0); box-shadow:0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .appr-btn:focus-visible { outline:3px solid rgba(33,30,30,.35); outline-offset:2px; }
-        .appr-btn.is-pending { background:#FFFBEB; }
-        .appr-btn.is-approved { background:#EEF8F1; }
-        .appr-btn.is-declined { background:#FDEEEC; }
+        .appr-btn.is-pending { background:#F4F0E8; }
+        .appr-btn.is-approved { background:#E7F5EC; }
+        .appr-btn.is-declined { background:#FFF4F2; }
         .appr-steps { display:flex; align-items:center; }
         .appr-step { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; border:1.5px solid #211E1E; flex:none; position:relative; }
         .appr-step + .appr-step { margin-left:-5px; }
         .appr-step.is-pending { animation: apprPulse 2s ease-in-out infinite; }
-        @keyframes apprPulse { 0%,100% { box-shadow:0 0 0 0 rgba(253,200,49,.0); } 50% { box-shadow:0 0 0 4px rgba(253,200,49,.45); } }
+        @keyframes apprPulse { 0%,100% { box-shadow:0 0 0 0 rgba(33,30,30,.08); } 50% { box-shadow:0 0 0 4px rgba(33,30,30,.08); } }
         .appr-text { display:flex; flex-direction:column; line-height:1.15; min-width:0; }
         .appr-head { font-family:var(--font-mono); font-size:12px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
         .appr-btn.is-approved .appr-head { color:#0A6E31; }
-        .appr-btn.is-declined .appr-head { color:#8E1A1A; }
-        .appr-sub { font-size:11.5px; font-weight:600; color:#5C5240; margin-top:2px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .appr-btn.is-declined .appr-head { color:#8A1E17; }
+        .appr-sub { font-size:12px; font-weight:600; color:#4A3F2E; margin-top:2px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .appr-caret { flex:none; transition:transform .18s ease; }
         @media (prefers-reduced-motion: reduce) { .appr-step.is-pending { animation:none; } .appr-btn { transition:none; } }
       `}</style>
@@ -8255,7 +8580,7 @@ function ApprovalsButton({ approval, ticket }) {
         <svg className="appr-caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none' }} aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, maxWidth: '86vw', background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', zIndex: 40, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, maxWidth: '86vw', background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 12, boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', zIndex: 40, overflow: 'hidden' }}>
           <ApprovalSummary approval={approval} ticket={ticket} />
         </div>
       )}
@@ -8269,15 +8594,15 @@ function ApprovalsButton({ approval, ticket }) {
 // step tracker showing how far along it is. Tone (tint + dot) follows the
 // state so "resolved" and "waiting on you" read differently at a glance.
 const TICKET_HERO = {
-  open:      { label: 'Open',              line: 'Received — the IT Team will pick it up shortly.',                       bg: '#ECE7DD', dot: '#211E1E' },
-  approval:  { label: 'Waiting for approval', line: 'Your request is with the approver. IT starts as soon as it’s signed off.', bg: '#FDEFD9', dot: '#E08A1E' },
-  progress:  { label: 'In progress',       line: 'The IT Team is working on this.',                                        bg: '#FFF1C2', dot: '#FDC831' },
-  waiting:   { label: 'Waiting on you',    line: 'IT needs something from you — check the conversation below and reply.',  bg: '#FDEFD9', dot: '#E08A1E' },
-  hold:      { label: 'On hold',           line: 'Paused for now. The IT Team will update you when it moves again.',       bg: '#F3EFE7', dot: '#E08A1E' },
-  resolved:  { label: 'Resolved',          line: 'IT marked this as fixed. Close it if you’re sorted, or reply to reopen.', bg: '#DFF1E5', dot: '#0A8A3E' },
-  closed:    { label: 'Closed',            line: 'All done. Reply any time if the problem comes back — it reopens.',       bg: '#F1ECE2', dot: '#9A8E78' },
-  cancelled: { label: 'Cancelled',         line: 'This was withdrawn. Submit a new request if you still need it.',         bg: '#F3EFE7', dot: '#9A8E78' },
-  declined:  { label: 'Declined',          line: 'The approver declined this request. The conversation has the details.',  bg: '#FBE3E0', dot: '#DA3327' },
+  open:      { label: 'Open',              line: 'Received — the IT Team will pick it up shortly.',                       bg: '#EFE8DA', dot: '#211E1E' },
+  approval:  { label: 'Waiting for approval', line: 'Your request is with the approver. IT starts as soon as it’s signed off.', bg: '#F4F0E8', dot: '#E08A1E' },
+  progress:  { label: 'In progress',       line: 'The IT Team is working on this.',                                        bg: '#E6EEF9', dot: '#2563B0' },
+  waiting:   { label: 'Waiting on you',    line: 'IT needs something from you — check the conversation below and reply.',  bg: '#F4F0E8', dot: '#E08A1E' },
+  hold:      { label: 'On hold',           line: 'Paused for now. The IT Team will update you when it moves again.',       bg: '#F4F0E8', dot: '#E08A1E' },
+  resolved:  { label: 'Resolved',          line: 'IT marked this as fixed. Close it if you’re sorted, or reply to reopen.', bg: '#E7F5EC', dot: '#0A8A3E' },
+  closed:    { label: 'Closed',            line: 'All done. Reply any time if the problem comes back — it reopens.',       bg: '#F4F0E8', dot: '#9A8E78' },
+  cancelled: { label: 'Cancelled',         line: 'This was withdrawn. Submit a new request if you still need it.',         bg: '#F4F0E8', dot: '#9A8E78' },
+  declined:  { label: 'Declined',          line: 'The approver declined this request. The conversation has the details.',  bg: '#FFF4F2', dot: '#DA3327' },
 };
 function ticketHeroKey(t, approvalState, isDeclined) {
   const s = String((t && t.status) || '').toLowerCase();
@@ -8347,7 +8672,7 @@ function TicketStatusHero({ t, approvalState, isDeclined, error, approval, child
       <div className="tkd-hero-top">
         <div className="tkd-hero-text">
           <span className="tkd-hero-state"><span className="tkd-hero-dot" aria-hidden="true" />{h.label}</span>
-          {showLine && <span className="tkd-hero-line">{h.line}</span>}
+          {showLine && <span className="tkd-hero-line">{teamify(h.line, ticketTeamKey(t))}</span>}
         </div>
       </div>
       {error && <p className="tkd-hero-err">{error}</p>}
@@ -8369,7 +8694,100 @@ function TicketStatusHero({ t, approvalState, isDeclined, error, approval, child
     </section>
   );
 }
-function TicketDetailsPanel({ t, approvalState, approval, status }) {
+// Priority, editable in place: click the value, pick a level, it saves.
+// Critical pages the whole IT team, so it asks first (same dialog as the
+// request form's urgency picker).
+// Read-only when `onChange` is missing (closed tickets).
+const PRIORITY_LEVELS = [
+  { v: 'low', label: 'Low', n: 1 }, { v: 'medium', label: 'Medium', n: 2 },
+  { v: 'high', label: 'High', n: 3 }, { v: 'critical', label: 'Critical', n: 4 },
+];
+function PrioBars({ n }) {
+  return (
+    <span className="tkd-prio-bars" aria-hidden="true">
+      {[1, 2, 3, 4].map((i) => <i key={i} className={i <= n ? 'is-on p' + n : ''} style={{ height: 4 + i * 3 }} />)}
+    </span>
+  );
+}
+function PriorityControl({ value, onChange, teamKey = 'it' }) {
+  const v = String(value || '').toLowerCase() === 'urgent' ? 'critical' : String(value || '').toLowerCase();
+  const cur = PRIORITY_LEVELS.find((l) => l.v === v);
+  const [open, setOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const [askCrit, setAskCrit] = React.useState(false);
+  const [critBusy, setCritBusy] = React.useState(false);
+  const [critErr, setCritErr] = React.useState('');
+  const wrap = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+  const label = (
+    <span className="tkd-prio"><PrioBars n={cur ? cur.n : 0} /><span>{cur ? cur.label : (value || '—')}</span></span>
+  );
+  if (!onChange) return label;
+  const pick = async (lvl) => {
+    if (lvl === v) { setOpen(false); return; }
+    if (lvl === 'critical') { setOpen(false); setCritErr(''); setAskCrit(true); return; }
+    setOpen(false); setBusy(true); setErr('');
+    try { await onChange(lvl); }
+    catch (e) { setErr(e.message || 'Couldn’t change priority.'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <span className="prio-ctl" ref={wrap}>
+      <button type="button" className={'prio-trigger' + (open ? ' is-open' : '')} disabled={busy}
+        aria-haspopup="listbox" aria-expanded={open} title="Change priority"
+        onClick={() => { setOpen((o) => !o); setErr(''); }}>
+        {label}
+        {busy ? <span className="tkt-life-spin prio-spin" aria-hidden="true" />
+          : <svg className="prio-caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>}
+      </button>
+      {open && (
+        <span className="prio-menu" role="listbox" aria-label="Priority">
+          {PRIORITY_LEVELS.map((l) => {
+            return (
+              <button key={l.v} type="button" role="option" aria-selected={l.v === v}
+                className={'prio-opt' + (l.v === v ? ' is-on' : '')} onClick={() => pick(l.v)}>
+                <PrioBars n={l.n} />
+                <span className="prio-opt-text"><span>{l.label}</span></span>
+                {l.v === v && <svg className="prio-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7.5" /></svg>}
+              </button>
+            );
+          })}
+        </span>
+      )}
+      {err && <span className="prio-err" role="alert">{err}</span>}
+      {askCrit && (
+        <ConfirmDialog
+          kicker="Critical"
+          title="Raise this ticket to critical?"
+          body={critCopy(teamKey).body}
+          tone="danger"
+          icon={<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>}
+          confirmLabel="Yes, it’s critical"
+          cancelLabel="Not critical"
+          busy={critBusy}
+          busyLabel="Raising…"
+          error={critErr}
+          onConfirm={async () => {
+            setCritBusy(true); setCritErr('');
+            try { await onChange('critical'); return true; }
+            catch (e) { setCritErr(e.message || 'Couldn’t change priority.'); return false; }
+            finally { setCritBusy(false); }
+          }}
+          onDone={() => { setAskCrit(false); setCritErr(''); }} />
+      )}
+    </span>
+  );
+}
+
+function TicketDetailsPanel({ t, approvalState, approval, status, onPriorityChange }) {
   const pr = String(t.priority || '').toLowerCase();
   const PR = { low: 1, medium: 2, high: 3, urgent: 4, critical: 4 };
   const bars = PR[pr] || 0;
@@ -8384,16 +8802,21 @@ function TicketDetailsPanel({ t, approvalState, approval, status }) {
       <div className="tkd-card tkd-side-card">
         <div className="tkd-side-head">Details</div>
         <dl className="tkd-dl">
+          {(() => {
+            const tk = ticketTeamKey(t);
+            const TIcon = teamIcon(tk);
+            return <Row k="Team"><span className="tkd-team" title={helpTeam(tk).blurb}><span className="tkd-team-ic" aria-hidden="true"><TIcon size={14} stroke={2} /></span>{helpTeam(tk).label} team</span></Row>;
+          })()}
           {t.ticket_number && <Row k="Ticket ID"><TicketNumber value={t.ticket_number} size={13} /></Row>}
+          {t.type && <Row k="Type">{ticketTypeMeta(t.type).label}</Row>}
           {t.priority && (
             <Row k="Priority">
-              <span className="tkd-prio">
-                <span className="tkd-prio-bars" aria-hidden="true">{[1, 2, 3, 4].map((n) => <i key={n} className={n <= bars ? 'is-on p' + bars : ''} style={{ height: 4 + n * 3 }} />)}</span>
-                <span style={{ textTransform: 'capitalize' }}>{pr}</span>
-              </span>
+              <PriorityControl value={t.priority} teamKey={ticketTeamKey(t)} onChange={ticketBucket(t.status) === 'open' ? onPriorityChange : null} />
             </Row>
           )}
+          {t.requester_name && <Row k="Requested by">{t.requester_name}</Row>}
           {assignee && <Row k="Assigned to">{assignee}</Row>}
+          {t.created_at && <Row k="Opened"><span title={fmt(t.created_at)}>{relativeTime(t.created_at)}</span></Row>}
           {t.updated_at && <Row k="Last update"><span title={fmt(t.updated_at)}>{relativeTime(t.updated_at)}</span></Row>}
         </dl>
       </div>
@@ -8837,16 +9260,16 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
           padding: 24, gap: 12, cursor: 'zoom-out',
         }}>
           <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: 'min(92vw, 1100px)', cursor: 'default' }}>
-            <span style={{ color: '#FFFDF4', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Archivo', sans-serif" }}>{lightbox.name}</span>
+            <span style={{ color: '#FFFFFF', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Archivo', sans-serif" }}>{lightbox.name}</span>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               {/* Browsers refuse to open a data: URL in a new tab (inline reply images arrive as data URIs). */}
               {!/^data:/i.test(lightbox.url) && (
-                <a href={lightbox.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, background: '#FFFFFF' }}>Open in new tab</a>
+                <a href={lightbox.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '8px 12px', fontSize: 12, background: '#FFFFFF' }}>Open in new tab</a>
               )}
-              <button type="button" onClick={() => setLightbox(null)} className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, background: '#FFFFFF' }}>Close ✕</button>
+              <button type="button" onClick={() => setLightbox(null)} className="btn btn-outline" style={{ padding: '8px 12px', fontSize: 12, background: '#FFFFFF' }}>Close ✕</button>
             </div>
           </div>
-          <img className="overlay-panel-in" src={lightbox.url} alt={lightbox.name} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(92vw, 1100px)', maxHeight: '80vh', objectFit: 'contain', borderRadius: 10, border: '1px solid #211E1E', background: '#fff', cursor: 'default' }} />
+          <img className="overlay-panel-in" src={lightbox.url} alt={lightbox.name} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(92vw, 1100px)', maxHeight: '80vh', objectFit: 'contain', borderRadius: 12, border: '1px solid rgba(33,30,30,.14)', background: '#fff', cursor: 'default' }} />
         </div>,
         document.body,
       )}
@@ -8888,16 +9311,18 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
           <div key={liveNote.key} className="tkt-live-note" role="status">
             <span className="tkt-live-dot" aria-hidden="true" />
             <b>{liveNote.title}</b>
-            {liveNote.more > 0 && <span style={{ opacity: 0.8 }}> +{liveNote.more} more</span>}
-            <span style={{ opacity: 0.7 }}>· just now</span>
-            <button type="button" onClick={() => setLiveNote(null)} aria-label="Dismiss">✕</button>
+            {liveNote.more > 0 && <span className="tkt-live-more">+{liveNote.more} more</span>}
+            <span className="tkt-live-when">just now</span>
+            <button type="button" onClick={() => setLiveNote(null)} aria-label="Dismiss">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+            </button>
           </div>
         )}
       </div>
       {t && (
         <>
           {st.error && (
-            <div style={{ fontSize: 12.5, color: '#78684C', margin: '0 0 12px', fontWeight: 600 }}>Couldn’t load the latest — showing what we have.</div>
+            <div style={{ fontSize: 13, color: '#78684C', margin: '0 0 12px', fontWeight: 600 }}>Couldn’t load the latest — showing what we have.</div>
           )}
           <div className="tkd-head tkd-head-m">
             <TicketLeadIcon ticket={t} app={catInfo} size={48} />
@@ -8914,16 +9339,13 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
 
           <div className="tkd-grid">
           <div className="tkd-main">
+          {/* Just the title here; number, type, who and when live in the
+              Details panel on the right (on phones the head above keeps its
+              meta line, since the panel drops below the conversation). */}
           <div className="tkd-head" ref={headRef}>
             <TicketLeadIcon ticket={t} app={catInfo} size={48} />
             <div style={{ minWidth: 0 }}>
               <h1 className="tkd-title">{t.subject}</h1>
-              <div className="tkd-meta">
-                {t.ticket_number && <><span className="tkd-meta-id"><TicketNumber value={t.ticket_number} size={13} /></span><span className="tkt-row-sep" aria-hidden="true" /></>}
-                <span>{ticketTypeMeta(t.type).label}</span>
-                {t.created_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>Opened {relativeTime(t.created_at)}</span></>}
-                {t.requester_name && <><span className="tkt-row-sep" aria-hidden="true" /><span>by {t.requester_name}</span></>}
-              </div>
             </div>
           </div>
 
@@ -8932,15 +9354,15 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
             {timeline.length - descItem.length === 0 && !st.full && !st.error && (
               <div aria-busy="true" aria-label="Loading the conversation">
                 {[0, 1].map((i) => (
-                  <div key={i} className="tkt-skel-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginTop: i ? 16 : 4, flexDirection: i ? 'row-reverse' : 'row', animationDelay: `${i * 90}ms` }}>
+                  <div key={i} className="tkt-skel-row" style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginTop: i ? 16 : 4, flexDirection: i ? 'row-reverse' : 'row', animationDelay: `${i * 90}ms` }}>
                     <span className="tkt-skel" style={{ width: 32, height: 32, borderRadius: '50%' }} />
-                    <span className="tkt-skel" style={{ width: i ? '38%' : '56%', height: 46, borderRadius: 14 }} />
+                    <span className="tkt-skel" style={{ width: i ? '38%' : '56%', height: 46, borderRadius: 16 }} />
                   </div>
                 ))}
               </div>
             )}
             {timeline.length === 0 && (st.full || st.error) && (
-              <div className="tab-panel-in" style={{ fontSize: 14, color: '#9A8E78' }}>No replies yet — write the first message below and the IT Team will see it on your ticket.</div>
+              <div className="tab-panel-in" style={{ fontSize: 14, color: '#9A8E78' }}>No replies yet — write the first message below and the {teamDisplayName(ticketTeamKey(t))} will see it on your ticket.</div>
             )}
             {timeline.map((it, idx) => {
               // Day dividers, and grouping: the same person again within a few
@@ -8950,14 +9372,14 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
               const showDay = day && (!prev || convoDay(prev.time) !== day);
               const sameAuthor = prev && !showDay && prev.mine === it.mine && String(prev.name || '') === String(it.name || '')
                 && it.at != null && prev.at != null && it.at - prev.at < 5 * 60 * 1000;
-              const common = { mine: it.mine, time: it.time ? relativeTime(it.time) : '', stamp: convoStamp(it.time), compact: !!sameAuthor };
+              const common = { mine: it.mine, time: it.time ? relativeTime(it.time) : '', stamp: convoStamp(it.time), compact: !!sameAuthor, teamName: teamDisplayName(ticketTeamKey(t)) };
               return (
                 <React.Fragment key={it.tkey}>
                   {showDay && <ConversationDay label={day} />}
                   {it.kind === 'msg' ? (
                     <ConversationMessage {...common} name={it.name} body={it.body} files={it.files} onOpenImage={openImage} />
                   ) : (
-                    <ConversationMessage {...common} name={it.name || 'IT Team'}>
+                    <ConversationMessage {...common} name={it.name || teamDisplayName(ticketTeamKey(t))}>
                       <AttachmentItem name={attName(it.att)} source={attSource(it.att)} size={attSize(it.att)} isImage={isImageAttachment(it.att, attName(it.att))} onOpenImage={openImage} />
                     </ConversationMessage>
                   )}
@@ -8966,7 +9388,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
             })}
 
             {descItem.length > 0 && timeline.length === descItem.length && (st.full || st.error) && (
-              <div className="tkd-noreply">No replies yet — the IT Team will answer here, and you'll get a notification.</div>
+              <div className="tkd-noreply">No replies yet — the {teamDisplayName(ticketTeamKey(t))} will answer here, and you'll get a notification.</div>
             )}
 
             {/* Reply composer — posts a public comment (and any attachments) to the
@@ -9002,22 +9424,22 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                       onChange={setReply}
                       onSubmit={requestSend}
                       disabled={sending}
-                      placeholder="Reply to the IT Team…" />
+                      placeholder={`Reply to the ${teamDisplayName(ticketTeamKey(t))}…`} />
 
                     {reopenOnReply && confirmReopen ? (
-                      <div style={{ borderTop: '1px solid #F0EADC', background: '#FFF7DD', padding: '11px 14px' }}>
-                        <div style={{ fontSize: 13.5, color: '#211E1E', fontWeight: 600, marginBottom: 10, lineHeight: 1.45 }}>
+                      <div style={{ borderTop: '1px solid #EFE8DA', background: '#F4F0E8', padding: '12px 16px' }}>
+                        <div style={{ fontSize: 14, color: '#211E1E', fontWeight: 600, marginBottom: 12, lineHeight: 1.45 }}>
                           This ticket is <b>{String(t.status).toLowerCase()}</b>. Sending this reply will <b>reopen</b> it — continue?
                         </div>
-                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                          <button onClick={() => setConfirmReopen(false)} disabled={sending} className="btn btn-outline" style={{ padding: '7px 14px', fontSize: 12 }}>Cancel</button>
-                          <button onClick={() => send()} disabled={sending} className="btn btn-primary" style={{ padding: '7px 14px', fontSize: 12 }}>{sending ? 'Reopening…' : 'Reopen & send reply'}</button>
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                          <button onClick={() => setConfirmReopen(false)} disabled={sending} className="btn btn-outline" style={{ padding: '8px 16px', fontSize: 12 }}>Cancel</button>
+                          <button onClick={() => send()} disabled={sending} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 12 }}>{sending ? 'Reopening…' : 'Reopen & send reply'}</button>
                         </div>
                       </div>
                     ) : (
                       <div className="tkd-reply-foot">
                         <AttachmentPicker files={replyFiles} onChange={setReplyFiles} disabled={sending} />
-                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
                           <span className="tkd-reply-hint">⌘/Ctrl + Enter</span>
                           {/* No "send & resolve / raise priority" on a declined request — there's nothing to resolve. */}
                           <ReplySend ticket={t} sending={sending} reopenOnReply={reopenOnReply} declined={isDeclined}
@@ -9028,7 +9450,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                     )}
                     </div>
                     </div>
-                    {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '10px 0 0 44px' }}>{replyErr}</p>}
+                    {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '12px 0 0 48px' }}>{replyErr}</p>}
                   </>
                 );
               })()}
@@ -9036,6 +9458,10 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
           </div>
           </div>
           <TicketDetailsPanel t={t} approvalState={approvalState} approval={approval}
+            onPriorityChange={async (priority) => {
+              await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(t.id) + '/priority', { priority });
+              await load();
+            }}
             status={<TicketStatusHero t={t} approvalState={approvalState} isDeclined={isDeclined} error={statusErr} approval={approval}>{closeReopenButtons()}</TicketStatusHero>} />
           </div>
 
@@ -9113,11 +9539,15 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
 
   return (
     <div>
-      <div className="apr-count">
-        <b>{q ? `${shown.length} of ${st.pending.length}` : st.pending.length}</b> request{st.pending.length === 1 ? '' : 's'} waiting on your sign-off
-      </div>
+      {/* The tab's badge already says how many are waiting; a count line only
+          earns its place while searching ("2 of 5"). */}
+      {q && (
+        <div className="apr-count">
+          <b>{`${shown.length} of ${st.pending.length}`}</b> request{st.pending.length === 1 ? '' : 's'} match
+        </div>
+      )}
       {shown.length === 0 ? (
-        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>No approvals match “{query}”.</div>
+        <div style={{ ...TK.card, padding: '24px 24px', textAlign: 'center', fontSize: 14, color: '#78684C' }}>No approvals match “{query}”.</div>
       ) : (
         <div className="tkt-list" role="table" aria-label="Approvals">
           <div className="tkt-list-head" role="row">
@@ -9127,7 +9557,8 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
           </div>
           {shown.map((p, i) => (
             <button key={p.request_id} onClick={() => setSelId(p.request_id)} className="tkt-row tkt-row-in" style={{ animationDelay: `${Math.min(i, 8) * 28}ms` }}>
-              <TicketLeadIcon className="tkt-app-icon" ticket={{ type: 'service_request' }} size={40} />
+              {/* Same key tile as the approval page: these are access sign-offs. */}
+              <span className="apr-head-ic tkt-app-icon" aria-hidden="true" style={{ width: 40, height: 40, borderRadius: 12 }}><IconKey size={19} stroke={1.9} /></span>
               <div style={{ minWidth: 0 }}>
                 <div className="tkt-row-title"><span><Hl text={p.subject} tokens={tokens} /></span></div>
                 <div className="tkt-row-meta">
@@ -9259,7 +9690,7 @@ function ApprovalDetailView({ id, onBack, onActed }) {
   }, [d, requestAnswers]);
 
   return (
-    <div className="detail-in">
+    <div className="detail-in apr-page">
       <div className="tkd-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           <button onClick={onBack} className="kb-back-btn">
@@ -9272,20 +9703,24 @@ function ApprovalDetailView({ id, onBack, onActed }) {
       {st.error && <TicketsNotice title="Couldn’t load this request" body={st.error} />}
       {d && (
         <>
-          <div className="tkd-head">
-            <TicketLeadIcon ticket={{ type: 'service_request' }} size={48} />
-            <div style={{ minWidth: 0 }}>
-              <h1 className="tkd-title">{title}</h1>
-              <div className="tkd-meta">
-                <span>Request</span>
-                {d.ticket && <><span className="tkt-row-sep" aria-hidden="true" /><span>from {d.ticket.requester_name || 'Unknown'}</span></>}
-                {d.request && d.request.requested_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>{relativeTime(d.request.requested_at)}</span></>}
-              </div>
-            </div>
-          </div>
-
+          {/* Head inside the main column, like the ticket page, so the title
+              lines up with the card and the back link instead of the page edge.
+              The requested app's own icon when there is one. */}
           <div className="tkd-grid">
             <div className="tkd-main">
+              <div className="tkd-head apr-head">
+                {d.catalog_item && (d.catalog_item.icon_url || d.catalog_item.name)
+                  ? <AppIcon name={d.catalog_item.name} iconUrl={d.catalog_item.icon_url} size={48} />
+                  : <span className="apr-head-ic" aria-hidden="true"><IconKey size={22} stroke={1.9} /></span>}
+                <div style={{ minWidth: 0 }}>
+                  <h1 className="tkd-title">{title}</h1>
+                  <div className="tkd-meta">
+                    <span>Request</span>
+                    {d.ticket && <><span className="tkt-row-sep" aria-hidden="true" /><span>from {d.ticket.requester_name || 'Unknown'}</span></>}
+                    {d.request && d.request.requested_at && <><span className="tkt-row-sep" aria-hidden="true" /><span>{relativeTime(d.request.requested_at)}</span></>}
+                  </div>
+                </div>
+              </div>
               <div className="tkd-card">
                 <div className="tkd-card-label">What’s being requested</div>
                 <div className="apr-item">
@@ -9342,7 +9777,7 @@ function ApprovalDetailView({ id, onBack, onActed }) {
                   <>
                     <label className="apr-label" htmlFor="apr-comment">Comment <span>(optional)</span></label>
                     <textarea id="apr-comment" className="apr-comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a note for the requester or the audit trail…" />
-                    {err && <p style={{ color: '#B92323', fontSize: 13, margin: '10px 0 0' }}>{err}</p>}
+                    {err && <p style={{ color: '#B92323', fontSize: 13, margin: '12px 0 0' }}>{err}</p>}
                     <div className="apr-actions">
                       <button onClick={() => respond('approve')} disabled={busy} className="btn btn-primary">
                         {busy ? 'Saving…' : 'Approve'}
@@ -9390,11 +9825,13 @@ function ApprovalDetailView({ id, onBack, onActed }) {
 // Falls back to a freeform service_request when the catalog is empty/unreachable.
 // initialCustom: open straight on the custom-request form (a string prefills
 // the subject) — the Help box's "Not in the list?" lands here.
-function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initialQuery = '', initialCustom = null, asPage = false }) {
+function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initialQuery = '', initialCustom = null, initialTeam = null, asPage = false }) {
   // Render as a full page (PageShell) or a modal (ModalShell) — same prop API,
   // so the views below don't care which chrome wraps them.
   const Shell = asPage ? PageShell : ModalShell;
   const [view, setView] = React.useState(initialCustom != null ? 'freeform' : 'list'); // list | form | done | freeform
+  // Custom requests pick a team first (see HELP_TEAMS). Catalog items are IT's.
+  const [team, setTeam] = React.useState(() => (initialTeam && OPEN_TEAMS.some((t) => t.key === initialTeam) ? initialTeam : 'it'));
   const [catalog, setCatalog] = React.useState(null); // null = loading
   const [catErr, setCatErr] = React.useState(''); // catalog failed to load
   const [item, setItem] = React.useState(null);
@@ -9562,7 +9999,9 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
       setUrgency('medium');
       setView('form');
     } catch (e) {
-      setErr(e.message || 'Couldn’t open that item.');
+      // 404 = the ticket system hides this item from you (department-targeted,
+      // or retired) — say so plainly rather than as a failure.
+      setErr(e.status === 404 ? 'This app isn’t available to you. If you think you need it, send a custom request.' : (e.message || 'Couldn’t open that item.'));
     } finally {
       setItemBusy(false);
     }
@@ -9870,6 +10309,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
 
   const submitFreeform = async () => {
     if (busy) return;
+    if (!helpTeam(team).live) return; // never route another team's request to IT
     if (!recheckAll()) return;
     setFieldErrs({});
     setBusy(true); setErr(''); setAttachWarn(''); setFailed([]);
@@ -9981,7 +10421,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
     const steps = [
       { key: 'sent', title: 'Request sent', body: multi ? `${results.length} tickets created, one per person.` : `Saved as ${num(first)}.`, state: 'done' },
       ...(anyPending ? [{ key: 'approval', title: 'Approval', body: 'Your approver gets an email and a Slack message. You’ll hear as soon as they decide.', state: 'current' }] : []),
-      { key: 'setup', title: 'IT sets it up', body: anyPending ? 'Starts once it’s approved.' : urgency === 'critical' ? 'Marked critical — the IT Team has been alerted on Slack.' : 'The IT Team has it and will pick it up next.', state: anyPending ? 'todo' : 'current' },
+      { key: 'setup', title: helpTeam(view === 'freeform' ? team : catalogItemTeam(item)).label + ' sets it up', body: anyPending ? 'Starts once it’s approved.' : urgency === 'critical' ? critCopy(view === 'freeform' ? team : catalogItemTeam(item)).done : teamify('The IT Team has it and will pick it up next.', view === 'freeform' ? team : catalogItemTeam(item)), state: anyPending ? 'todo' : 'current' },
       { key: 'done', title: 'Ready to use', body: 'You get a notification here and by email when it’s done.', state: 'todo' },
     ];
     return (
@@ -10000,7 +10440,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             ) : (
               <div className="done-sub">
                 {first && first._forName ? <>For <b>{first._forName}</b> · </> : null}
-                {anyPending ? 'Waiting for approval' : 'With the IT Team'}
+                {anyPending ? 'Waiting for approval' : 'With the ' + teamDisplayName(view === 'freeform' ? team : catalogItemTeam(item))}
               </div>
             )}
           </div>
@@ -10090,6 +10530,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   // panel — who it's for, who approves, the button — pinned beside it, so the
   // form never feels long and Submit is always in view.
   const doSubmit = () => { setErrTick((t) => t + 1); (view === 'form' ? submitCatalog : submitFreeform)(); };
+  const teamBlocked = view === 'freeform' && !helpTeam(team).live;
   const inlineErr = err && !asPage ? <p className="rq-inline-err" role="alert">{err}</p> : null;
   const whoBody = (
     <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
@@ -10123,6 +10564,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const sidePanel = ({ approval }) => (
     <aside className="rqx-side" aria-label="Summary">
       <div className="rqx-card">
+        <GoesToRow teamKey={view === 'freeform' ? team : catalogItemTeam(item)} soon={view === 'freeform'} />
         <div className="rqx-card-row">
           <span className="rqx-k">For</span>
           <span className="rqx-people">
@@ -10141,7 +10583,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         {/* A property of the request, like priority in a ticket sidebar —
             beside Submit rather than as another block in the form. */}
         <div className="rqx-card-row rqx-urgency">
-          <UrgencyPicker value={urgency} onChange={setUrgency} label="Urgency" compact />
+          <UrgencyPicker value={urgency} onChange={setUrgency} label="Urgency" compact teamKey={view === 'freeform' ? team : catalogItemTeam(item)} />
         </div>
         {approval}
         {/* Pinned to the bottom of the viewport while the panel is taller
@@ -10149,8 +10591,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             never scrolled out of reach. */}
         <div className="rqx-cta">
           {err && asPage && <div className="rqx-err">{barError(err)}</div>}
-          <button className="btn btn-primary rqx-submit" onClick={doSubmit} disabled={busy} aria-busy={busy || undefined}>
-            {busy && <span className="tkt-life-spin rq-btn-spin" aria-hidden="true" />}{submitLabel}
+          <button className="btn btn-primary rqx-submit" onClick={doSubmit} disabled={busy || teamBlocked} aria-busy={busy || undefined}>
+            {busy && <span className="tkt-life-spin rq-btn-spin" aria-hidden="true" />}{teamBlocked ? helpTeam(team).label + ' opens soon' : submitLabel}
           </button>
           <button className="rqx-cancel" onClick={onClose} disabled={busy}>Cancel</button>
         </div>
@@ -10191,14 +10633,15 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         onClose={catalog && catalog.length ? () => { setErr(''); setView('list'); } : onClose} backLabel="Back" maxWidth={asPage ? 1040 : 620} centered bare={asPage}>
         <div className={'rqx' + (asPage ? '' : ' is-stacked')}>
           <div className="rqx-main">
+            <TeamPicker value={team} onChange={(k) => { setTeam(k); setErr(''); }} />
             {whoBody}
             <FieldBlock k="__subject" label="What do you need?" required err={fieldErrs.__subject} htmlFor="ff-subject">
               <input id="ff-subject" className={'cf-input' + (fieldErrs.__subject ? ' is-invalid' : '')} value={ffSubject} maxLength={200}
-                onChange={(e) => { setFfSubject(e.target.value); if (fieldErrs.__subject) setFieldErrs({}); }} placeholder="e.g. Access to Figma" autoFocus />
+                onChange={(e) => { setFfSubject(e.target.value); if (fieldErrs.__subject) setFieldErrs({}); }} placeholder={helpTeam(team).subject} autoFocus />
             </FieldBlock>
             <FieldBlock k="__desc" label="Details" htmlFor="ff-desc">
               <ComposerField id="ff-desc" minHeight={100} maxLength={8000} value={ffDesc} onChange={setFfDesc}
-                placeholder="Why you need it, which team, how soon…"
+                placeholder={helpTeam(team).details}
                 files={attachFiles} onFilesChange={setAttachFiles} disabled={busy} />
             </FieldBlock>
             {extrasBody}
@@ -10307,8 +10750,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         <div className="cat-grid" aria-busy="true" aria-label="Loading the catalog">
           {Array.from({ length: 9 }).map((_, i) => (
             <div key={i} className="cat-tile2 tkt-skel-row" style={{ animationDelay: `${i * 40}ms`, pointerEvents: 'none' }}>
-              <span className="tkt-skel" style={{ width: 40, height: 40, borderRadius: 10 }} />
-              <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <span className="tkt-skel" style={{ width: 40, height: 40, borderRadius: 12 }} />
+              <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <span className="tkt-skel" style={{ width: '55%', height: 12 }} />
                 <span className="tkt-skel" style={{ width: '85%', height: 9 }} />
               </span>
@@ -10317,15 +10760,15 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         </div>
       )}
       {itemBusy && <div style={{ padding: '8px 4px', color: '#78684C', fontSize: 13 }}>Opening…</div>}
-      {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '0 0 12px' }}>{err}</p>}
+      {err && <p style={{ color: '#B92323', fontSize: 14, margin: '0 0 12px' }}>{err}</p>}
 
       {/* Catalog couldn't load — e.g. the ticket module isn't reachable or the
           module key is revoked. Offer a retry + the custom-request escape hatch. */}
       {catErr && (
         <div style={{ padding: '8px 2px' }}>
-          <p style={{ fontSize: 14, color: '#211E1E', margin: '0 0 6px', fontWeight: 700 }}>Couldn’t load the service catalog</p>
+          <p style={{ fontSize: 14, color: '#211E1E', margin: '0 0 8px', fontWeight: 700 }}>Couldn’t load the service catalog</p>
           <p style={{ fontSize: 13, color: '#78684C', margin: '0 0 16px', lineHeight: 1.5 }}>The ticketing system didn’t respond ({catErr}). Retry, or make a custom request and IT will sort out the details.</p>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 12 }}>
             <button className="btn btn-outline" onClick={loadCatalog}>Retry</button>
             <button className="btn btn-primary" onClick={() => { setErr(''); setView('freeform'); }}>Make a custom request</button>
           </div>
@@ -10335,7 +10778,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
       {/* Catalog loaded but empty — nothing published in SliceDesk yet. */}
       {catalog && catalog.length === 0 && !catErr && (
         <div style={{ padding: '8px 2px' }}>
-          <p style={{ fontSize: 14, color: '#211E1E', margin: '0 0 6px', fontWeight: 700 }}>No catalog items yet</p>
+          <p style={{ fontSize: 14, color: '#211E1E', margin: '0 0 8px', fontWeight: 700 }}>No catalog items yet</p>
           <p style={{ fontSize: 13, color: '#78684C', margin: '0 0 16px', lineHeight: 1.5 }}>Your IT team hasn’t published any requestable apps or services in the catalog yet. You can still make a custom request.</p>
           <button className="btn btn-primary" onClick={() => { setErr(''); setView('freeform'); }}>Make a custom request</button>
         </div>
@@ -10366,9 +10809,9 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           const on = catFilter === key;
           return (
             <button key={key} onClick={() => setCatFilter(key)} style={{
-              padding: '5px 11px', borderRadius: 999, cursor: 'pointer', border: '1px solid #211E1E',
+              padding: '4px 12px', borderRadius: 999, cursor: 'pointer', border: '1px solid rgba(33,30,30,.14)',
               fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase',
-              background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FDC831' : '#211E1E',
+              background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FFFFFF' : '#211E1E',
             }}>{label}</button>
           );
         };
@@ -10453,7 +10896,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             <div className="tkt-empty-search" style={{ ...TK.card }}>
               <div className="tkt-empty-title">Nothing matches “{catQuery}”{catFilter !== 'all' ? ` in ${catFilter}` : ''}</div>
               <div className="tkt-empty-body">Try another word or the app’s name — or just ask for it, and IT will sort out the details.</div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button className="btn btn-primary" onClick={() => openCustom(q)}>Ask IT for “{q}”</button>
                 <button className="btn btn-outline" onClick={() => { setCatQuery(''); if (catSearchRef.current) catSearchRef.current.focus(); }}>Clear search</button>
               </div>
@@ -10641,7 +11084,7 @@ function OfficeLocationField({ value, onChange, beneficiary, invalid, id }) {
           <option value={selId}>{(value && value.name) || 'Office #' + selId}</option>
         )}
       </select>
-      {err && <p style={{ color: '#9A4A00', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+      {err && <p style={{ color: '#9A4A00', fontSize: 13, margin: '8px 0 0' }}>{err}</p>}
     </>
   );
 }
@@ -10797,7 +11240,7 @@ function PeopleSearch({ placeholder, onPick, onEscape, exclude, limit = 8, autoF
             <>{[0, 1, 2].map((i) => (
               <div key={i} className="ps-row is-skel" style={{ animationDelay: `${i * 50}ms` }}>
                 <span className="tkt-skel" style={{ width: 28, height: 28, borderRadius: '50%' }} />
-                <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span className="tkt-skel" style={{ width: '45%', height: 10 }} />
                   <span className="tkt-skel" style={{ width: '70%', height: 8 }} />
                 </span>
@@ -11054,10 +11497,10 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
           the chain below is the thing that's broken — an explanation underneath
           it gets read second, if at all. */}
       {blocked && (
-        <div style={{ display: 'flex', gap: 9, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 1, borderRadius: '50%', background: '#B9232322', color: '#B92323', display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 12 }}>!</span>
           <div style={{ minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#8E1B1B' }}>{forSelfOnly ? 'Your approver’s account isn’t active' : 'Their approver’s account isn’t active'}</p>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#8A1E17' }}>{forSelfOnly ? 'Your approver’s account isn’t active' : 'Their approver’s account isn’t active'}</p>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: '#8E1B1BCC', lineHeight: 1.45 }}>
               {preview.blocked_reason ? preview.blocked_reason + '. ' : ''}Pick someone else to approve it.
             </p>
@@ -11082,20 +11525,20 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
               ? [{ user_id: 'override', name: override.name, email: override.email, chosen: true }]
               : approvers;
             return (
-              <li key={stage.order} style={{ display: 'flex', gap: 10 }}>
+              <li key={stage.order} style={{ display: 'flex', gap: 12 }}>
                 {multiStage && (
-                  <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 12, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 900 }}>
+                  <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 12, borderRadius: '50%', background: '#211E1E', color: '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>
                     {i + 1}
                   </span>
                 )}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  {multiStage && <p style={{ fontSize: 11.5, fontWeight: 700, color: '#55503F', margin: '0 0 5px' }}>{stage.name}</p>}
+                  {multiStage && <p style={{ fontSize: 12, fontWeight: 700, color: '#4A3F2E', margin: '0 0 4px' }}>{stage.name}</p>}
 
                   {changeable && picking ? null : rows.length === 0 ? (
                     // Nobody resolved. On a changeable stage this is the whole
                     // reason the feature exists, so lead with the action instead
                     // of hiding it behind a link.
-                    <div style={{ border: '1px dashed #C9A227', borderRadius: 10, background: '#FFFBEB', padding: 12 }}>
+                    <div style={{ border: '1px dashed #C9A227', borderRadius: 12, background: '#F4F0E8', padding: 12 }}>
                       <p style={{ fontSize: 13, color: '#7A5A00', margin: 0, lineHeight: 1.45, fontWeight: 700 }}>
                         {changeable
                           ? (forSelfOnly ? 'We don’t have a manager on file for you.' : 'We don’t have a manager on file for ' + peopleList(forWhom) + '.')
@@ -11107,7 +11550,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                           : 'IT will route this manually.'}
                       </p>
                       {changeable && !picking && (
-                        <div style={{ marginTop: 10 }}>{changeBtn('Choose an approver', () => setPicking(true))}</div>
+                        <div style={{ marginTop: 12 }}>{changeBtn('Choose an approver', () => setPicking(true))}</div>
                       )}
                     </div>
                   ) : rows.map((a) => {
@@ -11124,10 +11567,10 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                         key={a.chosen ? 'chosen-' + (override && override.user_id) : a.user_id}
                         className={'ap-row' + (a.chosen ? ' is-chosen' : '')}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 11,
-                          border: '1px solid ' + (a.chosen ? '#211E1E' : (a.account_disabled ? '#E39C9C' : (a.unavailable ? '#E4C868' : '#E6DFCF'))),
-                          background: a.chosen ? '#FFFDF4' : (a.account_disabled ? '#FFFFFF' : (a.unavailable ? '#FFFBEB' : '#FFFFFF')),
-                          borderRadius: 10, padding: '10px 11px',
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          border: '1px solid ' + (a.chosen ? '#211E1E' : (a.account_disabled ? '#E39C9C' : (a.unavailable ? '#E2DCD0' : '#E2DCD0'))),
+                          background: a.chosen ? '#FFFFFF' : (a.account_disabled ? '#FFFFFF' : (a.unavailable ? '#F4F0E8' : '#FFFFFF')),
+                          borderRadius: 12, padding: '12px 12px',
                         }}
                       >
                         <PersonAvatar name={a.name} size={34} off={!!a.account_disabled} self={!!isSelf} />
@@ -11142,7 +11585,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                             {a.name}
                           </p>
                           {subEmail && (
-                            <p style={{ fontSize: 11.5, color: '#78684C', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <p style={{ fontSize: 12, color: '#78684C', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {subEmail}
                             </p>
                           )}
@@ -11173,7 +11616,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                   {/* The PTO case, said plainly, at the only moment the
                       requester can still do something about it. */}
                   {!showOverride && changeable && anyAway && !picking && (
-                    <p style={{ fontSize: 11.5, color: '#8A7040', margin: '6px 0 0', lineHeight: 1.45 }}>
+                    <p style={{ fontSize: 12, color: '#8A7040', margin: '8px 0 0', lineHeight: 1.45 }}>
                       They may not get to this for a while — you can send it to someone else.
                     </p>
                   )}
@@ -11201,8 +11644,8 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
           the approval audit trail AND into the notice sent to the manager who
           would otherwise have been asked. */}
       {override && (
-        <div className="ap-reason" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0EBE0' }}>
-          <label className="cf-label" style={{ display: 'block', marginBottom: 6 }}>
+        <div className="ap-reason" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #EFE8DA' }}>
+          <label className="cf-label" style={{ display: 'block', marginBottom: 8 }}>
             {override.auto ? 'Reason recorded on the ticket' : 'Why are you changing the approver?'}
           </label>
           <textarea
@@ -11213,7 +11656,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
             onChange={(e) => onChange({ ...override, reason: e.target.value })}
             placeholder="e.g. My manager is on leave until 12 September"
           />
-          <p className={reasonError ? 'cf-err' : 'cf-help'} style={{ margin: '6px 0 0' }}>
+          <p className={reasonError ? 'cf-err' : 'cf-help'} style={{ margin: '8px 0 0' }}>
             {reasonError || (override.auto
               ? 'Filled in from what we found. Edit it if you want to add context.'
               : 'The usual approver is told about the change, so keep it accurate.')}
@@ -11462,7 +11905,7 @@ function TalkedToAgentPicker({ value, onChange, note, onNoteChange }) {
           </p>
         </div>
       )}
-      {err && <p style={{ color: '#9A4A00', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+      {err && <p style={{ color: '#9A4A00', fontSize: 13, margin: '8px 0 0' }}>{err}</p>}
     </>
   );
 }
@@ -11658,7 +12101,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
 
   const avatar = (label, size, isSelf) => <PersonAvatar name={label} size={size} self={isSelf} />;
   const youTag = (
-    <span style={{ display: 'inline-block', marginLeft: 6, padding: '1px 6px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
+    <span style={{ display: 'inline-block', marginLeft: 8, padding: '1px 8px', borderRadius: 999, background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)', fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
   );
   const ell = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 
@@ -11666,7 +12109,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   if (collapsed) {
     return (
       <div key="me" className="rfp-swap" style={{ marginBottom: 4 }}>
-        <label style={{ ...TK.label, marginBottom: 9 }}>Requesting for</label>
+        <label style={{ ...TK.label, marginBottom: 8 }}>Requesting for</label>
         {/* flexWrap + the ellipsised middle block keep the button on the row: a
             long name can never push it off, and under ~380px it drops to its own
             line at full size instead of being squashed. */}
@@ -11675,10 +12118,10 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
           {/* flex-basis keeps the name readable: the button wraps below it on
               a phone instead of squeezing it to "Dev…". */}
           <span style={{ minWidth: 0, flex: '1 1 150px' }}>
-            <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, ...ell }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, ...ell }}>
               {(self && self.name) || 'You'}{youTag}
             </p>
-            {self && self.email && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: '#78684C', ...ell }}>{self.email}</p>}
+            {self && self.email && <p style={{ margin: '1px 0 0', fontSize: 12, color: '#78684C', ...ell }}>{self.email}</p>}
           </span>
           <button type="button" onClick={startForOthers} className="rfp-btn">
             <RqIcon name="personAdd" size={16} className="rfp-btn-icon" />
@@ -11693,10 +12136,10 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   const n = people.length;
   return (
     <div key="others" className="rfp-swap" style={{ marginBottom: 4 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
         <label style={{ ...TK.label, marginTop: 0, marginBottom: 0 }}>Who is this for?</label>
         {n > 1 && (
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#FDC831', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)', borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap' }}>
             {n} requests
           </span>
         )}
@@ -11709,16 +12152,16 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       </div>
 
       {n > 0 && (
-        <div style={{ border: '1px solid #211E1E', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ border: '1px solid rgba(33,30,30,.14)', borderRadius: 12, overflow: 'hidden' }}>
           {people.map((p) => {
             const isSelf = selfId && String(p.id) === selfId;
             const only = n === 1;
             return (
-              <div key={p.id} className="rfp-person" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 11px', borderTop: '1px solid #F0EBE0' }}>
+              <div key={p.id} className="rfp-person" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderTop: '1px solid #EFE8DA' }}>
                 {avatar(p.name || p.email, 32, !!isSelf)}
                 <span style={{ minWidth: 0, flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, ...ell }}>{p.name || p.email || p.id}{isSelf ? youTag : null}</p>
-                  {p.email && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: '#78684C', ...ell }}>{p.email}</p>}
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, ...ell }}>{p.name || p.email || p.id}{isSelf ? youTag : null}</p>
+                  {p.email && <p style={{ margin: '1px 0 0', fontSize: 12, color: '#78684C', ...ell }}>{p.email}</p>}
                 </span>
                 <button
                   type="button"
@@ -11746,10 +12189,10 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
       </div>
 
       {n === 0 ? (
-        <div className="rfp-empty" style={{ border: '1px dashed #C9C0AB', borderRadius: 10, padding: 13, textAlign: 'center', background: '#FCFBF7', marginTop: 9 }}>
+        <div className="rfp-empty" style={{ border: '1px dashed #E2DCD0', borderRadius: 12, padding: 12, textAlign: 'center', background: '#F7F4EF', marginTop: 8 }}>
           <RqIcon name="personAdd" size={22} className="rfp-empty-icon" />
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Nobody chosen yet</p>
-          <span style={{ display: 'block', marginTop: 2, fontSize: 11.5, color: '#78684C' }}>Start typing a name above to find them.</span>
+          <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: '#78684C' }}>Start typing a name above to find them.</span>
         </div>
       ) : null}
     </div>
@@ -11758,7 +12201,7 @@ function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
 
 // Small shared button styles for the ticket surfaces.
 const backLink = { background: 'none', border: 'none', padding: 0, marginBottom: 16, color: '#B92323', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-block' };
-const textActionBtn = { background: 'none', border: 'none', padding: 0, color: '#B92323', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' };
+const textActionBtn = { background: 'none', border: 'none', padding: 0, color: '#B92323', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' };
 // ─── hub-pages (237ee3bb) ──────────────────────────────────
 // ====================================================================
 //  Slice IT Hub — Knowledge, Status pages
@@ -12016,7 +12459,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
       {/* Hero */}
       <div style={{
         background: "var(--bg)",
-        padding: "44px 32px 8px",
+        padding: "48px 32px 8px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
           <h1 style={{
@@ -12034,11 +12477,11 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           {/* Search bar */}
           <form onSubmit={onSubmit} className="kb-search-form" style={{
             background: "#FFFFFF",
-            border: "1px solid #211E1E",
-            borderRadius: 14,
+            border: "1px solid rgba(33,30,30,.14)",
+            borderRadius: 16,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             padding: "8px 8px 8px 20px",
-            display: "flex", alignItems: "center", gap: 14,
+            display: "flex", alignItems: "center", gap: 16,
             maxWidth: 1120,
             transition: "transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s cubic-bezier(.2,.8,.2,1)",
             transformOrigin: "left center",
@@ -12055,14 +12498,14 @@ function KnowledgePage({ onBack, onOpenGuide }) {
                 flex: 1, minWidth: 0, width: 0, border: "none", outline: "none",
                 background: "transparent",
                 fontFamily: "'Archivo', sans-serif",
-                fontSize: 17, fontWeight: 500, color: "#211E1E",
+                fontSize: 16, fontWeight: 500, color: "#211E1E",
                 padding: "12px 0",
                 letterSpacing: "-0.005em",
               }}/>
             {query && (
               <button type="button" onClick={() => setQuery("")} aria-label="Clear search" style={{
                 width: 28, height: 28, padding: 0, cursor: "pointer",
-                background: "#F7F4EF", border: "1px solid #211E1E", borderRadius: "50%",
+                background: "#F7F4EF", border: "1px solid rgba(33,30,30,.14)", borderRadius: "50%",
                 display: "grid", placeItems: "center", color: "#211E1E",
                 marginRight: 4,
               }}>
@@ -12093,7 +12536,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           `}</style>
 
           {/* Popular chips (now with active state) */}
-          <div style={{ marginTop: 18, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, color: "#78684C", fontWeight: 600 }}>Popular:</span>
             {["password reset", "VPN", "new laptop", "Slack", "phishing"].map((p) => {
               const isActive = query === p;
@@ -12110,7 +12553,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
       </div>
 
       {/* Body */}
-      <div ref={resultsRef} style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "44px 32px 120px" }}>
+      <div ref={resultsRef} style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "48px 32px 120px" }}>
         {searching && (
           <SearchResults
             query={q}
@@ -12180,6 +12623,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           </div>
           <button onClick={() => setSuggestOpen(true)} className="btn btn-primary kb-missing-btn">Suggest an article</button>
         </div>
+
         </React.Fragment>
         )}
       </div>
@@ -12198,14 +12642,14 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
   const hasBoth = query && categoryLabel;
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
         <div>
           <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 4 }}>
             {results.length} result{results.length === 1 ? "" : "s"}{hasBoth ? " · filtered" : ""}
           </div>
           <h2 style={{
             fontFamily: "var(--font-head)",
-            fontSize: 26, fontWeight: 400, margin: 0,
+            fontSize: 24, fontWeight: 400, margin: 0,
             color: "#211E1E", letterSpacing: "-0.01em",
           }}>
             {query ? `“${query}”` : categoryLabel}
@@ -12214,15 +12658,15 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
             <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#4A3F2E" }}>
               in
               <span style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                background: "#FDC831", border: "1px solid #211E1E", borderRadius: 999,
-                padding: "3px 10px 3px 12px", fontWeight: 700, fontSize: 12,
+                display: "inline-flex", alignItems: "center", gap: 8,
+                background: "#F4F0E8", border: "1px solid rgba(33,30,30,.14)", borderRadius: 999,
+                padding: "3px 12px 3px 12px", fontWeight: 700, fontSize: 12,
                 fontFamily: "Archivo, sans-serif",
               }}>
                 {categoryLabel}
                 <button onClick={onClearCategory} aria-label="Remove filter" style={{
                   width: 16, height: 16, padding: 0,
-                  background: "#211E1E", color: "#FDC831",
+                  background: "#211E1E", color: "#FFFFFF",
                   border: "none", borderRadius: "50%",
                   display: "grid", placeItems: "center", cursor: "pointer",
                 }}>
@@ -12234,75 +12678,75 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {/* Sort */}
-          <div style={{ display: "inline-flex", border: "1px solid #211E1E", borderRadius: 8, overflow: "hidden", background: "#FFFFFF" }}>
+          <div style={{ display: "inline-flex", border: "1px solid rgba(33,30,30,.14)", borderRadius: 8, overflow: "hidden", background: "#FFFFFF" }}>
             {[
               { v: "relevance", label: "Best match" },
               { v: "recent", label: "Recently updated" },
             ].map((opt, i) => (
               <button key={opt.v} onClick={() => onChangeSort(opt.v)} style={{
-                padding: "7px 12px",
+                padding: "8px 12px",
                 background: sort === opt.v ? "#211E1E" : "#FFFFFF",
-                color: sort === opt.v ? "#FDC831" : "#211E1E",
+                color: sort === opt.v ? "#FFFFFF" : "#211E1E",
                 border: "none",
                 borderLeft: i === 0 ? "none" : "1.5px solid #211E1E",
-                fontFamily: "Archivo, sans-serif", fontSize: 11.5, fontWeight: 700,
+                fontFamily: "Archivo, sans-serif", fontSize: 12, fontWeight: 700,
                 cursor: "pointer", letterSpacing: "0.01em",
               }}>{opt.label}</button>
             ))}
           </div>
-          <button onClick={onClear} className="btn btn-outline" style={{ padding: "8px 14px" }}>Clear</button>
+          <button onClick={onClear} className="btn btn-outline" style={{ padding: "8px 16px" }}>Clear</button>
         </div>
       </div>
 
       {results.length === 0 ? (
         <div style={{
-          background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14,
-          padding: "44px 32px",
+          background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 16,
+          padding: "48px 32px",
           textAlign: "center",
         }}>
           {/* Typographic mark instead of emoji */}
           <div style={{
-            width: 64, height: 64, margin: "0 auto 14px",
-            background: "#FDC831", border: "1px solid #211E1E", borderRadius: "50%",
+            width: 64, height: 64, margin: "0 auto 16px",
+            background: "#F4F0E8", border: "1px solid rgba(33,30,30,.14)", borderRadius: "50%",
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
-            fontFamily: "'Archivo', sans-serif", fontSize: 36, fontWeight: 900, color: "#211E1E",
+            fontFamily: "'Archivo', sans-serif", fontSize: 32, fontWeight: 900, color: "#211E1E",
             lineHeight: 1,
           }}>?</div>
-          <div style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 20, fontWeight: 400, color: "#211E1E", marginBottom: 6 }}>
+          <div style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 20, fontWeight: 400, color: "#211E1E", marginBottom: 8 }}>
             Nothing matched{query ? ` “${query}”` : ""}.
           </div>
-          <div style={{ fontSize: 14, color: "#4A3F2E", marginBottom: 18 }}>
+          <div style={{ fontSize: 14, color: "#4A3F2E", marginBottom: 20 }}>
             Try a broader term, or suggest we write a guide for this.
           </div>
-          <button onClick={onSuggest} className="btn btn-primary" style={{ padding: "10px 18px" }}>Suggest an article →</button>
+          <button onClick={onSuggest} className="btn btn-primary" style={{ padding: "12px 20px" }}>Suggest an article →</button>
         </div>
       ) : (
         <div style={{
           background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 14,
+          border: "1px solid rgba(33,30,30,.14)", borderRadius: 16,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           overflow: "hidden",
         }}>
           {results.map((r, i) => (
             <div key={r.id} onClick={() => onOpenItem(r)} style={{
               display: "flex", alignItems: "center", gap: 16,
-              padding: "18px 22px",
-              borderBottom: i === results.length - 1 ? "none" : "1.5px solid #E7E1D4",
+              padding: "20px 24px",
+              borderBottom: i === results.length - 1 ? "none" : "1.5px solid #E2DCD0",
               cursor: "pointer",
               transition: "background .12s",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#FFFDF5"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#FFFFFF"; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
               <CategoryDot category={r.category} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#211E1E", marginBottom: 3, letterSpacing: "-0.005em" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#211E1E", marginBottom: 3, letterSpacing: "-0.005em" }}>
                   <HighlightMatch text={r.title} query={query} />
                 </div>
-                <div style={{ fontSize: 12.5, color: "#4A3F2E", marginBottom: 4, lineHeight: 1.4 }}>
+                <div style={{ fontSize: 13, color: "#4A3F2E", marginBottom: 4, lineHeight: 1.4 }}>
                   <HighlightMatch text={r.body} query={query} />
                 </div>
-                <div style={{ fontSize: 10.5, color: "#78684C", fontWeight: 600, fontFamily: "var(--font-mono)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                <div style={{ fontSize: 11, color: "#78684C", fontWeight: 600, fontFamily: "var(--font-mono)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
                   {r.category}
                 </div>
               </div>
@@ -12354,9 +12798,9 @@ function HighlightMatch({ text, query }) {
     <React.Fragment>
       {text.slice(0, idx)}
       <mark style={{
-        background: "#FDC831", color: "#211E1E",
+        background: "#F4F0E8", color: "#211E1E",
         padding: "0 3px", borderRadius: 2,
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       }}>
         {text.slice(idx, idx + query.length)}
@@ -12368,14 +12812,14 @@ function HighlightMatch({ text, query }) {
 
 function SectionTitle({ kicker, title, right }) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
       <div>
         <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 4 }}>
           {kicker}
         </div>
         <h2 style={{
           fontFamily: "var(--font-head)",
-          fontSize: 22, fontWeight: 400, margin: 0,
+          fontSize: 24, fontWeight: 400, margin: 0,
           color: "#211E1E", letterSpacing: "-0.01em",
           lineHeight: 1.15,
         }}>{title}</h2>
@@ -12419,43 +12863,43 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
       <div className="overlay-panel-in" onClick={(e) => e.stopPropagation()} style={{
         width: "min(540px, 100%)",
         background: "#F7F4EF",
-        border: "1px solid #211E1E", borderRadius: 16,
+        border: "1px solid rgba(33,30,30,.14)", borderRadius: 16,
         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-        padding: 28,
+        padding: 32,
       }}>
         {!sent ? (
           <form onSubmit={submit}>
-            <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 6 }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 8 }}>
               Help us write the missing guide
             </div>
-            <h2 style={{ fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 400, margin: "0 0 18px", color: "#211E1E", letterSpacing: "-0.01em" }}>
+            <h2 style={{ fontFamily: "var(--font-head)", fontSize: 24, fontWeight: 400, margin: "0 0 20px", color: "#211E1E", letterSpacing: "-0.01em" }}>
               Suggest an article
             </h2>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", marginBottom: 6, fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What were you searching for?</label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", marginBottom: 8, fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What were you searching for?</label>
             <input value={searched} onChange={(e) => setSearched(e.target.value)} placeholder='e.g. "VPN on personal Mac"' style={inputStyle}/>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", margin: "14px 0 6px", fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What problem are you trying to solve?</label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4A3F2E", margin: "16px 0 8px", fontFamily: "var(--font-mono)", letterSpacing: "0.02em", textTransform: "uppercase" }}>What problem are you trying to solve?</label>
             <textarea value={what} onChange={(e) => setWhat(e.target.value)} rows={4} placeholder="Describe what you needed the article to cover…" style={{ ...inputStyle, resize: "vertical", minHeight: 88, fontFamily: "'Archivo', sans-serif" }}/>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button type="button" onClick={onClose} className="btn btn-outline" style={{ padding: "10px 16px" }}>Cancel</button>
-              <button type="submit" disabled={!valid} className="btn btn-primary" style={{ padding: "10px 18px", opacity: valid ? 1 : 0.5, cursor: valid ? "pointer" : "not-allowed" }}>Send to IT →</button>
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
+              <button type="button" onClick={onClose} className="btn btn-outline" style={{ padding: "12px 16px" }}>Cancel</button>
+              <button type="submit" disabled={!valid} className="btn btn-primary" style={{ padding: "12px 20px", opacity: valid ? 1 : 0.5, cursor: valid ? "pointer" : "not-allowed" }}>Send to IT →</button>
             </div>
           </form>
         ) : (
           <div style={{ textAlign: "center", padding: "12px 8px" }}>
             <div style={{
               width: 72, height: 72, margin: "0 auto 16px",
-              background: "#0A8A3E", border: "1px solid #211E1E", borderRadius: "50%",
+              background: "#0A8A3E", border: "1px solid rgba(33,30,30,.14)", borderRadius: "50%",
               boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               display: "grid", placeItems: "center",
-              color: "#FFFFFF", fontSize: 36, fontWeight: 900,
+              color: "#FFFFFF", fontSize: 32, fontWeight: 900,
             }}>✓</div>
-            <h2 style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 400, margin: "0 0 8px", color: "#211E1E" }}>
+            <h2 style={{ letterSpacing: "-0.01em", fontFamily: "var(--font-head)", fontSize: 24, fontWeight: 400, margin: "0 0 8px", color: "#211E1E" }}>
               Thanks — we'll get on it.
             </h2>
-            <p style={{ fontSize: 14, color: "#4A3F2E", margin: "0 0 22px" }}>
+            <p style={{ fontSize: 14, color: "#4A3F2E", margin: "0 0 24px" }}>
               You'll hear back when the guide is published (usually within a week).
             </p>
-            <button onClick={onClose} className="btn btn-primary" style={{ padding: "10px 18px" }}>Close</button>
+            <button onClick={onClose} className="btn btn-primary" style={{ padding: "12px 20px" }}>Close</button>
           </div>
         )}
       </div>
@@ -12466,11 +12910,11 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
 
 const inputStyle = {
   width: "100%", boxSizing: "border-box",
-  padding: "10px 14px",
+  padding: "12px 16px",
   fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 500,
   color: "#211E1E",
   background: "#FFFFFF",
-  border: "1px solid #211E1E", borderRadius: 8,
+  border: "1px solid rgba(33,30,30,.14)", borderRadius: 8,
   outline: "none",
 };
 
@@ -12493,11 +12937,11 @@ function serviceIconUrl(s, size = 64) {
 
 const SOURCE_LABELS = {
   manual:     { label: "Manual",        tone: "#4A3F2E", bg: "#F7F4EF" },
-  probe:      { label: "Health probe",  tone: "#0A8A3E", bg: "#E8F5EC" },
-  statuspage: { label: "Vendor status", tone: "#1E5FB2", bg: "#E5EFFA" },
-  rss:        { label: "Incident feed", tone: "#8A5A14", bg: "#FBF1DD" },
+  probe:      { label: "Health probe",  tone: "#0A8A3E", bg: "#E7F5EC" },
+  statuspage: { label: "Vendor status", tone: "#2563B0", bg: "#E6EEF9" },
+  rss:        { label: "Incident feed", tone: "#8A5A14", bg: "#F4F0E8" },
   page:       { label: "Page scan",     tone: "#4A3F2E", bg: "#F7F4EF" },
-  webhook:    { label: "Live webhook",  tone: "#6D3FB0", bg: "#F0E8FA" },
+  webhook:    { label: "Live webhook",  tone: "#6D3FB0", bg: "#E6EEF9" },
 };
 
 // Icon (emoji) per reference-link kind, shown on the link chips.
@@ -12506,14 +12950,14 @@ const LINK_KIND_ICON = { status: "🟢", rss: "📡", help: "❓", docs: "📄",
 // Severity / state palettes for incident pills.
 const SEVERITY_TONE = {
   minor:    { bg: "#FFE8A3", ink: "#8A6A14", label: "Minor" },
-  major:    { bg: "#FFD4D0", ink: "#8A1E17", label: "Major" },
-  critical: { bg: "#FFD4D0", ink: "#8A1E17", label: "Critical" },
+  major:    { bg: "#F2C9C4", ink: "#8A1E17", label: "Major" },
+  critical: { bg: "#F2C9C4", ink: "#8A1E17", label: "Critical" },
 };
 const INCIDENT_STATE_TONE = {
   investigating: { bg: "#FFE8A3", ink: "#8A6A14", label: "Investigating" },
-  identified:    { bg: "#FFD4D0", ink: "#8A1E17", label: "Identified" },
+  identified:    { bg: "#F2C9C4", ink: "#8A1E17", label: "Identified" },
   monitoring:    { bg: "#FFE8A3", ink: "#8A6A14", label: "Monitoring" },
-  resolved:      { bg: "#D4F4D4", ink: "#0A8A3E", label: "Resolved" },
+  resolved:      { bg: "#E7F5EC", ink: "#0A8A3E", label: "Resolved" },
 };
 const UPDATE_LABEL_TONE = {
   identified: "#DA3327",
@@ -12581,21 +13025,13 @@ function StatusPage({ onBack }) {
   const groups = payload?.groups || [];
   const allServices = React.useMemo(() => groups.flatMap((g) => g.services || []), [groups]);
   const incidents = payload?.incidents || [];
-  const openIncidentList = incidents.filter((i) => i.state !== 'resolved');
-  // Keep a resolved incident visible as "recently resolved" for one hour after
-  // it's fixed, then it drops off the public page. The 1s clock tick below
-  // re-renders, so it disappears on its own ~1h later with no refetch. The timer
-  // starts at resolution — an incident that's still open never auto-hides.
-  const RESOLVED_GRACE_MS = 60 * 60 * 1000;
-  const recentlyResolved = incidents.filter(
-    (i) => i.state === 'resolved' && i.resolved_at && (Date.now() - new Date(i.resolved_at).getTime()) <= RESOLVED_GRACE_MS,
-  );
+  // Incidents aren't listed on this page (open or resolved): the service
+  // table is the whole page, and each app's row shows its live state.
 
   const operationalCount = allServices.filter((s) => s.state === 'operational').length;
   const degraded = allServices.filter((s) => s.state === 'degraded');
   const down = allServices.filter((s) => s.state === 'down');
 
-  const [expandedSvc, setExpandedSvc] = React.useState(null);
   const [filter, setFilter] = React.useState('all'); // all | issues | operational
   const [query, setQuery] = React.useState('');
 
@@ -12627,7 +13063,7 @@ function StatusPage({ onBack }) {
     }}>
       {/* Just the page title — the service table below already shows what's
           down or degraded, so a second summary up here repeated it. */}
-      <div style={{ background: "#F7F4EF", padding: "44px 32px 0" }}>
+      <div style={{ background: "#F7F4EF", padding: "48px 32px 0" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
           <h1 title={loadError || undefined} style={{
             fontFamily: "var(--font-head)", fontSize: 44, fontWeight: 400,
@@ -12640,7 +13076,7 @@ function StatusPage({ onBack }) {
 
       {/* Body */}
       <div style={{
-        maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "28px 32px 64px",
+        maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 64px",
         width: "100%",
         flex: "1 0 auto", display: "flex", flexDirection: "column",
       }}>
@@ -12652,7 +13088,7 @@ function StatusPage({ onBack }) {
         />
 
         {/* Search + filter bar — same search box and segmented switch as My tickets */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 14 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 16 }}>
           <div style={{ flex: "1 1 280px", minWidth: 220 }}>
             <TicketSearchBox value={query} onChange={setQuery} placeholder="Search services, vendors, domains…" />
           </div>
@@ -12674,7 +13110,7 @@ function StatusPage({ onBack }) {
         {/* Service list */}
         <div style={{
           background: "#FFFFFF",
-          border: "1px solid #211E1E", borderRadius: 14,
+          border: "1px solid rgba(33,30,30,.14)", borderRadius: 16,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           overflow: "hidden",
           marginBottom: 48,
@@ -12682,39 +13118,38 @@ function StatusPage({ onBack }) {
           {/* Column header */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "44px 1.4fr 1fr 40px",
+            gridTemplateColumns: "44px 1.4fr 1fr",
             gap: 16,
-            padding: "12px 22px",
-            background: "#F7F4EF", borderBottom: "1px solid #211E1E",
-            fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600,
+            padding: "12px 24px",
+            background: "#F7F4EF", borderBottom: "1px solid rgba(33,30,30,.14)",
+            fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
             letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E",
           }}>
             <div/>
             <div>Service</div>
             <div>Status</div>
-            <div/>
           </div>
 
           {!payload ? (
             <div style={{
-              padding: "32px 22px",
+              padding: "32px 24px",
               textAlign: "center",
-              color: "#4A3F2E", fontSize: 13.5, fontWeight: 600,
+              color: "#4A3F2E", fontSize: 14, fontWeight: 600,
             }}>Syncing services from the platform…</div>
           ) : noMatches ? (
             <div style={{
-              padding: "32px 22px",
+              padding: "32px 24px",
               textAlign: "center",
               color: "#4A3F2E", fontSize: 14, fontWeight: 600,
             }}>
-              <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 16, fontWeight: 900, color: "#211E1E", marginBottom: 6 }}>
+              <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 16, fontWeight: 900, color: "#211E1E", marginBottom: 8 }}>
                 Nothing matches that.
               </div>
               <div>Try a different search or clear the filter.</div>
               <button
                 onClick={() => { setQuery(""); setFilter("all"); }}
                 className="btn btn-outline"
-                style={{ marginTop: 14, padding: "8px 16px" }}
+                style={{ marginTop: 16, padding: "8px 16px" }}
               >Clear filters</button>
             </div>
           ) : filteredGroups.flatMap((g) => g.services).map((s, i, arr) => (
@@ -12722,35 +13157,9 @@ function StatusPage({ onBack }) {
               key={s.id}
               service={s}
               isLast={i === arr.length - 1}
-              expanded={expandedSvc === s.id}
-              onToggle={() => setExpandedSvc(expandedSvc === s.id ? null : s.id)}
             />
           ))}
         </div>
-
-        {/* Active incidents — under the service list, which is the page's main read */}
-        {openIncidentList.length > 0 && (
-          <React.Fragment>
-            <SectionTitle kicker="Active right now" title="Open incidents" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 48 }}>
-              {openIncidentList.map((inc) => (
-                <IncidentCard key={inc.id} incident={inc} open />
-              ))}
-            </div>
-          </React.Fragment>
-        )}
-
-        {/* Recently resolved — shown for one hour after the fix, then auto-hidden */}
-        {recentlyResolved.length > 0 && (
-          <React.Fragment>
-            <SectionTitle kicker="Just fixed" title="Recently resolved" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 48 }}>
-              {recentlyResolved.map((inc) => (
-                <IncidentCard key={inc.id} incident={inc} />
-              ))}
-            </div>
-          </React.Fragment>
-        )}
 
       </div>
 
@@ -12767,14 +13176,14 @@ function StatusPage({ onBack }) {
 function StatusLegend() {
   const items = [
     { color: "#0A8A3E", label: "Up" },
-    { color: "#FDC831", label: "Degraded" },
-    { color: "#DA3327", label: "Down" },
+    { color: "#E08A1E", label: "Degraded" },
+    { color: "#B92323", label: "Down" },
   ];
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 11.5, color: "#4A3F2E", fontWeight: 600 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12, color: "#4A3F2E", fontWeight: 600 }}>
       {items.map(it => (
-        <span key={it.label} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 10, height: 10, background: it.color, border: "1px solid #211E1E", borderRadius: 2 }}/>
+        <span key={it.label} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 8, height: 8, background: it.color, borderRadius: "50%" }}/>
           {it.label}
         </span>
       ))}
@@ -12782,11 +13191,14 @@ function StatusLegend() {
   );
 }
 
-function ServiceRow({ service, isLast, expanded, onToggle }) {
+// A plain, static row per app: icon, name, state, response time. No click,
+// no expand — the state pill is the whole story.
+function ServiceRow({ service, isLast }) {
   const [iconBroken, setIconBroken] = React.useState(false);
-  const stateTone = service.state === "operational" ? { bg: "#D4F4D4", ink: "#0A8A3E", label: "Operational" }
-    : service.state === "degraded" ? { bg: "#FFE8A3", ink: "#8A6A14", label: "Degraded" }
-    : { bg: "#FFD4D0", ink: "#8A1E17", label: "Down" };
+  // Same soft pill as ticket statuses: tint + coloured dot, sentence case.
+  const stateTone = service.state === "operational" ? { bg: "#E7F5EC", ink: "#0A6E31", dot: "#0A8A3E", label: "Operational" }
+    : service.state === "degraded" ? { bg: "#F4F0E8", ink: "#9A4A00", dot: "#E08A1E", label: "Degraded" }
+    : { bg: "#FFF4F2", ink: "#8A1E17", dot: "#B92323", label: "Down" };
 
   const responseMs = service.response_ms;
 
@@ -12798,28 +13210,22 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
   return (
     <React.Fragment>
       <div
-        onMouseEnter={(e) => { e.currentTarget.style.background = "#FFFDF5"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
         style={{
           display: "grid",
-          gridTemplateColumns: "44px 1.4fr 1fr 40px",
+          gridTemplateColumns: "44px 1.4fr 1fr",
           gap: 16, alignItems: "center",
-          padding: "18px 22px",
-          borderBottom: isLast && !expanded ? "none" : "1.5px solid #E7E1D4",
-          transition: "background .12s",
-          cursor: "pointer",
+          padding: "20px 24px",
+          borderBottom: isLast ? "none" : "1px solid #F4F0E8",
         }}
-        onClick={onToggle}
         data-svc={service.id}
       >
         {/* App icon */}
         <div style={{
           width: 36, height: 36,
-          border: "1px solid #211E1E", borderRadius: 8,
+          border: "1px solid rgba(33,30,30,.14)", borderRadius: 8,
           background: "#FFFFFF",
           display: "grid", placeItems: "center",
           overflow: "hidden",
-          boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           flexShrink: 0,
         }}>
           {iconBroken ? (
@@ -12839,96 +13245,29 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
           )}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.005em" }}>{service.name}</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#211E1E", letterSpacing: "-0.01em" }}>{service.name}</div>
         </div>
         <div>
           <span style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "4px 10px",
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "4px 12px 4px 8px",
             background: stateTone.bg, color: stateTone.ink,
-            border: `1.5px solid ${stateTone.ink}`,
-            borderRadius: 3,
-            fontFamily: "var(--font-mono)",
-            fontSize: 10.5, fontWeight: 600,
-            letterSpacing: "0.04em", textTransform: "uppercase",
+            borderRadius: 999,
+            fontSize: 12, fontWeight: 600,
           }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: stateTone.ink }}/>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: stateTone.dot }}/>
             {stateTone.label}
           </span>
-          <div style={{ fontSize: 11, color: "#78684C", marginTop: 4, fontWeight: 600 }}>
+          <div style={{ fontSize: 12, color: "#78684C", marginTop: 4, fontWeight: 500 }}>
             Response: <b style={{ color: "#211E1E" }}>{responseMs != null ? `${responseMs}ms` : "—"}</b>
           </div>
           {service.state_note && service.state !== 'operational' && (
-            <div style={{ fontSize: 11, color: "#8A1E17", marginTop: 4, fontWeight: 600, lineHeight: 1.4 }}>
+            <div style={{ fontSize: 12, color: "#8A1E17", marginTop: 4, fontWeight: 600, lineHeight: 1.4 }}>
               {service.state_note}
             </div>
           )}
         </div>
-        <div style={{
-          width: 28, height: 28,
-          background: "#FDC831", border: "1px solid #211E1E", borderRadius: 4,
-          display: "grid", placeItems: "center",
-          transform: expanded ? "rotate(180deg)" : "none",
-          transition: "transform .2s var(--ease)",
-          justifySelf: "end",
-        }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </div>
       </div>
-      {expanded && (
-        <div style={{
-          padding: "18px 22px 20px",
-          background: "#FFFDF5",
-          borderBottom: isLast ? "none" : "1.5px solid #E7E1D4",
-        }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 12 }}>
-            <MiniStat label="Last response" value={responseMs != null ? `${responseMs}ms` : "—"} />
-            <MiniStat label="Last checked"
-              value={service.last_checked_at ? relativeTime(service.last_checked_at) : "—"} />
-            <MiniStat label="Source" value={sourceMeta.label} />
-          </div>
-          {Array.isArray(service.links) && service.links.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-              {service.links.map((l, i) => (
-                <a key={i} href={l.url} target="_blank" rel="noreferrer noopener"
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "5px 11px",
-                    background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 999,
-                    boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-                    fontSize: 12, fontWeight: 700, color: "#211E1E", textDecoration: "none",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(0, 0)"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"; }}
-                >
-                  <span>{LINK_KIND_ICON[l.kind] || "🔗"}</span>
-                  {l.label || l.url}
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" style={{ opacity: 0.55 }}><path d="M7 17 17 7M9 7h8v8"/></svg>
-                </a>
-              ))}
-            </div>
-          )}
-          <div style={{ fontSize: 12.5, color: "#4A3F2E", lineHeight: 1.5 }}>
-            {(() => {
-              const b = <b style={{ color: "#211E1E" }}>{service.name}</b>;
-              if (service.source === 'manual')     return <>{b} is set manually by the IT Team. Status changes when an admin updates it.</>;
-              if (service.source === 'webhook')    return <>{b} updates in real time — the vendor's status page pushes incident and component changes straight to us via webhook, so this reflects their status the moment it changes.</>;
-              if (service.source === 'statuspage') return <>{b} is polled every 60 seconds from the vendor's public status API. We mark it <b>degraded</b> on a minor incident, and <b>down</b> for major or critical incidents.</>;
-              if (service.source === 'rss')        return <>{b} is tracked from the vendor's incident feed (RSS/Atom), checked every 60 seconds — the newest entry's latest update drives the state.</>;
-              if (service.source === 'page')       return <>{b}'s status page is scanned every 60 seconds for outage wording. A best-effort signal — check the vendor's page for detail.</>;
-              return <>{b} is health-probed every 60 seconds. We mark it <b>degraded</b> when responses exceed 2500ms or return 4xx, and <b>down</b> on 5xx or connection failure.</>;
-            })()}
-            {service.last_error && (
-              <div style={{ marginTop: 8, padding: "8px 10px", background: "#FFE8E5", border: "1px solid #DA3327", borderRadius: 6, color: "#7A1A14", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11.5 }}>
-                Last error: {service.last_error}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </React.Fragment>
   );
 }
@@ -12936,11 +13275,11 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
 function MiniStat({ label, value }) {
   return (
     <div style={{
-      background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 8,
-      padding: "10px 12px",
+      background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)", borderRadius: 8,
+      padding: "12px 12px",
     }}>
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "#78684C", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 18, fontWeight: 900, color: "#211E1E", lineHeight: 1 }}>{value}</div>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "#78684C", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 20, fontWeight: 900, color: "#211E1E", lineHeight: 1 }}>{value}</div>
     </div>
   );
 }
@@ -12965,7 +13304,7 @@ function IncidentCard({ incident, open }) {
   return (
     <div style={{
       background: "#FFFFFF",
-      border: "1px solid #211E1E", borderRadius: 12,
+      border: "1px solid rgba(33,30,30,.14)", borderRadius: 12,
       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
       overflow: "hidden",
       transition: "transform .15s var(--ease), box-shadow .15s var(--ease)",
@@ -12974,8 +13313,8 @@ function IncidentCard({ incident, open }) {
     onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)"; }}
     >
       <div onClick={() => setExpanded(!expanded)} style={{
-        padding: "18px 22px",
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14,
+        padding: "20px 24px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
         cursor: "pointer",
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -12983,27 +13322,27 @@ function IncidentCard({ incident, open }) {
             <span style={{
               fontFamily: "ui-monospace, Menlo, monospace",
               fontSize: 11, fontWeight: 700,
-              background: "#F7F4EF", border: "1px solid #211E1E",
-              borderRadius: 3, padding: "2px 7px", color: "#211E1E",
+              background: "#F7F4EF", border: "1px solid rgba(33,30,30,.14)",
+              borderRadius: 4, padding: "2px 8px", color: "#211E1E",
             }}>{idLabel}</span>
             <span style={{
               background: sevTone.bg, color: sevTone.ink,
-              border: `1.5px solid ${sevTone.ink}`, borderRadius: 3,
-              fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
-              padding: "2px 7px", letterSpacing: "0.04em", textTransform: "uppercase",
+              border: `1.5px solid ${sevTone.ink}`, borderRadius: 4,
+              fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
+              padding: "2px 8px", letterSpacing: "0.04em", textTransform: "uppercase",
             }}>{sevTone.label}</span>
             <span style={{
               background: stateTone.bg, color: stateTone.ink,
-              border: `1.5px solid ${stateTone.ink}`, borderRadius: 3,
-              fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
-              padding: "2px 7px", letterSpacing: "0.04em", textTransform: "uppercase",
+              border: `1.5px solid ${stateTone.ink}`, borderRadius: 4,
+              fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
+              padding: "2px 8px", letterSpacing: "0.04em", textTransform: "uppercase",
             }}>{stateTone.label}</span>
             {incident.auto_created && (
               <span title="Opened automatically by monitoring" style={{
                 display: "inline-flex", alignItems: "center", gap: 4,
                 background: "#211E1E", color: "#FDC831",
-                borderRadius: 3, padding: "2px 7px",
-                fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
+                borderRadius: 4, padding: "2px 8px",
+                fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.04em", textTransform: "uppercase",
               }}>
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
@@ -13012,18 +13351,18 @@ function IncidentCard({ incident, open }) {
             )}
             <span style={{ fontSize: 11, color: "#78684C", fontWeight: 600 }}>· Started {startedRel}</span>
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.005em" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.005em" }}>
             {incident.service_name ? `${incident.service_name} — ${incident.title}` : incident.title}
           </div>
           {resolvedDuration && (
-            <div style={{ fontSize: 11.5, color: "#0A8A3E", fontWeight: 700, marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: "#0A8A3E", fontWeight: 700, marginTop: 4 }}>
               ✓ {resolvedDuration}
             </div>
           )}
         </div>
         <div style={{
           width: 30, height: 30,
-          background: "#FDC831", border: "1px solid #211E1E", borderRadius: 4,
+          background: "#FDC831", border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
           display: "grid", placeItems: "center",
           transform: expanded ? "rotate(180deg)" : "none",
           transition: "transform .2s var(--ease)",
@@ -13036,8 +13375,8 @@ function IncidentCard({ incident, open }) {
       </div>
 
       {expanded && (
-        <div style={{ padding: "0 22px 22px", borderTop: "1px solid #E7E1D4", marginTop: 4, paddingTop: 18 }}>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 12 }}>
+        <div style={{ padding: "0 24px 24px", borderTop: "1px solid #E2DCD0", marginTop: 4, paddingTop: 20 }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 12 }}>
             Timeline
           </div>
           {(!incident.updates || incident.updates.length === 0) ? (
@@ -13045,11 +13384,11 @@ function IncidentCard({ incident, open }) {
               No updates yet — the IT Team will post one as soon as they have more info.
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {incident.updates.map((u) => {
                 const tone = UPDATE_LABEL_TONE[(u.label || '').toLowerCase()] || UPDATE_LABEL_TONE.update;
                 return (
-                  <div key={u.id} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                  <div key={u.id} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
                     <div style={{
                       width: 56,
                       fontFamily: "ui-monospace, Menlo, monospace",
@@ -13058,11 +13397,11 @@ function IncidentCard({ incident, open }) {
                     }}>{clockHM(u.created_at)}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{
-                        fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
+                        fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
                         letterSpacing: "0.04em", textTransform: "uppercase",
                         color: tone, marginBottom: 3,
                       }}>{u.label}</div>
-                      <div style={{ fontSize: 13.5, color: "#211E1E", lineHeight: 1.5 }}>{u.body}</div>
+                      <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.5 }}>{u.body}</div>
                     </div>
                   </div>
                 );
@@ -13236,7 +13575,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
         background: "rgba(33,30,30,0.45)", backdropFilter: "blur(6px)",
         animation: "ssIn .25s var(--ease) both",
         display: "flex", alignItems: "flex-start", justifyContent: "center",
-        padding: "60px 24px 40px",
+        padding: "64px 24px 40px",
         overflowY: "auto",
       }}
     >
@@ -13250,8 +13589,8 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           100% { transform: translateY(104%); opacity: 0; }
         }
         @keyframes pulseBox {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(253,200,49,0.6); }
-          50% { box-shadow: 0 0 0 8px rgba(253,200,49,0); }
+          0%, 100% { box-shadow: 0 0 0 0 rgba(33,30,30,.12); }
+          50% { box-shadow: 0 0 0 8px rgba(33,30,30,.08); }
         }
         .ss-action-btn { transition: transform .15s, box-shadow .15s; }
         .ss-action-btn:hover { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
@@ -13262,9 +13601,9 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(720px, 100%)",
-          background: "#FFF9E6",
-          border: "1px solid #211E1E",
-          borderRadius: 14,
+          background: "#F4F0E8",
+          border: "1px solid rgba(33,30,30,.14)",
+          borderRadius: 16,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           padding: 0,
           animation: "ssPanelIn .35s var(--ease) both",
@@ -13273,30 +13612,30 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
       >
         {/* Header */}
         <div style={{
-          padding: "20px 28px",
-          borderBottom: "1px solid #211E1E",
-          background: "#FDC831",
+          padding: "20px 32px",
+          borderBottom: "1px solid rgba(33,30,30,.14)",
+          background: "#F4F0E8",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 8,
-              background: "#211E1E", color: "#FDC831",
+              background: "#211E1E", color: "#FFFFFF",
               border: "1px solid #211E1E",
               display: "grid", placeItems: "center",
               fontFamily: "Archivo, sans-serif",
-              fontSize: 18, fontWeight: 900,
+              fontSize: 20, fontWeight: 900,
             }}>📷</div>
             <div>
               <div style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5, fontWeight: 600,
+                fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.08em", textTransform: "uppercase",
                 color: "#4A3F2E",
               }}>Show, don't type</div>
               <div style={{
                 fontFamily: "var(--font-head)",
-                fontSize: 19, fontWeight: 400, color: "#211E1E",
+                fontSize: 20, fontWeight: 400, color: "#211E1E",
                 letterSpacing: "-0.01em",
               }}>
                 Add a screenshot — we'll take a look
@@ -13306,7 +13645,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           <button onClick={onClose} aria-label="Close" style={{
             width: 32, height: 32,
             background: "#FFFFFF",
-            border: "1px solid #211E1E", borderRadius: 4,
+            border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
             boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
             display: "grid", placeItems: "center",
             color: "#211E1E", cursor: "pointer",
@@ -13315,7 +13654,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           }}>×</button>
         </div>
 
-        <div style={{ padding: "26px 28px 28px" }}>
+        <div style={{ padding: "24px 32px 32px" }}>
           {phase === "empty" && (
             <>
               {/* Drop zone */}
@@ -13326,7 +13665,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                 onDrop={onDrop}
                 style={{
                   display: "block",
-                  background: dragOver ? "#FDC831" : "#FFFFFF",
+                  background: dragOver ? "#F4F0E8" : "#FFFFFF",
                   border: `2.5px dashed ${dragOver ? "#211E1E" : "rgba(33,30,30,0.4)"}`,
                   borderRadius: 12,
                   padding: file ? "0" : "44px 24px",
@@ -13355,9 +13694,9 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeFile(); }}
                       style={{
                         position: "absolute", top: 10, right: 10,
-                        padding: "6px 10px",
+                        padding: "8px 12px",
                         background: "#FFFFFF",
-                        border: "1px solid #211E1E", borderRadius: 4,
+                        border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
                         boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                         fontFamily: "var(--font-mono)",
                         fontSize: 11, fontWeight: 600,
@@ -13371,9 +13710,9 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                       position: "absolute", bottom: 0, left: 0, right: 0,
                       padding: "8px 12px",
                       background: "rgba(33,30,30,0.9)",
-                      color: "#FDC831",
+                      color: "#FFFFFF",
                       fontFamily: "ui-monospace, SF Mono, Menlo, monospace",
-                      fontSize: 11.5,
+                      fontSize: 12,
                       textAlign: "left",
                     }}>
                       {file.name}
@@ -13383,19 +13722,19 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                   <>
                     <div style={{
                       width: 56, height: 56, borderRadius: 12,
-                      background: dragOver ? "#211E1E" : "#FDC831",
-                      color: dragOver ? "#FDC831" : "#211E1E",
-                      border: "1px solid #211E1E",
+                      background: dragOver ? "#211E1E" : "#F4F0E8",
+                      color: dragOver ? "#FFFFFF" : "#211E1E",
+                      border: "1px solid rgba(33,30,30,.14)",
                       display: "grid", placeItems: "center",
-                      margin: "0 auto 14px",
+                      margin: "0 auto 16px",
                       fontFamily: "Archivo, sans-serif",
-                      fontSize: 28, fontWeight: 900,
+                      fontSize: 32, fontWeight: 900,
                       transition: "background .2s, color .2s",
                     }}>↑</div>
                     <div style={{
                       fontFamily: "Archivo, sans-serif",
-                      fontSize: 17, fontWeight: 800, color: "#211E1E",
-                      marginBottom: 6, letterSpacing: "-0.012em",
+                      fontSize: 16, fontWeight: 800, color: "#211E1E",
+                      marginBottom: 8, letterSpacing: "-0.012em",
                     }}>
                       {dragOver ? "Drop it!" : "Drag a screenshot here"}
                     </div>
@@ -13417,13 +13756,13 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               </label>
 
               {/* Optional note */}
-              <div style={{ marginTop: 18 }}>
+              <div style={{ marginTop: 20 }}>
                 <label style={{
                   display: "block",
                   fontFamily: "var(--font-mono)",
-                  fontSize: 10.5, fontWeight: 600,
+                  fontSize: 11, fontWeight: 600,
                   letterSpacing: "0.06em", textTransform: "uppercase",
-                  color: "#4A3F2E", marginBottom: 6,
+                  color: "#4A3F2E", marginBottom: 8,
                 }}>
                   Optional note <span style={{ fontWeight: 600, color: "#78684C" }}>· what's going wrong?</span>
                 </label>
@@ -13435,9 +13774,9 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                   style={{
                     width: "100%",
                     background: "#FFFFFF",
-                    border: "1px solid #211E1E",
+                    border: "1px solid rgba(33,30,30,.14)",
                     borderRadius: 8,
-                    padding: "10px 12px",
+                    padding: "12px 12px",
                     fontFamily: "inherit",
                     fontSize: 14,
                     color: "#211E1E",
@@ -13449,11 +13788,11 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
 
               {/* Privacy note + CTA */}
               <div style={{
-                marginTop: 18,
+                marginTop: 20,
                 display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
                 flexWrap: "wrap",
               }}>
-                <div style={{ fontSize: 11.5, color: "#4A3F2E", lineHeight: 1.45, maxWidth: 360 }}>
+                <div style={{ fontSize: 12, color: "#4A3F2E", lineHeight: 1.45, maxWidth: 360 }}>
                   <strong style={{ color: "#211E1E" }}>Private.</strong> Your screenshot stays in this session — it isn't stored unless you file a ticket.
                 </div>
                 <button
@@ -13461,10 +13800,10 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                   disabled={!file}
                   className="ss-action-btn"
                   style={{
-                    padding: "12px 22px",
-                    background: file ? "#211E1E" : "#E0DCCF",
-                    color: file ? "#FDC831" : "#78684C",
-                    border: `2px solid ${file ? "#211E1E" : "#C9C2B0"}`,
+                    padding: "12px 24px",
+                    background: file ? "#211E1E" : "#E2DCD0",
+                    color: file ? "#FFFFFF" : "#78684C",
+                    border: `2px solid ${file ? "#211E1E" : "#E2DCD0"}`,
                     borderRadius: 4,
                     boxShadow: file ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "none",
                     fontFamily: "var(--font-mono)",
@@ -13510,19 +13849,19 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               phase so they can retry or remove the file. */}
           {error && phase === "empty" && (
             <div style={{
-              marginTop: 14,
-              padding: "10px 14px",
-              background: "#FFE8E5",
+              marginTop: 16,
+              padding: "12px 16px",
+              background: "#FFF4F2",
               border: "1px solid #DA3327",
               borderRadius: 8,
-              fontSize: 12.5, color: "#7A1A14", fontWeight: 600,
+              fontSize: 13, color: "#8A1E17", fontWeight: 600,
               lineHeight: 1.45,
             }}>
               <div>Couldn't analyze this screenshot — {error}.</div>
               {/* Don't strand them: the screenshot is still the most useful
                   thing they can send, so offer to send it as-is. */}
               {file && (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
                   <button type="button" className="ask-btn is-primary" style={{ minHeight: 34 }}
                     onClick={() => { onFileTicket?.({ file, note }); onClose(); }}>
                     Send it to IT anyway
@@ -13540,12 +13879,12 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
 
 const kbd = {
   display: "inline-block",
-  padding: "1px 5px",
+  padding: "1px 4px",
   fontFamily: "ui-monospace, SF Mono, Menlo, monospace",
-  fontSize: 10.5,
+  fontSize: 11,
   background: "#FFFFFF",
   border: "1px solid rgba(33,30,30,0.3)",
-  borderRadius: 3,
+  borderRadius: 4,
   color: "#211E1E",
   fontWeight: 600,
 };
@@ -13570,7 +13909,7 @@ function AnalyzingView({ file, progress }) {
         border: "1px solid #211E1E",
         borderRadius: 12,
         overflow: "hidden",
-        marginBottom: 18,
+        marginBottom: 20,
       }}>
         <img
           src={file?.dataUrl}
@@ -13587,8 +13926,8 @@ function AnalyzingView({ file, progress }) {
         <div style={{
           position: "absolute", left: 0, right: 0,
           height: 3,
-          background: "linear-gradient(90deg, transparent, #FDC831, transparent)",
-          boxShadow: "0 0 16px #FDC831",
+          background: "linear-gradient(90deg, transparent, rgba(33,30,30,.55), transparent)",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
           animation: "scanLine 1.6s linear infinite",
         }}/>
         {/* Corner markers */}
@@ -13600,7 +13939,7 @@ function AnalyzingView({ file, progress }) {
             position: "absolute",
             ...pos,
             width: 14, height: 14,
-            border: "1px solid #FDC831",
+            border: "1px solid rgba(33,30,30,.18)",
             borderRadius: 2,
           }}/>
         ))}
@@ -13610,7 +13949,7 @@ function AnalyzingView({ file, progress }) {
       <div style={{
         height: 8,
         background: "#FFFFFF",
-        border: "1px solid #211E1E",
+        border: "1px solid rgba(33,30,30,.14)",
         borderRadius: 999,
         overflow: "hidden",
         marginBottom: 12,
@@ -13625,9 +13964,9 @@ function AnalyzingView({ file, progress }) {
 
       <div style={{
         fontFamily: "Archivo, sans-serif",
-        fontSize: 13.5, fontWeight: 700,
+        fontSize: 14, fontWeight: 700,
         color: "#211E1E",
-        display: "flex", alignItems: "center", gap: 10,
+        display: "flex", alignItems: "center", gap: 12,
       }}>
         <span style={{
           width: 8, height: 8, borderRadius: "50%",
@@ -13669,13 +14008,13 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
         <div>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "3px 10px",
+            padding: "3px 12px",
             background: isHardware ? "#211E1E" : confColor,
             color: "#FFFFFF",
             border: `1.5px solid ${isHardware ? "#211E1E" : confColor}`,
             borderRadius: 999,
             fontFamily: "var(--font-mono)",
-            fontSize: 10, fontWeight: 600,
+            fontSize: 11, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
             marginBottom: 8,
           }}>
@@ -13684,13 +14023,13 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           </div>
           <div style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 10.5, fontWeight: 600,
+            fontSize: 11, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
             color: "#4A3F2E", marginBottom: 4,
           }}>What we see</div>
           <h3 style={{
             fontFamily: "var(--font-head)",
-            fontSize: 22, fontWeight: 400,
+            fontSize: 24, fontWeight: 400,
             letterSpacing: "-0.01em", lineHeight: 1.15,
             margin: 0, color: "#211E1E",
           }}>
@@ -13704,20 +14043,20 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           a damaged device. */}
       {isHardware && (
         <div style={{
-          background: "#FFE8E5",
+          background: "#FFF4F2",
           border: "1px solid #DA3327",
-          borderRadius: 10,
+          borderRadius: 12,
           boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
-          padding: "16px 18px",
-          marginBottom: 18,
+          padding: "16px 20px",
+          marginBottom: 20,
         }}>
           <div style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 10.5, fontWeight: 600,
+            fontSize: 11, fontWeight: 600,
             letterSpacing: "0.06em", textTransform: "uppercase",
-            color: "#7A1A14", marginBottom: 6,
+            color: "#8A1E17", marginBottom: 8,
           }}>Hardware repair — IT Team only</div>
-          <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.55, marginBottom: 6 }}>
+          <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.55, marginBottom: 8 }}>
             This looks like physical damage or a hardware failure. Don't try to fix it yourself —
             stop using the device if it's unsafe (battery swelling, smoke, liquid damage), back up
             anything you can still reach, and file a ticket so the <strong>IT Team</strong> can
@@ -13737,18 +14076,18 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           {clues.length > 0 && (
             <div style={{
               background: "#FFFFFF",
-              border: "1px solid #211E1E",
+              border: "1px solid rgba(33,30,30,.14)",
               borderRadius: 8,
-              padding: "14px 18px",
-              marginBottom: 18,
+              padding: "16px 20px",
+              marginBottom: 20,
             }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5, fontWeight: 600,
+                fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
                 color: "#4A3F2E", marginBottom: 8,
               }}>What gave it away</div>
-              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13.5, color: "#211E1E", lineHeight: 1.6 }}>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "#211E1E", lineHeight: 1.6 }}>
                 {clues.map((c, i) => <li key={i}>{c}</li>)}
               </ul>
             </div>
@@ -13756,32 +14095,32 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
 
           {/* Suggested guides — up to 3, real KB rows. Click opens the guide. */}
           {suggestions.length > 0 && (
-            <div style={{ marginBottom: 18 }}>
+            <div style={{ marginBottom: 20 }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5, fontWeight: 600,
+                fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
-                color: "#4A3F2E", marginBottom: 10,
+                color: "#4A3F2E", marginBottom: 12,
               }}>{suggestions.length === 1 ? "Recommended guide" : "Recommended guides"}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {suggestions.map((g, i) => (
                   <div
                     key={g.id ?? i}
                     onClick={() => onOpenSpecificGuide && onOpenSpecificGuide(g)}
                     className="ss-action-btn"
                     style={{
-                      background: i === 0 ? "#FDC831" : "#FFFFFF",
-                      border: "1px solid #211E1E",
-                      borderRadius: 10,
+                      background: i === 0 ? "#F4F0E8" : "#FFFFFF",
+                      border: "1px solid rgba(33,30,30,.14)",
+                      borderRadius: 12,
                       boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                       padding: "12px 16px",
                       cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: 14,
+                      display: "flex", alignItems: "center", gap: 16,
                     }}
                   >
                     <div style={{
                       width: 36, height: 36, borderRadius: 8,
-                      background: "#211E1E", color: "#FDC831",
+                      background: "#211E1E", color: "#FFFFFF",
                       border: "1px solid #211E1E",
                       display: "grid", placeItems: "center",
                       fontFamily: "Archivo, sans-serif",
@@ -13791,7 +14130,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         fontFamily: "Archivo, sans-serif",
-                        fontSize: 15, fontWeight: 800,
+                        fontSize: 16, fontWeight: 800,
                         color: "#211E1E", letterSpacing: "-0.01em",
                       }}>{g.title}</div>
                       {(g.reason || g.category) && (
@@ -13808,12 +14147,12 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
 
           {/* What to try */}
           {steps.length > 0 && (
-            <div style={{ marginBottom: 22 }}>
+            <div style={{ marginBottom: 24 }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5, fontWeight: 600,
+                fontSize: 11, fontWeight: 600,
                 letterSpacing: "0.06em", textTransform: "uppercase",
-                color: "#4A3F2E", marginBottom: 10,
+                color: "#4A3F2E", marginBottom: 12,
               }}>Try this in order</div>
               <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
                 {steps.map((s, i) => (
@@ -13825,7 +14164,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                     <div style={{
                       width: 22, height: 22, borderRadius: "50%",
                       background: "#FFFFFF",
-                      border: "1px solid #211E1E",
+                      border: "1px solid rgba(33,30,30,.14)",
                       display: "grid", placeItems: "center",
                       fontFamily: "Archivo, sans-serif",
                       fontSize: 11, fontWeight: 800,
@@ -13845,15 +14184,15 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
 
       {/* Footer actions */}
       <div style={{
-        display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap",
-        paddingTop: 18, borderTop: "1px dashed rgba(33,30,30,0.2)",
+        display: "flex", gap: 12, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap",
+        paddingTop: 20, borderTop: "1px dashed rgba(33,30,30,0.2)",
       }}>
         <button
           onClick={onRetry}
           style={{
-            padding: "10px 16px",
+            padding: "12px 16px",
             background: "transparent",
-            border: "1px solid #211E1E", borderRadius: 4,
+            border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
             fontFamily: "var(--font-mono)",
             fontWeight: 600, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -13862,18 +14201,18 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
         >
           ↺ Try a different screenshot
         </button>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <button
             onClick={onFileTicket}
             className="ss-action-btn"
             style={{
-              padding: "11px 18px",
+              padding: "12px 20px",
               background: isHardware ? "#211E1E" : "#FFFFFF",
-              color: isHardware ? "#FDC831" : "#211E1E",
-              border: "1px solid #211E1E", borderRadius: 4,
+              color: isHardware ? "#FFFFFF" : "#211E1E",
+              border: "1px solid rgba(33,30,30,.14)", borderRadius: 4,
               boxShadow: isHardware ? "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)" : "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
               fontFamily: "var(--font-mono)",
-              fontWeight: 600, fontSize: 12.5,
+              fontWeight: 600, fontSize: 13,
               letterSpacing: "0.04em", textTransform: "uppercase",
               cursor: "pointer",
             }}
@@ -13885,16 +14224,16 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
               onClick={onOpenGuide}
               className="ss-action-btn"
               style={{
-                padding: "11px 18px",
+                padding: "12px 20px",
                 background: "#211E1E",
-                color: "#FDC831",
+                color: "#FFFFFF",
                 border: "1px solid #211E1E", borderRadius: 4,
                 boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
                 fontFamily: "var(--font-mono)",
-                fontWeight: 600, fontSize: 12.5,
+                fontWeight: 600, fontSize: 13,
                 letterSpacing: "0.04em", textTransform: "uppercase",
                 cursor: "pointer",
-                display: "inline-flex", alignItems: "center", gap: 6,
+                display: "inline-flex", alignItems: "center", gap: 8,
               }}
             >
               Walk me through the fix →
@@ -13918,8 +14257,8 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
       className="ss-action-btn"
       style={{
         width: "100%",
-        display: "flex", alignItems: "center", gap: 14,
-        padding: "14px 18px",
+        display: "flex", alignItems: "center", gap: 16,
+        padding: "16px 20px",
         background: "#FFFFFF",
         border: "1px dashed #211E1E",
         borderRadius: 12,
@@ -13931,8 +14270,8 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
     >
       <div style={{
         width: 40, height: 40, borderRadius: 8,
-        background: "#FDC831",
-        border: "1px solid #211E1E",
+        background: "#F4F0E8",
+        border: "1px solid rgba(33,30,30,.14)",
         color: "#211E1E",
         display: "grid", placeItems: "center",
         fontFamily: "Archivo, sans-serif",
@@ -13942,7 +14281,7 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontFamily: "Archivo, sans-serif",
-          fontSize: 14.5, fontWeight: 800, color: "#211E1E",
+          fontSize: 14, fontWeight: 800, color: "#211E1E",
           letterSpacing: "-0.012em",
         }}>
           {headline || "Add a screenshot of what you're seeing"}
@@ -13956,7 +14295,7 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
         fontSize: 11, fontWeight: 600,
         letterSpacing: "0.06em", textTransform: "uppercase",
         color: "#4A3F2E",
-        display: "inline-flex", alignItems: "center", gap: 6,
+        display: "inline-flex", alignItems: "center", gap: 8,
         flexShrink: 0,
       }}>
         Open <span style={{ fontSize: 14 }}>→</span>
@@ -14028,7 +14367,7 @@ function renderMarkdown(md, opts = {}) {
             flush();
             const alt = text.slice(j + 2, close);
             const src = text.slice(close + 2, urlEnd);
-            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: 'calc(100% - 20px)', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 10, margin: '14px 0 14px 20px', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
+            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: 'calc(100% - 20px)', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 12, margin: '16px 0 16px 20px', boxShadow: '0 1px 2px rgba(33,30,30,.06)', cursor: 'zoom-in' }} />);
             j = urlEnd + 1; continue;
           }
         }
@@ -14051,7 +14390,7 @@ function renderMarkdown(md, opts = {}) {
           // breathing room. Explicit `data-align="right"` still right-aligns.
           const margin = align === 'right' ? '14px 0 14px auto' : '14px 0 14px 20px';
           const cappedMaxWidth = align === 'right' ? '100%' : 'calc(100% - 20px)';
-          nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: cappedMaxWidth, maxHeight: '70vh', width: w || 'auto', height: 'auto', borderRadius: 10, margin, boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
+          nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: cappedMaxWidth, maxHeight: '70vh', width: w || 'auto', height: 'auto', borderRadius: 12, margin, boxShadow: '0 1px 2px rgba(33,30,30,.06)', cursor: 'zoom-in' }} />);
           j += imgHtml[0].length; continue;
         }
       }
@@ -14068,7 +14407,7 @@ function renderMarkdown(md, opts = {}) {
         const end = text.indexOf('`', j + 1);
         if (end !== -1) {
           flush();
-          nodes.push(<code key={key++} style={{ background: '#F7F4EF', padding: '1px 6px', borderRadius: 4, fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace', fontSize: '0.92em' }}>{text.slice(j + 1, end)}</code>);
+          nodes.push(<code key={key++} style={{ background: '#F7F4EF', padding: '1px 8px', borderRadius: 4, fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace', fontSize: '0.92em' }}>{text.slice(j + 1, end)}</code>);
           j = end + 1; continue;
         }
       }
@@ -14087,7 +14426,7 @@ function renderMarkdown(md, opts = {}) {
           flush();
           const inner = text.slice(j + htmlMatch[0].length, closeIdx);
           if (tag === 'u') nodes.push(<u key={key++}>{inline(inner)}</u>);
-          else if (tag === 'mark') nodes.push(<mark key={key++} style={{ background: '#FEF3C7', padding: '0 2px', borderRadius: 2 }}>{inline(inner)}</mark>);
+          else if (tag === 'mark') nodes.push(<mark key={key++} style={{ background: '#F4F0E8', padding: '0 2px', borderRadius: 2 }}>{inline(inner)}</mark>);
           else if (tag === 's') nodes.push(<s key={key++} style={{ color: '#888' }}>{inline(inner)}</s>);
           j = closeIdx + closeTag.length; continue;
         }
@@ -14123,11 +14462,11 @@ function renderMarkdown(md, opts = {}) {
       i++;
       out.push(
         <pre key={key++} style={{
-          background: '#211E1E', color: '#FDC831',
+          background: '#211E1E', color: '#FFFFFF',
           padding: '16px 20px', borderRadius: 8,
           fontSize: 13, lineHeight: 1.5,
           fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-          overflowX: 'auto', margin: '0 0 18px',
+          overflowX: 'auto', margin: '0 0 20px',
         }}>{code.join('\n')}</pre>
       );
       continue;
@@ -14152,7 +14491,7 @@ function renderMarkdown(md, opts = {}) {
       if (isFirstElement && level === 1) {
         out.push(
           <hr key={key++} style={{
-            border: 'none', height: 1, background: '#E5E7EB',
+            border: 'none', height: 1, background: '#E6EEF9',
             margin: '0 0 24px',
           }} />
         );
@@ -14167,8 +14506,8 @@ function renderMarkdown(md, opts = {}) {
       while (i < lines.length && lines[i].startsWith('>')) { quote.push(lines[i].replace(/^>\s?/, '')); i++; }
       out.push(
         <blockquote key={key++} style={{
-          borderLeft: '4px solid #FDC831',
-          paddingLeft: 16, margin: '0 0 18px',
+          borderLeft: '4px solid rgba(33,30,30,.18)',
+          paddingLeft: 16, margin: '0 0 20px',
           color: '#4A3F2E', fontStyle: 'italic',
         }}>{inline(quote.join(' '))}</blockquote>
       );
@@ -14178,8 +14517,8 @@ function renderMarkdown(md, opts = {}) {
     if (line.match(/^[-*]\s+/)) {
       const items = [];
       while (i < lines.length && lines[i].match(/^[-*]\s+/)) { items.push(lines[i].replace(/^[-*]\s+/, '')); i++; }
-      out.push(<ul key={key++} style={{ margin: '0 0 18px', paddingLeft: 24 }}>
-        {items.map((it, k) => <li key={k} style={{ marginBottom: 6 }}>{inline(it)}</li>)}
+      out.push(<ul key={key++} style={{ margin: '0 0 20px', paddingLeft: 24 }}>
+        {items.map((it, k) => <li key={k} style={{ marginBottom: 8 }}>{inline(it)}</li>)}
       </ul>);
       continue;
     }
@@ -14220,23 +14559,23 @@ function renderMarkdown(md, opts = {}) {
         }
       }
       const subList = (subs) => subs.length > 0 && (
-        <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+        <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
           {subs.map((sb, m) => <li key={m} style={{ marginBottom: 3 }}>{inline(sb)}</li>)}
         </ul>
       );
       if (stepStyle === 'cards') {
         // Compact card-style steps for chat answers.
-        out.push(<ol key={key++} style={{ listStyle: 'none', padding: 0, margin: '0 0 14px', display: 'block' }}>
+        out.push(<ol key={key++} style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', display: 'block' }}>
           {items.map((it, k) => (
             <li key={k} style={{
               display: 'grid',
               gridTemplateColumns: '28px 1fr',
-              gap: 10,
+              gap: 12,
               alignItems: 'start',
-              padding: '10px 14px',
-              marginBottom: 6,
+              padding: '12px 16px',
+              marginBottom: 8,
               background: '#FFFFFF',
-              border: '1px solid #211E1E',
+              border: '1px solid rgba(33,30,30,.14)',
               borderRadius: 8,
               boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
               width: '100%',
@@ -14244,7 +14583,7 @@ function renderMarkdown(md, opts = {}) {
             }}>
               <div style={{
                 width: 22, height: 22, borderRadius: '50%',
-                background: '#FDC831', border: '1px solid #211E1E',
+                background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)',
                 color: '#211E1E',
                 display: 'grid', placeItems: 'center',
                 fontFamily: "'Archivo', sans-serif",
@@ -14260,8 +14599,8 @@ function renderMarkdown(md, opts = {}) {
           ))}
         </ol>);
       } else {
-        out.push(<ol key={key++} start={start} style={{ margin: '0 0 18px', paddingLeft: 24 }}>
-          {items.map((it, k) => <li key={k} style={{ marginBottom: 6 }}>{inline(it.text)}{subList(it.subs)}</li>)}
+        out.push(<ol key={key++} start={start} style={{ margin: '0 0 20px', paddingLeft: 24 }}>
+          {items.map((it, k) => <li key={k} style={{ marginBottom: 8 }}>{inline(it.text)}{subList(it.subs)}</li>)}
         </ol>);
       }
       continue;
@@ -14270,7 +14609,7 @@ function renderMarkdown(md, opts = {}) {
     const para = [line];
     i++;
     while (i < lines.length && lines[i].trim() && !lines[i].match(/^(#{1,3}\s|>|[-*]\s|\d+\.\s|```)/)) { para.push(lines[i]); i++; }
-    out.push(<p key={key++} style={{ margin: '0 0 14px' }}>{inline(para.join(' '))}</p>);
+    out.push(<p key={key++} style={{ margin: '0 0 16px' }}>{inline(para.join(' '))}</p>);
   }
 
   return out;
@@ -14560,9 +14899,9 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
 
   const fbBtn = (active) => ({
     background: active ? '#211E1E' : '#FFFFFF',
-    color: active ? '#FDC831' : '#211E1E',
-    border: '1px solid #211E1E',
-    padding: '12px 22px',
+    color: active ? '#FFFFFF' : '#211E1E',
+    border: '1px solid rgba(33,30,30,.14)',
+    padding: '12px 24px',
     borderRadius: 8,
     fontWeight: 800,
     fontFamily: "'Archivo', sans-serif",
@@ -14578,8 +14917,8 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     minWidth: 34, height: 34, padding: '0 8px', flexShrink: 0,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: active ? '#211E1E' : '#FFFFFF',
-    color: active ? '#FDC831' : '#211E1E',
-    border: '1px solid ' + (active ? '#211E1E' : 'rgba(33,30,30,.22)'), borderRadius: 10,
+    color: active ? '#FFFFFF' : '#211E1E',
+    border: '1px solid ' + (active ? '#211E1E' : 'rgba(33,30,30,.22)'), borderRadius: 12,
     cursor: 'pointer', boxSizing: 'border-box',
   });
 
@@ -14645,10 +14984,10 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         .guide-tool:hover .guide-tool-label,
         .guide-tool:focus-visible .guide-tool-label,
         .guide-tool[aria-expanded="true"] .guide-tool-label {
-          max-width: 96px; opacity: 1; margin-left: 7px;
+          max-width: 96px; opacity: 1; margin-left: 8px;
         }
         .guide-menu-item { transition: background .12s ease; }
-        .guide-menu-item:hover, .guide-menu-item:focus-visible { background: #FDF3D3; }
+        .guide-menu-item:hover, .guide-menu-item:focus-visible { background: #F4F0E8; }
         .guide-back:hover { transform: scale(1.10); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .guide-back:active { transform: scale(0.92); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .guide-back-arrow {
@@ -14691,11 +15030,11 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
       }}>
         <article ref={articleRef} style={{
           background: '#FFFFFF',
-          border: '1px solid #211E1E',
-          borderRadius: 14,
+          border: '1px solid rgba(33,30,30,.14)',
+          borderRadius: 16,
           boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
           padding: '16px 64px 40px',
-          fontSize: 15, lineHeight: 1.65, color: '#211E1E',
+          fontSize: 16, lineHeight: 1.65, color: '#211E1E',
           fontFamily: "'Archivo', sans-serif",
           position: 'relative',
         }}>
@@ -14710,7 +15049,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           <div style={{ position: 'sticky', top: 0, zIndex: 3, height: 0, pointerEvents: 'none' }}>
             <div style={{
               position: 'absolute', top: 0, left: -64, right: -64, height: 62,
-              background: '#FFFFFF', borderTopLeftRadius: 13, borderTopRightRadius: 13,
+              background: '#FFFFFF', borderTopLeftRadius: 12, borderTopRightRadius: 12,
             }} />
           </div>
           {/* Tools — icon-only, parked at the article's top-right corner.
@@ -14736,7 +15075,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           <div style={{
             position: 'absolute', top: 0, right: 0, height: 34,
             display: 'flex', alignItems: 'center',
-            border: '1px solid #211E1E', borderRadius: 8,
+            border: '1px solid rgba(33,30,30,.14)', borderRadius: 8,
             background: '#FFFFFF', boxSizing: 'border-box',
             boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
             width: searchOpen ? 'clamp(150px, calc(100vw - 470px), 340px)' : 34,
@@ -14770,12 +15109,12 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           {searchQ.trim() !== '' && (
             <div style={{
               position: 'absolute', top: '115%', right: 0, width: 'clamp(220px, calc(100vw - 470px), 340px)',
-              background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
+              background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 8,
               boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', overflow: 'hidden',
               maxHeight: 280, overflowY: 'auto', zIndex: 120,
             }}>
               {searchHits.length === 0 ? (
-                <div style={{ padding: '9px 12px', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>No matching guides.</div>
+                <div style={{ padding: '8px 12px', fontSize: 13, color: '#78684C', fontWeight: 600 }}>No matching guides.</div>
               ) : searchHits.map((g) => (
                 <button key={g.id} className="guide-menu-item"
                   onClick={() => { setSearchQ(''); onOpenGuide && onOpenGuide({ id: g.id, title: g.title, category: g.category }); }}
@@ -14785,7 +15124,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                     background: 'transparent', border: 'none', cursor: 'pointer', color: '#211E1E',
                   }}>
                   <b style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800 }}>{g.title}</b>
-                  {g.category && <span style={{ color: '#78684C', marginLeft: 8, fontSize: 11.5, fontWeight: 600 }}>{g.category}</span>}
+                  {g.category && <span style={{ color: '#78684C', marginLeft: 8, fontSize: 12, fontWeight: 600 }}>{g.category}</span>}
                 </button>
               ))}
             </div>
@@ -14847,14 +15186,14 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             {exportOpen && (
               <div style={{
                 position: 'absolute', right: 0, top: '115%', minWidth: 160,
-                background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
+                background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 8,
                 boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', overflow: 'hidden', zIndex: 120,
               }}>
                 {[['pdf', 'PDF document'], ['md', 'Markdown (.md)'], ['html', 'HTML file']].map(([f, l]) => (
                   <button key={f} className="guide-menu-item" onClick={() => exportGuide(f)}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left',
-                      padding: '9px 14px', fontSize: 13,
+                      padding: '8px 16px', fontSize: 13,
                       fontFamily: "'Archivo', sans-serif", fontWeight: 600,
                       background: 'transparent', border: 'none', cursor: 'pointer', color: '#211E1E',
                     }}>
@@ -14888,9 +15227,9 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           {loading && <p style={{ color: '#888', margin: 0 }}>Loading…</p>}
           {error && (
             <div>
-              <p style={{ color: '#888', fontStyle: 'italic', margin: '0 0 18px' }}>{error}</p>
+              <p style={{ color: '#888', fontStyle: 'italic', margin: '0 0 20px' }}>{error}</p>
               <button onClick={() => onFileTicket && onFileTicket({ source: 'guide', team: 'IT Team' })} style={{
-                background: '#211E1E', color: '#FDC831',
+                background: '#211E1E', color: '#FFFFFF',
                 border: 'none', padding: '12px 24px',
                 borderRadius: 8, fontWeight: 800,
                 fontFamily: 'inherit', fontSize: 14, cursor: 'pointer',
@@ -14918,10 +15257,10 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             }}>
               <span style={{ fontFamily: "var(--font-head)",
                 display: 'block', fontSize: 32, fontWeight: 400, letterSpacing: "-0.01em",
-                lineHeight: 1.2, paddingBottom: 14,
+                lineHeight: 1.2, paddingBottom: 16,
                 // Kept visible while pinned: it is the only thing separating
                 // the header from the body scrolling underneath.
-                borderBottom: '1px solid #E5E7EB', color: '#211E1E',
+                borderBottom: '1px solid #E6EEF9', color: '#211E1E',
                 // One line once pinned. With the tool icons scrolled away the
                 // title has the full 652px column, and a 30-character title at
                 // 32px needs ~506px — so this clips in practice only for
@@ -15019,11 +15358,11 @@ function ImageLightbox({ images, index, onClose }) {
     [side]: 18,
     width: 48, height: 48, borderRadius: '50%',
     background: '#FFFFFF', color: '#211E1E',
-    border: '1px solid #211E1E',
+    border: '1px solid rgba(33,30,30,.14)',
     boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
     cursor: disabled ? 'not-allowed' : 'pointer',
     display: 'grid', placeItems: 'center',
-    fontSize: 22, fontWeight: 800,
+    fontSize: 24, fontWeight: 800,
     fontFamily: "'Archivo', sans-serif",
     zIndex: 1010,
     opacity: disabled ? 0.35 : 1,
@@ -15053,7 +15392,7 @@ function ImageLightbox({ images, index, onClose }) {
           maxWidth: zoomed ? '180vw' : '92vw',
           maxHeight: zoomed ? '180vh' : '90vh',
           borderRadius: 8,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)',
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.06), 0 1px 2px rgba(33,30,30,.06), 0 16px 40px -12px rgba(33,30,30,.3)',
           cursor: zoomed ? 'zoom-out' : 'zoom-in',
           transition: 'max-width .25s var(--ease, cubic-bezier(.22,.61,.36,1)), max-height .25s var(--ease, cubic-bezier(.22,.61,.36,1))',
           userSelect: 'none',
@@ -15075,7 +15414,7 @@ function ImageLightbox({ images, index, onClose }) {
           position: 'fixed', top: 22, right: 22,
           width: 40, height: 40, borderRadius: '50%',
           background: '#FFFFFF', color: '#211E1E',
-          border: '1px solid #211E1E',
+          border: '1px solid rgba(33,30,30,.14)',
           boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
           cursor: 'pointer',
           display: 'grid', placeItems: 'center',
@@ -15088,7 +15427,7 @@ function ImageLightbox({ images, index, onClose }) {
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
           maxWidth: 'calc(100vw - 40px)',
-          padding: '8px 14px',
+          padding: '8px 16px',
           background: 'rgba(0,0,0,0.55)',
           color: '#FFFFFF',
           fontFamily: "'Archivo', sans-serif",
@@ -15103,7 +15442,7 @@ function ImageLightbox({ images, index, onClose }) {
           {total > 1 && (
             <span style={{
               fontWeight: 700, fontSize: 12, letterSpacing: '0.04em',
-              color: '#FDC831',
+              color: '#FFFFFF',
             }}>{i + 1} / {total}</span>
           )}
         </div>
@@ -15163,21 +15502,21 @@ function FeedbackPanel({
 
   return (
     <div className="feedback-panel" style={{
-      marginTop: 28, padding: "20px 24px",
+      marginTop: 32, padding: "20px 24px",
       background: "#FFFFFF",
-      border: "1px solid #211E1E",
-      borderRadius: 14,
-      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 14px rgba(33,30,30,0.06)",
+      border: "1px solid rgba(33,30,30,.14)",
+      borderRadius: 16,
+      boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)",
     }}>
       <style>{`
         .fb-btn {
           display: inline-flex; align-items: center; gap: 8px;
-          padding: 10px 18px;
+          padding: 12px 20px;
           background: #FFFFFF; color: #211E1E;
-          border: 1px solid #211E1E; border-radius: 8px;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 2px 6px rgba(33,30,30,0.05);
+          border: 1px solid rgba(33,30,30,.14); border-radius: 8px;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
-          font-weight: 800; font-size: 13.5px;
+          font-weight: 800; font-size: 14px;
           cursor: pointer;
           transition: transform .2s cubic-bezier(.34, 1.56, .64, 1), box-shadow .2s ease, background .18s ease;
         }
@@ -15187,8 +15526,8 @@ function FeedbackPanel({
            white when the user re-hovers their selection. */
         .fb-btn:not(:disabled):not(.is-yes-on):not(.is-no-on):hover {
           transform: translate(0, 0);
-          background: #FFF9E6;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.12);
+          background: #F4F0E8;
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-btn:not(:disabled):active {
           transform: translate(0, 0);
@@ -15204,23 +15543,23 @@ function FeedbackPanel({
 
         /* Active states — both have explicit hover rules so the dark fill +
            bright text combination stays intact when re-hovered. */
-        .fb-btn.is-yes-on { background: #211E1E; color: #FDC831; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); opacity: 1; }
+        .fb-btn.is-yes-on { background: #211E1E; color: #FFFFFF; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); opacity: 1; }
         .fb-btn.is-yes-on:not(:disabled):hover {
-          background: #000000; color: #FDC831;
+          background: #211E1E; color: #211E1E;
           transform: translate(0, 0);
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.18);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-btn.is-no-on  { background: #211E1E; color: #FFFFFF; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); opacity: 1; }
         .fb-btn.is-no-on:not(:disabled):hover {
           background: #211E1E; color: #FFFFFF;
           transform: translate(0, 0);
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 8px 18px rgba(33,30,30,0.22);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
 
         .fb-reason {
-          padding: 6px 12px;
+          padding: 8px 12px;
           background: #FFFFFF; color: #211E1E;
-          border: 1px solid #211E1E; border-radius: 999px;
+          border: 1px solid rgba(33,30,30,.14); border-radius: 999px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
           font-size: 12px; font-weight: 700;
@@ -15229,32 +15568,32 @@ function FeedbackPanel({
         }
         .fb-reason:hover {
           transform: translate(0, 0);
-          background: #FFF9E6;
+          background: #F4F0E8;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
-        .fb-reason.is-on { background: #211E1E; color: #FDC831; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
+        .fb-reason.is-on { background: #211E1E; color: #FFFFFF; box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .fb-reason.is-on:hover { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .fb-textarea {
           width: 100%;
-          padding: 10px 12px;
+          padding: 12px 12px;
           background: #FFFFFF;
-          border: 1px solid #211E1E;
+          border: 1px solid rgba(33,30,30,.14);
           border-radius: 8px;
           font-family: 'Archivo', sans-serif;
-          font-size: 13.5px; color: #211E1E;
+          font-size: 14px; color: #211E1E;
           resize: vertical; min-height: 64px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           outline: none; box-sizing: border-box;
           transition: box-shadow .15s ease;
         }
-        .fb-textarea:focus { box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 0 0 3px rgba(253,200,49,0.25); }
+        .fb-textarea:focus { box-shadow: 0 0 0 3px rgba(33,30,30,.08), 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); }
         .fb-submit {
-          padding: 10px 22px;
+          padding: 12px 24px;
           background: #211E1E; color: #FFFFFF;
           border: 1px solid #211E1E; border-radius: 8px;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.10);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family:var(--font-mono);
-          font-weight:600; font-size: 13.5px;
+          font-weight:600; font-size: 14px;
           letter-spacing: 0.04em; text-transform: uppercase;
           cursor: pointer;
           transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .18s ease;
@@ -15262,16 +15601,16 @@ function FeedbackPanel({
         .fb-submit:hover {
           transform: translate(0, 0);
           background: #000;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 10px 20px rgba(33,30,30,0.16);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-submit:active { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); transition-duration: .08s; }
         .fb-ticket {
-          padding: 10px 22px;
-          background: #211E1E; color: #FDC831;
+          padding: 12px 24px;
+          background: #211E1E; color: #FFFFFF;
           border: 1px solid #211E1E; border-radius: 8px;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 4px 10px rgba(33,30,30,0.16);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family:var(--font-mono);
-          font-weight:600; font-size: 13.5px;
+          font-weight:600; font-size: 14px;
           letter-spacing: 0.04em; text-transform: uppercase;
           cursor: pointer;
           transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .18s ease;
@@ -15279,7 +15618,7 @@ function FeedbackPanel({
         .fb-ticket:hover {
           transform: translate(0, 0);
           background: #211E1E;
-          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28), 0 10px 20px rgba(33,30,30,0.22);
+          box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-ticket:active { transform: translate(0, 0); box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28); transition-duration: .08s; }
         @keyframes fbSlide {
@@ -15291,12 +15630,12 @@ function FeedbackPanel({
         .fb-expand { animation: fbSlide .25s cubic-bezier(.22,.61,.36,1) both; }
         .fb-related {
           display: inline-flex; align-items: center;
-          padding: 8px 14px;
-          background: #FFF9E6; color: #211E1E;
-          border: 1px solid #211E1E; border-radius: 999px;
+          padding: 8px 16px;
+          background: #F4F0E8; color: #211E1E;
+          border: 1px solid rgba(33,30,30,.14); border-radius: 999px;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
           font-family: 'Archivo', sans-serif;
-          font-size: 12.5px; font-weight: 700;
+          font-size: 13px; font-weight: 700;
           cursor: pointer;
           max-width: 100%;
           white-space: nowrap;
@@ -15306,7 +15645,7 @@ function FeedbackPanel({
         }
         .fb-related:hover {
           transform: translate(0, 0);
-          background: #FDC831;
+          background: #F4F0E8;
           box-shadow: 0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28);
         }
         .fb-related:active {
@@ -15316,15 +15655,15 @@ function FeedbackPanel({
         }
       `}</style>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={{
-          fontWeight: 800, fontSize: 15, fontFamily: "'Archivo', sans-serif",
+          fontWeight: 800, fontSize: 16, fontFamily: "'Archivo', sans-serif",
           color: "#211E1E", letterSpacing: "-0.005em",
         }}>{prompt}</span>
         {state === "positive" && (
           <span style={{
-            color: "#0A6B30", fontWeight: 700, fontSize: 13.5,
-            display: "inline-flex", alignItems: "center", gap: 6,
+            color: "#0A6E31", fontWeight: 700, fontSize: 14,
+            display: "inline-flex", alignItems: "center", gap: 8,
             fontFamily: "'Archivo', sans-serif",
           }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -15347,12 +15686,12 @@ function FeedbackPanel({
       </div>
 
       {state === "negative" && (
-        <div className="fb-expand" style={{ marginTop: 18, paddingTop: 18, borderTop: "1px dashed rgba(33,30,30,0.18)" }}>
+        <div className="fb-expand" style={{ marginTop: 20, paddingTop: 20, borderTop: "1px dashed rgba(33,30,30,0.18)" }}>
           {relatedGuides && relatedGuides.length > 0 && onOpenGuide && (
             <div style={{ marginBottom: 16 }}>
               <div style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
+                fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
                 textTransform: "uppercase", color: "#78684C", marginBottom: 8,
               }}>Try one of these instead</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -15364,16 +15703,16 @@ function FeedbackPanel({
                     onClick={() => onOpenGuide(g)}
                   >
                     <span style={{ fontWeight: 800 }}>{g.title}</span>
-                    <span aria-hidden style={{ marginLeft: 6, opacity: 0.7 }}>→</span>
+                    <span aria-hidden style={{ marginLeft: 8, opacity: 0.7 }}>→</span>
                   </button>
                 ))}
               </div>
             </div>
           )}
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 16 }}>
             <div style={{
               fontFamily: "'Archivo', sans-serif",
-              fontSize: 14.5, fontWeight: 800, color: "#211E1E",
+              fontSize: 14, fontWeight: 800, color: "#211E1E",
               marginBottom: 4, letterSpacing: "-0.005em",
             }}>Sorry this didn't fix it.</div>
             <div style={{ fontSize: 13, color: "#4A3F2E", lineHeight: 1.5 }}>
@@ -15381,10 +15720,10 @@ function FeedbackPanel({
             </div>
           </div>
 
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 16 }}>
             <div style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
+              fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
               textTransform: "uppercase", color: "#78684C", marginBottom: 8,
             }}>What was off? <span style={{ fontWeight: 600, opacity: 0.7 }}>(optional · multi-select)</span></div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -15401,21 +15740,21 @@ function FeedbackPanel({
           <div style={{ marginBottom: 16 }}>
             <div style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
+              fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
               textTransform: "uppercase", color: "#78684C", marginBottom: 8,
             }}>Anything else? <span style={{ fontWeight: 600, opacity: 0.7 }}>(optional)</span></div>
             <textarea className="fb-textarea" value={note} onChange={(e) => setNote(e.target.value)}
               placeholder="What were you trying to do? What happened instead?" rows={3} />
           </div>
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
             <button type="button" className="fb-submit" onClick={submitDetails}>Send feedback</button>
             <button type="button" className="fb-ticket"
               onClick={() => { submitDetails(); onFileTicket && onFileTicket({ reasons: [...picked], note: note.trim() }); }}>
               File a ticket →
             </button>
             <span style={{
-              fontSize: 11.5, color: "#78684C", fontWeight: 600,
+              fontSize: 12, color: "#78684C", fontWeight: 600,
               fontFamily: "'Archivo', sans-serif", marginLeft: "auto",
             }}>Your feedback shapes the next iteration.</span>
           </div>
@@ -15424,9 +15763,9 @@ function FeedbackPanel({
 
       {state === "sent" && (
         <div className="fb-expand" style={{
-          marginTop: 18, paddingTop: 18,
+          marginTop: 20, paddingTop: 20,
           borderTop: "1px dashed rgba(33,30,30,0.18)",
-          display: "flex", alignItems: "center", gap: 10,
+          display: "flex", alignItems: "center", gap: 12,
         }}>
           <div style={{
             width: 28, height: 28, borderRadius: "50%",
@@ -15439,7 +15778,7 @@ function FeedbackPanel({
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 14, color: "#211E1E" }}>Thanks — we got it.</div>
-            <div style={{ fontSize: 12.5, color: "#4A3F2E", lineHeight: 1.4 }}>
+            <div style={{ fontSize: 13, color: "#4A3F2E", lineHeight: 1.4 }}>
               We review every piece of feedback weekly. {picked.size > 0 ? `Tagged: ${[...picked].join(", ")}.` : ""}
             </div>
           </div>
@@ -15490,7 +15829,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
   return (
     <div className="page" style={{
-      background: '#FDC831',
+      background: '#F4F0E8',
       display: 'flex', flexDirection: 'column',
     }}>
       <style>{`
@@ -15562,9 +15901,9 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
       <button className="search-back-btn" onClick={onBack} style={{
         position: 'fixed', top: 20, left: 20, zIndex: 110,
         background: '#FFFFFF',
-        border: '1px solid #211E1E',
+        border: '1px solid rgba(33,30,30,.14)',
         borderRadius: 8,
-        padding: '8px 14px',
+        padding: '8px 16px',
         fontFamily: "'Archivo', sans-serif",
         fontSize: 13, fontWeight: 700,
         color: '#211E1E',
@@ -15599,17 +15938,17 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         {loading && (
           <div>
             <div style={{
-              background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
-              padding: '24px 28px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
-              display: 'flex', alignItems: 'center', gap: 14,
+              background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 16,
+              padding: '24px 32px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
+              display: 'flex', alignItems: 'center', gap: 16,
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
-                background: '#FDC831', color: '#211E1E',
+                background: '#F4F0E8', color: '#211E1E',
                 display: 'grid', placeItems: 'center', flexShrink: 0,
                 fontSize: 11, fontWeight: 900,
                 fontFamily: "'Archivo', sans-serif",
-                border: '1px solid #211E1E',
+                border: '1px solid rgba(33,30,30,.14)',
                 animation: 'pizzaPulse 1.4s ease-in-out infinite',
               }}>S</div>
               <TypingDots />
@@ -15636,15 +15975,15 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           const hasTrailer = !!m;
           return (
             <div style={{
-              background: '#FFF9E6', border: '1px solid #211E1E', borderRadius: 14,
-              padding: '22px 26px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 28,
+              background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)', borderRadius: 16,
+              padding: '24px 24px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
             }}>
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+                display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12,
               }}>
                 <div style={{
                   width: 26, height: 26, borderRadius: '50%',
-                  background: '#FDC831', border: '1px solid #211E1E',
+                  background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)',
                   display: 'grid', placeItems: 'center',
                   fontFamily: "'Archivo', sans-serif",
                   fontSize: 11, fontWeight: 900, color: '#211E1E',
@@ -15656,7 +15995,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                   textTransform: 'uppercase', color: '#4A3F2E',
                 }}>Slice IT · here's what to try</div>
               </div>
-              <div style={{ fontSize: 14.5, lineHeight: 1.55, color: '#211E1E' }}>
+              <div style={{ fontSize: 14, lineHeight: 1.55, color: '#211E1E' }}>
                 {renderMarkdown(mainText, { stepStyle: 'cards' })}
               </div>
               <div style={{
@@ -15676,11 +16015,11 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                   style={{
                     marginLeft: 'auto',
                     display: 'inline-flex', alignItems: 'center', gap: 8,
-                    padding: '11px 20px',
-                    background: '#211E1E', color: '#FDC831',
+                    padding: '12px 20px',
+                    background: '#211E1E', color: '#FFFFFF',
                     border: '1px solid #211E1E', borderRadius: 8,
                     boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', cursor: 'pointer',
-                    fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 13.5,
+                    fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 14,
                     letterSpacing: '0.02em',
                   }}>
                   <IconTicket size={16} stroke={2} /> Submit a ticket
@@ -15697,7 +16036,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
               fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
               textTransform: 'uppercase', color: '#4A3F2E', marginBottom: 12,
             }}>Top matching guides</div>
-            <div style={{ display: 'grid', gap: 14, marginBottom: 28 }}>
+            <div style={{ display: 'grid', gap: 16, marginBottom: 32 }}>
               {citations.map((c, i) => {
                 const Icon = categoryIconFor(c.category);
                 return (
@@ -15708,9 +16047,9 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     style={{
                       textAlign: 'left',
                       background: '#FFFFFF',
-                      border: '1px solid #211E1E',
-                      borderRadius: 14,
-                      padding: '20px 22px',
+                      border: '1px solid rgba(33,30,30,.14)',
+                      borderRadius: 16,
+                      padding: '20px 24px',
                       boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
                       cursor: 'pointer',
                       fontFamily: "'Archivo', sans-serif",
@@ -15722,8 +16061,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     }}
                   >
                     <div className="card-icon" style={{
-                      width: 40, height: 40, borderRadius: 10,
-                      background: '#FDC831', border: '1px solid #211E1E',
+                      width: 40, height: 40, borderRadius: 12,
+                      background: '#F4F0E8', border: '1px solid rgba(33,30,30,.14)',
                       display: 'grid', placeItems: 'center', flexShrink: 0,
                       marginTop: 2,
                     }}>
@@ -15732,17 +16071,17 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     <div style={{ minWidth: 0 }}>
                       {c.category && (
                         <div style={{ fontFamily: "var(--font-mono)",
-                          fontSize: 10.5, fontWeight: 600, letterSpacing: '0.08em',
+                          fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
                           textTransform: 'uppercase', color: '#78684C', marginBottom: 4,
                         }}>{c.category}</div>
                       )}
                       <div style={{
-                        fontSize: 18, fontWeight: 800, letterSpacing: '-0.012em',
+                        fontSize: 20, fontWeight: 800, letterSpacing: '-0.012em',
                         marginBottom: c.content_preview ? 6 : 0, lineHeight: 1.25,
                       }}>{c.title}</div>
                       {c.content_preview && (
                         <div style={{
-                          fontSize: 13.5, color: '#4A3F2E', lineHeight: 1.55,
+                          fontSize: 14, color: '#4A3F2E', lineHeight: 1.55,
                           display: '-webkit-box',
                           WebkitLineClamp: 3,
                           WebkitBoxOrient: 'vertical',
@@ -15768,8 +16107,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
         {!loading && suggestions && suggestions.length > 0 && (
           <div style={{
-            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
-            padding: '20px 22px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 28,
+            background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 16,
+            padding: '20px 24px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
           }}>
             <div style={{
               fontFamily: "var(--font-mono)",
@@ -15779,7 +16118,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
             }}>
               ✨ Did you mean…?
             </div>
-            <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 14, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 16, lineHeight: 1.5 }}>
               {citations.length === 0
                 ? "We didn't find a direct guide for that, but these might still help:"
                 : "Other guides that might be useful here:"}
@@ -15799,11 +16138,11 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                       fontFamily: 'inherit',
                     }}>
                     <div style={{
-                      fontSize: 14.5, fontWeight: 700, color: '#211E1E',
+                      fontSize: 14, fontWeight: 700, color: '#211E1E',
                       textDecoration: 'underline', textUnderlineOffset: 3,
                       marginBottom: 4,
                     }}>{s.title}</div>
-                    <div style={{ fontSize: 12.5, color: '#4A3F2E', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 13, color: '#4A3F2E', lineHeight: 1.5 }}>
                       {s.reason}
                     </div>
                   </button>
@@ -15815,16 +16154,16 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
         {!loading && citations.length === 0 && (!suggestions || suggestions.length === 0) && (
           <div style={{
-            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
-            padding: '24px 28px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 28,
+            background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 16,
+            padding: '24px 32px', boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', marginBottom: 32,
           }}>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>No matching guides yet.</div>
-            <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 14 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>No matching guides yet.</div>
+            <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 16 }}>
               Either the knowledge base doesn't cover this topic yet, or try rephrasing. You can also file a ticket so IT can both fix your issue and add a guide.
             </div>
             <button onClick={() => onFileTicket && onFileTicket({ source: 'search' })} style={{
-              background: '#211E1E', color: '#FDC831',
-              border: 'none', padding: '11px 22px',
+              background: '#211E1E', color: '#FFFFFF',
+              border: 'none', padding: '12px 24px',
               borderRadius: 8, fontWeight: 800,
               fontFamily: "'Archivo', sans-serif", fontSize: 14, cursor: 'pointer',
             }}>File a ticket</button>
@@ -15861,7 +16200,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
         <div style={{
           marginTop: 'auto', paddingTop: 56, textAlign: 'center',
-          fontSize: 10.5, color: '#4A3F2E',
+          fontSize: 11, color: '#4A3F2E',
           fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase',
           fontFamily: "var(--font-mono)",
         }}>Built by the Slice IT Team</div>
@@ -16591,7 +16930,7 @@ function AskPage({ query, onBack, onOpenGuide, onRequestItem, onBrowseCatalog, o
               <div className="ask-solved">
                 <span className="ask-solved-ic"><IconCheck size={18} stroke={3} /></span>
                 <div><b>Glad that sorted it.</b><div className="ask-muted">Thanks — that helps us keep the best answers on top.</div></div>
-                <button type="button" className="ask-btn" onClick={onBack}>Back to IT Hub</button>
+                <button type="button" className="ask-btn" onClick={onBack}>Back to Slice Help</button>
               </div>
             ) : outcome === 'help' ? (
               <div className="ask-help">

@@ -166,6 +166,19 @@ tickets.push(
     submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
     created_at: ago(5000), updated_at: ago(4300), comments: [],
   },
+  // A sample HR ticket, so the portal's team cues (HR- prefix → HR) can be
+  // seen locally before the HR queue exists. Dev data only.
+  {
+    id: 41, ticket_number: 'HR-00041', type: 'service_request', status: 'in_progress', priority: 'medium',
+    subject: 'Employment verification letter for my mortgage',
+    description: 'My bank needs a letter confirming my role, start date and salary. Could I get it by Friday?',
+    requester_id: DEV_USER.id, requester_name: DEV_USER.name, requester_email: DEV_USER.email,
+    submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
+    created_at: ago(1500), updated_at: ago(180),
+    comments: [
+      { id: 'c1-41', author_name: 'People Team', body: 'Happy to help — we’ll have the letter signed and sent to you by Thursday.', is_internal: false, created_at: ago(180) },
+    ],
+  },
 );
 
 // Approvals ON the dev user's own requests, shaped like the module's
@@ -374,6 +387,10 @@ catalogItems.push(
   { id: 514, name: 'Salesforce', description: 'Salesforce access, set up to match an existing colleague.', category_name: 'Sales', icon_url: appIcon('#00A1E0', '#FFFFFF', 'SF', 26), request_count: 15, approval_required: true, justify_required: true,
     request_form_fields: [{ key: 'user_to_clone', label: 'User to Clone:', type: 'text', required: true }] },
   { id: 513, name: 'Salesforce Sales Cloud — Enterprise Edition (Read-only reporting)', description: 'Dashboards and reports for the revenue team; no record editing.', category_name: 'Sales', icon_url: appIcon('#00A1E0', '#FFFFFF', 'S', 36), request_count: 0, approval_required: true, justify_required: false, request_form_fields: [] },
+  // Items owned by other teams' queues (dev only) — the request page shows
+  // "Goes to HR team" / "Goes to Finance team" from their category.
+  { id: 516, name: 'Employment verification letter', description: 'A signed letter confirming your role and start date, for a bank or landlord.', category_name: 'HR', icon_url: appIcon('#E7F5EC', '#0A6E31', 'HR', 26), request_count: 11, approval_required: false, justify_required: false, request_form_fields: simpleForm('Who is it for (bank, landlord…)?') },
+  { id: 517, name: 'Corporate card', description: 'A Slice corporate card, or a higher limit on the one you have.', category_name: 'Finance', icon_url: appIcon('#E6EEF9', '#1C4E8C', '$', 36), request_count: 8, approval_required: true, justify_required: true, request_form_fields: simpleForm('Monthly limit you need') },
   { id: 512, name: 'MacBook Pro 14"', description: 'Standard engineering build with the Jamf baseline.', category_name: 'Hardware', icon_url: appIcon('#E8E8ED', '#1D1D1F', '⌘', 34), request_count: 12, approval_required: true, justify_required: true, request_form_fields: [] },
 );
 // Point the fixture tickets at their app so the list rows show its icon.
