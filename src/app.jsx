@@ -4046,7 +4046,13 @@ const IconLifebuoy = (p) => <IconBase {...p}><circle cx="12" cy="12" r="9"/><cir
 // screenshot rather than a photo, unlike the camera it replaced.
 const IconScreenshot = (p) => <IconBase {...p}><path d="M3 8V6.5A3.5 3.5 0 0 1 6.5 3H8M16 3h1.5A3.5 3.5 0 0 1 21 6.5V8M21 16v1.5a3.5 3.5 0 0 1-3.5 3.5H16M8 21H6.5A3.5 3.5 0 0 1 3 17.5V16"/><path d="M12 9v6M9 12h6"/></IconBase>;
 const IconPulse = (p) => <IconBase {...p}><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></IconBase>;
-const NAV_ICONS = { Help: IconLifebuoy, Knowledge: IconBook, Status: IconPulse, "My Tickets": IconTicket };
+// Top-bar icons, shown when the bar is too narrow for labels: one family
+// (24-grid, rounded joins), drawn to read at 18px on charcoal.
+const NavIconHome = (p) => <IconBase {...p}><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></IconBase>;
+const NavIconKnowledge = (p) => <IconBase {...p}><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></IconBase>;
+const NavIconStatus = (p) => <IconBase {...p}><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></IconBase>;
+const NavIconTickets = (p) => <IconBase {...p}><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></IconBase>;
+const NAV_ICONS = { Help: NavIconHome, Knowledge: NavIconKnowledge, Status: NavIconStatus, "My Tickets": NavIconTickets };
 
 // Selected-section outline pill for the top bar. Not SlideIndicator: the pill
 // glides to the tab you pick, stretching a little in flight (its leading edge
@@ -4207,7 +4213,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
               className={"topnav-link" + (isActive ? " is-active" : "")}
               onMouseEnter={isActive ? () => setGlide(null) : pointAt} onFocus={isActive ? undefined : pointAt}
               onClick={() => { setGlide(null); setPick((n) => n + 1); setActiveLocal(l); onNavigate && onNavigate(l); }}>
-              <Icon size={15} stroke={2} />
+              <Icon size={18} stroke={1.75} />
               <span className="topnav-lbl">{NAV_LABEL[l] || l}</span>
               {n > 0 && <span className="topnav-badge">{n > 9 ? "9+" : n}</span>}
             </button>
