@@ -616,7 +616,7 @@ function HelpMark() {
 // (back on "we") as soon as they type; under reduced motion it never moves.
 const TEAMWORD_KEY = () => 'slicehelp.teamword.v1:' + String((typeof window !== 'undefined' && window.PORTAL_CURRENT_ID) || 'me');
 function TeamWord({ paused }) {
-  const words = React.useMemo(() => ["we", ...HELP_TEAMS.map((t) => t.label)], []);
+  const words = React.useMemo(() => ["we", ...OPEN_TEAMS.map((t) => t.label)], []);
   const [i, setI] = React.useState(0);
   const [prev, setPrev] = React.useState(-1);
   const [widths, setWidths] = React.useState([]);
@@ -747,13 +747,14 @@ function HcNotes({ closing, onDone }) {
       </div>
       <div className="hc-note is-right" aria-hidden="true">
         <span className="hc-note-text">Ask about anything</span>
-        <span className="hc-note-teams">
-          {HELP_TEAMS.map((t) => {
-            const Icon = teamIcon(t.key);
-            return <span key={t.key} className="hc-note-team"><Icon size={13} stroke={2} />{t.label}</span>;
-          })}
-          <span className="hc-note-more">&amp; more</span>
-        </span>
+        {OPEN_TEAMS.length > 1 && (
+          <span className="hc-note-teams">
+            {OPEN_TEAMS.map((t) => {
+              const Icon = teamIcon(t.key);
+              return <span key={t.key} className="hc-note-team"><Icon size={13} stroke={2} />{t.label}</span>;
+            })}
+          </span>
+        )}
         <svg className="hc-note-arrow" viewBox="0 0 120 70" fill="none">
           <path className="hc-note-line" d="M104 6 C 96 40, 60 62, 12 52" pathLength="1" />
           <path className="hc-note-head" d="M12 52 L 24 46 M12 52 L 23 60" pathLength="1" />
@@ -1028,7 +1029,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           animation: "fadeUp .7s .05s var(--ease) both",
           fontFamily: "var(--font-head)",
         }}>
-          How can <span className="sr-only">we </span><TeamWord paused={!!q.trim()} />{" "}
+          How can {OPEN_TEAMS.length > 1 ? <><span className="sr-only">we </span><TeamWord paused={!!q.trim()} /></> : "we"}{" "}
           <HelpMark />
         </h1>
       </div>
@@ -1297,6 +1298,11 @@ const HELP_TEAMS = [
 const IconPeople = (p) => <IconBase {...p}><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/></IconBase>;
 const IconCard = (p) => <IconBase {...p}><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19"/><path d="M6.5 15h4"/></IconBase>;
 
+// The teams people can pick today. A team that isn't live stays out of every
+// picker, the headline and the tour until its `live` flips — no "Soon" teams
+// in front of 1000 people. (helpTeam still knows them all, so an HR- ticket
+// that exists keeps its HR badge.)
+const OPEN_TEAMS = HELP_TEAMS.filter((t) => t.live);
 const helpTeam = (key) => HELP_TEAMS.find((t) => t.key === key) || HELP_TEAMS[0];
 // Which team owns a ticket: an explicit `team` from the server when there is
 // one, else its number's prefix (IT-90012, HR-00041, FIN-00007). IT otherwise.
@@ -1369,24 +1375,25 @@ const teamIcon = (key) => ({ laptop: IconLaptop, people: IconPeople, card: IconC
 
 function TeamPicker({ value, onChange }) {
   const refs = React.useRef([]);
-  const idx = Math.max(0, HELP_TEAMS.findIndex((t) => t.key === value));
+  const idx = Math.max(0, OPEN_TEAMS.findIndex((t) => t.key === value));
   // Radio-group keys: arrows move and select, like native radios.
   const onKey = (e) => {
     const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
     if (!d) return;
     e.preventDefault();
-    const n = (idx + d + HELP_TEAMS.length) % HELP_TEAMS.length;
-    onChange(HELP_TEAMS[n].key);
+    const n = (idx + d + OPEN_TEAMS.length) % OPEN_TEAMS.length;
+    onChange(OPEN_TEAMS[n].key);
     refs.current[n] && refs.current[n].focus();
   };
   const cur = helpTeam(value);
   const ICON = { laptop: IconLaptop, people: IconPeople, card: IconCard };
+  if (OPEN_TEAMS.length < 2) return null;   // one team: nothing to choose
   return (
     <div className="tp">
       <div className="cf-head"><span className="cf-label" id="tp-label">Which team is this for?</span></div>
       <div className="tp-opts" role="radiogroup" aria-labelledby="tp-label" onKeyDown={onKey}
-        style={{ "--n": HELP_TEAMS.length }}>
-        {HELP_TEAMS.map((t, i) => {
+        style={{ "--n": OPEN_TEAMS.length }}>
+        {OPEN_TEAMS.map((t, i) => {
           const Icon = ICON[t.icon] || IconSpark;
           const on = value === t.key;
           return (
@@ -5968,7 +5975,7 @@ function NewTicketModal({ onClose, onCreated, draft = {}, asPage = false, onBrow
   const [priority, setPriority] = React.useState(draft.priority || (restored && restored.priority) || "medium");
   const [team, setTeam] = React.useState(() => {
     const k = (restored && restored.team) || 'it';
-    return HELP_TEAMS.some((t) => t.key === k) ? k : 'it';
+    return OPEN_TEAMS.some((t) => t.key === k) ? k : 'it';
   });
   const teamInfo = helpTeam(team);
   // A draft can arrive with files already attached (the screenshot flow).
@@ -9822,7 +9829,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const Shell = asPage ? PageShell : ModalShell;
   const [view, setView] = React.useState(initialCustom != null ? 'freeform' : 'list'); // list | form | done | freeform
   // Custom requests pick a team first (see HELP_TEAMS). Catalog items are IT's.
-  const [team, setTeam] = React.useState(() => (initialTeam && HELP_TEAMS.some((t) => t.key === initialTeam) ? initialTeam : 'it'));
+  const [team, setTeam] = React.useState(() => (initialTeam && OPEN_TEAMS.some((t) => t.key === initialTeam) ? initialTeam : 'it'));
   const [catalog, setCatalog] = React.useState(null); // null = loading
   const [catErr, setCatErr] = React.useState(''); // catalog failed to load
   const [item, setItem] = React.useState(null);
