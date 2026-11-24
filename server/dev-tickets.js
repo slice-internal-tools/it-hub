@@ -29,7 +29,7 @@ const ago = (mins) => new Date(now - mins * 60000).toISOString();
 // these all land in "My tickets". On-brand Slice scenarios (GlobalProtect,
 // 1Password, Jabra/CCP) covering an open incident, a request pending approval,
 // and a resolved incident with a back-and-forth.
-let seq = 90013;
+let seq = 90100; // above every fixture id (90001–90020), so new dev tickets never collide
 const tickets = [
   {
     id: 90012,
@@ -169,7 +169,7 @@ tickets.push(
   // A sample HR ticket, so the portal's team cues (HR- prefix → HR) can be
   // seen locally before the HR queue exists. Dev data only.
   {
-    id: 41, ticket_number: 'HR-00041', type: 'service_request', status: 'in_progress', priority: 'medium',
+    id: 41, ticket_number: 'HR-00041', queue_id: 3, type: 'service_request', status: 'in_progress', priority: 'medium',
     subject: 'Employment verification letter for my mortgage',
     description: 'My bank needs a letter confirming my role, start date and salary. Could I get it by Friday?',
     requester_id: DEV_USER.id, requester_name: DEV_USER.name, requester_email: DEV_USER.email,
@@ -252,6 +252,14 @@ export function devSimulate(action, ticketId) {
   t.updated_at = ts;
   return { ok: true, ticket: { id: t.id, status: t.status, approval_status: t.approval_status } };
 }
+
+// The module's queues, as in production (prefix null = type-based INC/REQ).
+const devQueues = [
+  { id: 12, name: 'IT Support', description: 'IT Support', prefix: 'IT', is_default: true },
+  { id: 3, name: 'People Operations', description: 'People Ops Queue - RESTRICTED', prefix: 'HR' },
+  { id: 11, name: 'Finance Support', description: 'Finance Support Queue', prefix: null },
+  { id: 1, name: 'Finance IT', description: 'Queue for any Finance IT apps.', prefix: 'FIN' },
+];
 
 // One pending approval awaiting the dev user, so the Approvals tab badge + the
 // approve/reject flow are exercisable offline. Drops off when acted on.
@@ -459,12 +467,18 @@ export function handleDevTicket(method, subPath, body) {
     return t ? ok({ attachments: t.attachments || [] }) : notFound();
   }
   // POST /tickets  (create)
+  // GET /queues — the module's queue list (id, name, description).
+  if (method === 'GET' && parts[0] === 'queues' && parts.length === 1) {
+    return ok({ queues: devQueues.map(({ id, name, description }) => ({ id, name, description })) });
+  }
   if (method === 'POST' && parts[0] === 'tickets' && parts.length === 1) {
     const id = ++seq;
     const ts = new Date().toISOString();
+    const q = devQueues.find((x) => String(x.id) === String(body.queue_id)) || devQueues.find((x) => x.is_default);
     const t = {
       id,
-      ticket_number: 'IT-' + id,
+      queue_id: q.id,
+      ticket_number: (q.prefix || (body.type === 'incident' ? 'INC' : 'REQ')) + '-' + id,
       type: body.type || 'incident',
       status: 'open',
       priority: body.priority || 'medium',
