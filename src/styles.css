@@ -3050,6 +3050,12 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
 .apr-item-desc { margin: 4px 0 0; font-size: 14px; line-height: 1.55; color: #4A3F2E; }
 .apr-why { margin-top: 16px; padding-top: 16px; border-top: 1px solid #EFE8DA; }
 .apr-why-label, .apr-label { display: block; font-size: 13px; font-weight: 600; color: #78684C; margin-bottom: 8px; }
+/* The requester's form answers (from main, #53), on the settled scale. */
+.apr-answers { margin: 16px 0 0; padding: 16px 0 0; border-top: 1px solid #EFE8DA; display: grid; gap: 12px; }
+.apr-answer { display: grid; grid-template-columns: 168px 1fr; gap: 4px 20px; align-items: baseline; }
+.apr-answer-label { font: 500 11px/1.4 var(--font-mono); letter-spacing: .04em; text-transform: uppercase; color: #78684C; }
+.apr-answer-value { font-size: 14px; line-height: 1.5; color: #211E1E; word-break: break-word; }
+@media (max-width: 640px) { .apr-answer { grid-template-columns: 1fr; gap: 4px; } }
 .apr-label span { font-weight: 500; color: #9A8E78; }
 .apr-history { list-style: none; margin: 0; padding: 0; }
 .apr-history li { position: relative; display: flex; gap: 12px; padding: 0 0 16px; font-size: 14px; color: #2E2A28; }

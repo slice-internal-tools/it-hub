@@ -9604,6 +9604,79 @@ function ApprovalDetailView({ id, onBack, onActed }) {
   const decided = d && d.request && ['approved', 'rejected'].includes(String(d.request.status || '').toLowerCase());
   const title = d ? ((d.ticket && d.ticket.subject) || (d.catalog_item && ('Request: ' + d.catalog_item.name)) || 'Request') : '';
 
+  // The requester's form answers — "what access, exactly" the approver is being
+  // asked to sign off on. form_responses is a key→value map on the ticket; the
+  // labels the requester saw live on catalog_item.request_form_fields (approvers
+  // receive that field — it isn't privileged). A cleanly-detected reason field
+  // is shown as "Their note" instead, so skip it here; the note itself de-dupes
+  // anything the skip misses. Mirrors the Slack/email "Request Details" block
+  // (server utils/requestDetails.js) and the mobile Approvals detail.
+  const requestAnswers = React.useMemo(() => {
+    if (!d || !d.ticket) return [];
+    let raw = d.ticket.form_responses;
+    if (!raw) return [];
+    if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { return []; } }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+    const fields = (d.catalog_item && Array.isArray(d.catalog_item.request_form_fields)) ? d.catalog_item.request_form_fields : [];
+    const labelOf = new Map(), typeOf = new Map(), skip = new Set();
+    for (const f of fields) {
+      const k = f && (f.key || f.name);
+      if (!k) continue;
+      if (f.label) labelOf.set(k, cleanFieldLabel(f.label));
+      if (f.type) typeOf.set(k, String(f.type).toLowerCase());
+      if (isReasonField(f)) skip.add(k);
+    }
+    const humanize = (k) => k.replace(/[_-]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
+    const fmt = (k, v) => {
+      if (v == null || v === '') return '';
+      if (Array.isArray(v)) return v.filter((x) => x != null && x !== '').join(', ');
+      if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+      if (typeof v === 'object') return Object.values(v).filter(Boolean).join(' › ');
+      const t = typeOf.get(k);
+      if (t === 'date' || t === 'datetime') {
+        const dt = new Date(v);
+        if (!isNaN(dt.getTime())) return dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      }
+      return String(v);
+    };
+    return Object.keys(raw)
+      .filter((k) => !k.startsWith('_') && !skip.has(k))
+      .map((k) => ({ key: k, label: labelOf.get(k) || humanize(k), value: fmt(k, raw[k]) }))
+      .filter((a) => a.value !== '');
+  }, [d]);
+
+  // "Their note" is the ticket description. The catalog request flow appends a
+  // raw "Form Responses:\n  key: value" dump to it (server routes/catalog.js) —
+  // the same answers the structured block above now renders with real labels.
+  // Strip that machine dump so the note isn't a second, uglier copy; what's
+  // left is the requester's justification / free text. HTML descriptions
+  // (freeform/imported tickets, which carry no form dump) pass through intact.
+  const theirNote = React.useMemo(() => {
+    const raw = (d && d.ticket && d.ticket.description) || '';
+    if (!raw) return '';
+    if (looksLikeHtml(raw)) return raw;
+    // Strip the raw "Form Responses:" dump (server catalog.js) AND any labelled
+    // "Label: value" request-details block (server utils/requestDetails.js, which
+    // some creation paths append to the description) — both duplicate the answers
+    // grid rendered above. The labelled block isn't newline-anchored (it can run
+    // straight on from the justification, e.g. "Test BojanTenants Required: …"),
+    // so remove each answer's "Label: value" wherever it appears.
+    const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let note = raw.replace(/\n*Form Responses:\n(?:[ \t]+.*(?:\n|$))*/, '');
+    for (const a of requestAnswers) {
+      if (!a.value) continue;
+      note = note.replace(new RegExp(esc(a.label) + '\\s*:\\s*' + esc(a.value), 'ig'), '');
+    }
+    note = note
+      .replace(/^\s*Justification:[ \t]*/i, '')
+      .replace(/[ \t]*\n{2,}[ \t]*/g, '\n')
+      .trim();
+    if (!note) return '';
+    // The justification can itself be a "why?" answer already in the grid.
+    const dup = requestAnswers.some((a) => a.value.trim().toLowerCase() === note.toLowerCase());
+    return dup ? '' : note;
+  }, [d, requestAnswers]);
+
   return (
     <div className="detail-in apr-page">
       <div className="tkd-bar">
@@ -9645,12 +9718,22 @@ function ApprovalDetailView({ id, onBack, onActed }) {
                     {d.catalog_item && d.catalog_item.description && <p className="apr-item-desc">{d.catalog_item.description}</p>}
                   </div>
                 </div>
-                {d.ticket && d.ticket.description && (
+                {requestAnswers.length > 0 && (
+                  <dl className="apr-answers">
+                    {requestAnswers.map((a) => (
+                      <div key={a.key} className="apr-answer">
+                        <dt className="apr-answer-label">{a.label}</dt>
+                        <dd className="apr-answer-value">{a.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {theirNote && (
                   <div className="apr-why">
                     <div className="apr-why-label">Their note</div>
-                    {looksLikeHtml(d.ticket.description)
-                      ? <RichBody html={d.ticket.description} style={{ fontSize: 14, lineHeight: 1.55, color: '#211E1E' }} />
-                      : <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: '#211E1E', whiteSpace: 'pre-wrap' }}>{d.ticket.description}</p>}
+                    {looksLikeHtml(theirNote)
+                      ? <RichBody html={theirNote} style={{ fontSize: 14, lineHeight: 1.55, color: '#211E1E' }} />
+                      : <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: '#211E1E', whiteSpace: 'pre-wrap' }}>{theirNote}</p>}
                   </div>
                 )}
               </div>
@@ -16209,7 +16292,22 @@ function buildInstantRows({ text, catalog, guides, services }) {
   const det = detectAccessRequest(q);
   if (!det.isProblem && Array.isArray(catalog) && catalog.length) {
     const m = matchCatalogItem(catalog, q);
-    const apps = m.candidates.filter((c) => c._confidence === 'strong' || (c._confidence === 'likely' && det.isRequest)).slice(0, 3);
+    // Always show the TOP-ranked match, even if a near-tie demoted it to 'likely'.
+    // confidenceOf() only hands 'likely' to candidate[0] when a runner-up scores within
+    // 120 of it — but the runner-up itself is never compared, so it keeps 'strong'. Gating
+    // list visibility on that flips the result: the better match (demoted) gets hidden while
+    // the worse sibling (still 'strong') shows in its place — e.g. "sho" surfaced Shortcut
+    // instead of Shopify, "1pass" surfaced 1Password Groups instead of 1Password. The
+    // 'likely' downgrade must still gate AUTO-OPEN (matchCatalogItem.strong) — dropping
+    // someone into the wrong request form is worse — but it must not gate the suggestion
+    // list. matchFromText already floors candidates at NAME_WORD_PREFIX, so a top 'likely'
+    // is a solid partial match, not noise. Lower-ranked rows still need 'strong' (or a
+    // request phrasing) to appear.
+    const apps = m.candidates.filter((c, i) =>
+      c._confidence === 'strong'
+      || (i === 0 && c._confidence === 'likely')
+      || (c._confidence === 'likely' && det.isRequest),
+    ).slice(0, 3);
     for (const a of apps) rows.push({ kind: 'app', key: 'a:' + a.id, item: a });
   }
   for (const g of matchGuidesByTitle(guides, q, 3)) rows.push({ kind: 'guide', key: 'g:' + g.id, guide: g });
