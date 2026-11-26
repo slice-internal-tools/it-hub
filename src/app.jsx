@@ -832,37 +832,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
     return () => window.removeEventListener("paste", onPaste);
   }, [stageFile]);
 
-  // Collapse search into a floating bar once user scrolls past the hero input.
-  // Listen on .page-scroll because html/body have overflow:hidden — window.scrollY
-  // would otherwise stay 0 and the mini-search would never show.
-  // - rAF throttle: avoids 60+ React re-renders per scroll second.
-  // - Hysteresis (480 show, 380 hide): a 100px dead-zone around the boundary
-  //   stops the chip-row layout shift from re-triggering the threshold.
-  const [collapsed, setCollapsed] = React.useState(false);
-  React.useEffect(() => {
-    const target = document.querySelector('.page-scroll') || window;
-    let rafId = 0;
-    let lastCollapsed = false;
-    const tick = () => {
-      rafId = 0;
-      const top = target === window ? window.scrollY : target.scrollTop;
-      const next = lastCollapsed ? top > 380 : top > 480;
-      if (next !== lastCollapsed) {
-        lastCollapsed = next;
-        setCollapsed(next);
-      }
-    };
-    const onScroll = () => {
-      if (rafId) return;
-      rafId = requestAnimationFrame(tick);
-    };
-    target.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      target.removeEventListener("scroll", onScroll);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, []);
-
   const submit = (val) => {
     const text = (val ?? q).trim();
     // Screenshot path takes precedence when a file is staged. We pass the
@@ -988,37 +957,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
   // hero rewritten — no copy-dict title needed
 
   return (
-    <div className="page" data-hero-collapsed={collapsed ? "true" : "false"} style={{ position: "relative", width: "100%", boxSizing: "border-box", padding: "56px 32px 0" }}>
-      {/* Mini floating search — portaled to body so fixed positioning isn't
-          hijacked by an ancestor transform (fadeUp animations create one) */}
-      {ReactDOM.createPortal(
-        <div className="mini-search" data-show={collapsed ? "true" : "false"} aria-hidden={!collapsed}>
-          <div className="mini-search-shell">
-            <span className="mini-search-icon">
-              <IconSearch size={15} stroke={2} />
-            </span>
-            <input
-              type="text"
-              placeholder="Describe the issue…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
-              }}
-              tabIndex={collapsed ? 0 : -1} />
-            <button
-              className="mini-search-btn"
-              onClick={() => submit()}
-              disabled={!q.trim()}
-              tabIndex={collapsed ? 0 : -1}>
-              {t("continue")}
-              <IconArrow size={13} stroke={2} />
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
-
+    <div className="page" data-hero-collapsed="false" style={{ position: "relative", width: "100%", boxSizing: "border-box", padding: "56px 32px 0" }}>
       {/* Hero */}
       <div className="hero-headline" style={{ position: "relative", zIndex: 1, textAlign: "center", marginBottom: 32 }}>
         <h1 style={{
@@ -1044,9 +983,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           shouting. */}
       <div className="hc-wrap" style={{ animation: "fadeUp .7s .15s var(--ease) both" }}>
         {tour.show && <HcNotes key={tour.run} closing={tour.closing} onDone={tour.dismiss} />}
-        {!tour.show && ReactDOM.createPortal(
-          <button type="button" className="tour-help" onClick={tour.replay} aria-label="Show me around" data-tip="Show me around">?</button>,
-          document.body)}
         <div
           className={"hc-shell" + (mode === "access" ? " is-access" : "")}
           onDragOver={(e) => { if (mode !== "ask") return; e.preventDefault(); if (!dragOver) setDragOver(true); }}
@@ -4066,16 +4002,10 @@ const NavIconStatus = (p) => <IconBase {...p}><path d="M22 12h-2.48a2 2 0 0 0-1.
 const NavIconTickets = (p) => <IconBase {...p}><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></IconBase>;
 const NAV_ICONS = { Help: NavIconHome, Knowledge: NavIconKnowledge, Status: NavIconStatus, "My Tickets": NavIconTickets };
 
-// Selected-section outline pill for the top bar. Not SlideIndicator: the pill
-// glides to the tab you pick, stretching a little in flight (its leading edge
-// runs ahead of the trailing one), then swells as it lands and bumps the tabs
-// on either side outward before everything settles. The picked tab itself
-// never moves: nothing changes layout, the push is transforms on the other
-// tabs, driven from this same frame loop so pill and push stay in lockstep.
-const PILL_MS = 420;
-const PILL_TRAVEL = 0.65;   // share of PILL_MS spent gliding
-const PILL_SWELL_AT = 0.4;  // when the landing swell starts
-const PILL_SWELL_PX = 6;    // how far the neighbours get pushed
+// Selected-section outline pill for the top bar. Not SlideIndicator.
+// Standard segmented-control slide: the ring moves and resizes as one, on a
+// single ease-out curve; the tabs themselves never move.
+const PILL_MS = 180;
 const PILL_INTRO_DELAY_MS = 350; // first load: beat before the ring selects the section
 const pillEase = (t) => 1 - Math.pow(1 - t, 4);
 // The brand already reads "Slice Help", so the Help tab shows as Home. The
@@ -4100,9 +4030,6 @@ function TopnavPill({ activeKey }) {
       const x = b.left - o.left - track.clientLeft;
       return { l: x, r: x + b.width, y: b.top - o.top - track.clientTop, h: b.height };
     };
-    const push = (s) => tabs.forEach((t, i) => {
-      t.style.transform = s && i !== at ? `translateX(${i < at ? -s : s}px)` : '';
-    });
     const paint = (b, y, h) => {
       painted.current = b;
       el.style.opacity = b ? '1' : '0';
@@ -4111,7 +4038,7 @@ function TopnavPill({ activeKey }) {
       el.style.height = `${h}px`;
       el.style.transform = `translate(${b.l}px, ${y}px)`;
     };
-    const snap = () => { push(0); const to = target(); paint(to, to && to.y, to && to.h); };
+    const snap = () => { const to = target(); paint(to, to && to.y, to && to.h); };
 
     const from = painted.current;
     const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -4123,15 +4050,9 @@ function TopnavPill({ activeKey }) {
       const step = (now) => {
         const p = Math.min(1, (now - t0) / PILL_MS);
         const to = target();
-        if (!to) { raf = 0; push(0); paint(null); return; }
-        const g = Math.min(1, p / PILL_TRAVEL);
-        const lead = pillEase(Math.min(1, g * 1.35)), trail = pillEase(g);
-        const right = to.l >= start.l;
-        const edgeL = intro ? trail : (right ? trail : lead), edgeR = intro ? trail : (right ? lead : trail);
-        const q = Math.max(0, (p - PILL_SWELL_AT) / (1 - PILL_SWELL_AT));
-        const s = PILL_SWELL_PX * Math.pow(Math.sin(Math.PI * q), 2);
-        push(s);
-        paint({ l: start.l + (to.l - start.l) * edgeL - s, r: start.r + (to.r - start.r) * edgeR + s }, to.y, to.h);
+        if (!to) { raf = 0; paint(null); return; }
+        const e = pillEase(p);
+        paint({ l: start.l + (to.l - start.l) * e, r: start.r + (to.r - start.r) * e }, to.y, to.h);
         if (intro) el.style.opacity = String(Math.min(1, p / 0.3));
         if (p < 1) raf = requestAnimationFrame(step);
         else { raf = 0; snap(); }
@@ -4191,17 +4112,10 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
     return () => { cancelAnimationFrame(raf); el.removeEventListener('scroll', onScroll); };
   }, []);
 
-  // Hover glide: one soft highlight that slides to whichever link you point
-  // at, instead of each link lighting up on its own.
   const trackRef = React.useRef(null);
-  const [glide, setGlide] = React.useState(null); // { x, w } | null
   // Bumped on every pick (logo included) so the pill replays its landing
   // even when the section was already selected — e.g. the logo from a guide.
   const [pick, setPick] = React.useState(0);
-  const pointAt = (e) => {
-    const b = e.currentTarget;
-    setGlide({ x: b.offsetLeft, w: b.offsetWidth, h: b.offsetHeight, y: b.offsetTop });
-  };
 
   return (
     <nav className={"topnav" + (scrolled ? " is-scrolled" : "")} aria-label="Slice Help">
@@ -4210,10 +4124,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
         <span>Help</span>
       </button>
 
-      <div ref={trackRef} className="topnav-links has-slider" role="tablist" aria-label="Slice Help sections"
-        onMouseLeave={() => setGlide(null)}>
-        <span aria-hidden="true" className={"topnav-glide" + (glide ? " is-on" : "")}
-          style={glide ? { width: glide.w, height: glide.h, transform: `translate(${glide.x}px, ${glide.y}px)` } : undefined} />
+      <div ref={trackRef} className="topnav-links has-slider" role="tablist" aria-label="Slice Help sections">
         <TopnavPill activeKey={`${active}:${pick}`} />
         {links.map((l) => {
           const isActive = active === l;
@@ -4223,8 +4134,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
             <button key={l} type="button" role="tab" aria-selected={isActive} aria-current={isActive ? "page" : undefined}
               title={NAV_LABEL[l] || l} aria-label={n > 0 ? `${NAV_LABEL[l] || l} (${n} with unread updates)` : (NAV_LABEL[l] || l)}
               className={"topnav-link" + (isActive ? " is-active" : "")}
-              onMouseEnter={isActive ? () => setGlide(null) : pointAt} onFocus={isActive ? undefined : pointAt}
-              onClick={() => { setGlide(null); setPick((n) => n + 1); setActiveLocal(l); onNavigate && onNavigate(l); }}>
+              onClick={() => { setPick((n) => n + 1); setActiveLocal(l); onNavigate && onNavigate(l); }}>
               <Icon size={18} stroke={1.75} />
               <span className="topnav-lbl">{NAV_LABEL[l] || l}</span>
               {n > 0 && <span className="topnav-badge">{n > 9 ? "9+" : n}</span>}
@@ -4680,15 +4590,35 @@ function Footer() {
   const styleIdx = streak >= 3 ? (streak - 2) % PALETTE.length : 0;
   const skin = PALETTE[styleIdx];
 
+  // Messages for people who keep going: shown in a bubble above the pill when
+  // an unbroken streak hits these counts, then fade after a few seconds.
+  const STREAK_MESSAGES = {
+    15: "Please stop and just submit the ticket",
+    30: "Hmmm… still clicking?",
+    50: "There is a secret…",
+    100: "You rule!",
+  };
+  const streakRef = React.useRef(0);
+  const [streakMsg, setStreakMsg] = React.useState(null); // { text, n }
+  const msgTimerRef = React.useRef(null);
+  React.useEffect(() => () => { clearTimeout(resetTimerRef.current); clearTimeout(msgTimerRef.current); }, []);
+
   const pulse = () => {
     const now = Date.now();
     const fast = now - lastClickRef.current < 900;
     lastClickRef.current = now;
-    setStreak(s => fast ? s + 1 : 1);
+    const next = fast ? streakRef.current + 1 : 1;
+    streakRef.current = next;
+    setStreak(next);
     setBeats(b => b + 1);
+    if (STREAK_MESSAGES[next]) {
+      setStreakMsg({ text: STREAK_MESSAGES[next], n: next });
+      clearTimeout(msgTimerRef.current);
+      msgTimerRef.current = setTimeout(() => setStreakMsg(null), 3200);
+    }
     // Reset the streak after a beat of inactivity so the easter egg is rediscoverable.
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
-    resetTimerRef.current = setTimeout(() => setStreak(0), 2000);
+    resetTimerRef.current = setTimeout(() => { streakRef.current = 0; setStreak(0); }, 2000);
   };
 
   return (
@@ -4719,7 +4649,26 @@ function Footer() {
           25% { transform: rotate(-2.5deg); }
           75% { transform: rotate(2.5deg); }
         }
+        @keyframes streakMsgIn {
+          0%   { opacity: 0; transform: translate(-50%, 6px) scale(.96); }
+          100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) { .streak-msg { animation: none !important; } }
       `}</style>
+      <span style={{ position: "relative", display: "inline-flex" }}>
+      <span role="status" aria-live="polite" style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
+        {streakMsg ? streakMsg.text : ""}
+      </span>
+      {streakMsg && (
+        <span key={streakMsg.n} className="streak-msg" aria-hidden="true" style={{
+          position: "absolute", bottom: "calc(100% + 8px)", left: "50%",
+          transform: "translate(-50%, 0)", whiteSpace: "nowrap", pointerEvents: "none",
+          padding: "8px 12px", borderRadius: 12, background: "#211E1E", color: "#FFFFFF",
+          fontSize: 12, fontWeight: 600, lineHeight: "16px",
+          boxShadow: "0 1px 2px rgba(33,30,30,.06), 0 16px 40px -12px rgba(33,30,30,.3)",
+          animation: "streakMsgIn .22s cubic-bezier(.34,1.56,.64,1) both",
+        }}>{streakMsg.text}</span>
+      )}
       <button
         type="button"
         onClick={pulse}
@@ -4783,6 +4732,7 @@ function Footer() {
           </svg>
         </span>
       </button>
+      </span>
     </div>
   );
 }
@@ -5763,7 +5713,7 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
   // Optional logo/icon in the header (e.g. the catalog app's icon_url). A string
-  // is treated as an image URL (hidden if it fails to load); a node renders as-is.
+  // is treated as an image URL (letter tile if it fails to load); a node renders as-is.
   const logo = !icon ? null : (
     // Scaled with PageShell's (60/38). It's the same catalog icon in the modal
     // presentation of the same header, so leaving one behind would make the
@@ -5771,7 +5721,7 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
     // smaller than the page version, because a modal header band is tighter.
     <span style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 12, background: "#FFFFFF", border: "1px solid rgba(33,30,30,.14)", display: "grid", placeItems: "center", overflow: "hidden" }}>
       {typeof icon === "string"
-        ? <img src={icon} alt="" width="34" height="34" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        ? <AppIcon name={title} iconUrl={icon} size={40} />
         : icon}
     </span>
   );
@@ -5821,7 +5771,7 @@ function PageShell({ title, kicker, subtitle, onClose, children, icon, backLabel
   const logo = !icon ? null : (
     <span className="pg-logo">
       {typeof icon === "string"
-        ? <img src={icon} alt="" width="34" height="34" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        ? <AppIcon name={title} iconUrl={icon} size={44} />
         : icon}
     </span>
   );
@@ -7227,11 +7177,14 @@ function useCatalogStackItems() {
 
 // Catalog/app icon with a letter fallback — mirrors the catalog grid's tile.
 function AppIcon({ name, iconUrl, size = 30, className }) {
-  if (iconUrl) {
+  // A logo URL that fails to load (404, blocked host, bad upload) falls back
+  // to the letter tile instead of the browser's broken-image glyph.
+  const [failedUrl, setFailedUrl] = React.useState(null);
+  if (iconUrl && failedUrl !== iconUrl) {
     // App-icon corners scale with size (~24%, like iOS) so the frame nests
     // the logo's own rounded square; a faint hairline instead of a cream
     // border keeps dark logos crisp and white ones separated.
-    return <img className={className} src={iconUrl} alt="" width={size} height={size} style={{ borderRadius: Math.round(size * 0.24), objectFit: 'contain', flexShrink: 0, border: 'none', background: '#fff', boxShadow: '0 0 0 1px rgba(33,30,30,.08)' }} />;
+    return <img className={className} src={iconUrl} alt="" width={size} height={size} onError={() => setFailedUrl(iconUrl)} style={{ borderRadius: Math.round(size * 0.24), objectFit: 'contain', flexShrink: 0, border: 'none', background: '#fff', boxShadow: '0 0 0 1px rgba(33,30,30,.08)' }} />;
   }
   return (
     <span className={className} style={{
@@ -9835,7 +9788,9 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const [catalog, setCatalog] = React.useState(null); // null = loading
   const [catErr, setCatErr] = React.useState(''); // catalog failed to load
   const [item, setItem] = React.useState(null);
-  const [itemBusy, setItemBusy] = React.useState(false);
+  // Id of the catalog item being opened (null when idle), so that tile can
+  // stay lit while the rest of the grid fades.
+  const [itemBusy, setItemBusy] = React.useState(null);
   const [responses, setResponses] = React.useState({});
   const [justification, setJustification] = React.useState('');
   const [urgency, setUrgency] = React.useState('medium');
@@ -9978,7 +9933,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
   const [catFilter, setCatFilter] = React.useState('all');
 
   const pickItem = React.useCallback(async (it) => {
-    setItemBusy(true); setErr('');
+    setItemBusy(String(it.id)); setErr('');
     try {
       const j = await ticketsApiJson('GET', '/api/catalog/' + encodeURIComponent(it.id));
       setItem(j.catalog_item || j);
@@ -10003,7 +9958,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
       // or retired) — say so plainly rather than as a failure.
       setErr(e.status === 404 ? 'This app isn’t available to you. If you think you need it, send a custom request.' : (e.message || 'Couldn’t open that item.'));
     } finally {
-      setItemBusy(false);
+      setItemBusy(null);
     }
   }, []);
 
@@ -10750,7 +10705,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
         <div className="cat-grid" aria-busy="true" aria-label="Loading the catalog">
           {Array.from({ length: 9 }).map((_, i) => (
             <div key={i} className="cat-tile2 tkt-skel-row" style={{ animationDelay: `${i * 40}ms`, pointerEvents: 'none' }}>
-              <span className="tkt-skel" style={{ width: 40, height: 40, borderRadius: 12 }} />
+              <span className="tkt-skel" style={{ width: 36, height: 36, borderRadius: 8 }} />
               <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <span className="tkt-skel" style={{ width: '55%', height: 12 }} />
                 <span className="tkt-skel" style={{ width: '85%', height: 9 }} />
@@ -10759,7 +10714,6 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           ))}
         </div>
       )}
-      {itemBusy && <div style={{ padding: '8px 4px', color: '#78684C', fontSize: 13 }}>Opening…</div>}
       {err && <p style={{ color: '#B92323', fontSize: 14, margin: '0 0 12px' }}>{err}</p>}
 
       {/* Catalog couldn't load — e.g. the ticket module isn't reachable or the
@@ -10797,14 +10751,6 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
           ? catalog
           : catalog.filter((c) => c.category_name === catFilter);
         const shown = q ? rankCatalog(inCategory, q) : inCategory;
-        // Most popular — top 5 by request volume (request_count from the module).
-        // Only on the default view (no search, "All" category), like Freshservice.
-        // Empty until the module exposes request_count, so the section self-hides.
-        const popular = (!q && catFilter === 'all')
-          ? [...catalog].filter((c) => Number(c.request_count) > 0)
-              .sort((a, b) => (Number(b.request_count) || 0) - (Number(a.request_count) || 0))
-              .slice(0, 5)
-          : [];
         const chip = (key, label) => {
           const on = catFilter === key;
           return (
@@ -10870,28 +10816,6 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             </div>
             )}
           </div>
-          {/* Most popular — top requested apps, shown on the default view */}
-          {popular.length > 0 && (
-            <section style={{ marginBottom: 20 }}>
-              <div className="cat-section">Most popular</div>
-              <div className="cat-grid" onKeyDown={onGridKey}>{popular.map((it, i) => (
-              <button key={'pop-' + it.id} className="cat-tile2" onClick={() => pickItem(it)} disabled={itemBusy}
-                style={{ animationDelay: `${Math.min(i, 12) * 22}ms` }} title={it.description ? `${it.name} — ${it.description}` : it.name}>
-                {it.icon_url
-                  ? <img className="cat-tile2-icon" src={it.icon_url} alt="" width="40" height="40" loading="lazy" />
-                  : <span className="cat-tile2-icon is-letter">{String(it.name || '?').charAt(0)}</span>}
-                <span className="cat-tile2-text">
-                  <span className="cat-tile2-name"><Hl text={it.name} tokens={qTokens} /></span>
-                  <span className="cat-tile2-desc">
-                    {it.description ? <Hl text={it.description} tokens={qTokens} /> : (it.category_name || 'Request access')}
-                  </span>
-                </span>
-                <span className="cat-tile2-go" aria-hidden="true">→</span>
-              </button>
-            ))}</div>
-            </section>
-          )}
-          {(!q && catFilter === 'all' && shown.length > 0) && <div className="cat-section">All apps & services</div>}
           {shown.length === 0 ? (
             <div className="tkt-empty-search" style={{ ...TK.card }}>
               <div className="tkt-empty-title">Nothing matches “{catQuery}”{catFilter !== 'all' ? ` in ${catFilter}` : ''}</div>
@@ -10903,11 +10827,9 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initial
             </div>
           ) : (
             <div key={catFilter + '|' + q} ref={catGridRef} className="cat-grid" onKeyDown={onGridKey}>{shown.map((it, i) => (
-              <button key={it.id} className="cat-tile2" onClick={() => pickItem(it)} disabled={itemBusy}
+              <button key={it.id} className={'cat-tile2' + (itemBusy === String(it.id) ? ' is-opening' : '')} onClick={() => pickItem(it)} disabled={!!itemBusy} aria-busy={itemBusy === String(it.id) || undefined}
                 style={{ animationDelay: `${Math.min(i, 12) * 22}ms` }} title={it.description ? `${it.name} — ${it.description}` : it.name}>
-                {it.icon_url
-                  ? <img className="cat-tile2-icon" src={it.icon_url} alt="" width="40" height="40" loading="lazy" />
-                  : <span className="cat-tile2-icon is-letter">{String(it.name || '?').charAt(0)}</span>}
+                <AppIcon className="cat-tile2-icon" name={it.name} iconUrl={it.icon_url} size={36} />
                 <span className="cat-tile2-text">
                   <span className="cat-tile2-name"><Hl text={it.name} tokens={qTokens} /></span>
                   <span className="cat-tile2-desc">
@@ -11138,11 +11060,13 @@ function approverInitials(value) {
 // shouldn't compete with the primary path.
 function changeBtn(label, onClick, { quiet = false } = {}) {
   return (
-    <button type="button" onClick={onClick} className={'ap-change' + (quiet ? ' is-quiet' : '')}>
+    <button type="button" onClick={onClick} className={'ap-change' + (quiet ? ' is-quiet' : '')}
+      title={label === 'Change' ? 'Change approver' : undefined}>
       {/* Two-arrow swap glyph — says "route this elsewhere" faster than the
-          label alone. It swings when hovered. */}
+          label alone. It swings when hovered. In the narrow request side card
+          the label hides (icon-only) so the approver's name and email get the room. */}
       <RqIcon name="swap" size={12} />
-      {label}
+      <span className="ap-change-label">{label}</span>
     </button>
   );
 }
@@ -11513,7 +11437,7 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
           This needs approval, but no approval route is set up for it yet — IT will sort out who signs off.
         </p>
       ) : (
-        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 12 }}>
+        <ol className="ap-steps" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 12 }}>
           {stages.map((stage, i) => {
             const changeable = !!stage.overridable;
             const showOverride = changeable && override;
@@ -11527,12 +11451,12 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
             return (
               <li key={stage.order} style={{ display: 'flex', gap: 12 }}>
                 {multiStage && (
-                  <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 12, borderRadius: '50%', background: '#211E1E', color: '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>
+                  <span className="ap-step" style={{ flexShrink: 0, width: 20, height: 20, marginTop: 12, borderRadius: '50%', background: '#211E1E', color: '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>
                     {i + 1}
                   </span>
                 )}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  {multiStage && <p style={{ fontSize: 12, fontWeight: 700, color: '#4A3F2E', margin: '0 0 4px' }}>{stage.name}</p>}
+                  {multiStage && <p className="ap-step-name" style={{ fontSize: 12, fontWeight: 700, color: '#4A3F2E', margin: '0 0 4px' }}>{stage.name}</p>}
 
                   {changeable && picking ? null : rows.length === 0 ? (
                     // Nobody resolved. On a changeable stage this is the whole
@@ -11585,8 +11509,12 @@ function ApprovalChain({ preview, heading, override, onChange, exclude, forWhom,
                             {a.name}
                           </p>
                           {subEmail && (
-                            <p style={{ fontSize: 12, color: '#78684C', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {subEmail}
+                            // Full address, never "jonathan.vanderb…": a long one
+                            // wraps onto a second line at the "@".
+                            <p className="ap-email">
+                              {subEmail.includes('@')
+                                ? <>{subEmail.slice(0, subEmail.indexOf('@'))}<wbr />{subEmail.slice(subEmail.indexOf('@'))}</>
+                                : subEmail}
                             </p>
                           )}
                           {a.chosen && <span className="ap-pill is-picked ap-picked">You picked this</span>}
@@ -12393,68 +12321,8 @@ function KnowledgePage({ onBack, onOpenGuide }) {
   const clearAll = () => { setQuery(""); setActiveCat(null); inputRef.current?.focus(); };
   const onSubmit = (e) => { e.preventDefault(); resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
 
-  // Mini-search: collapses the hero search into a fixed pill below the nav once
-  // the user scrolls past the hero. Same width as the big input (880) — same
-  // pattern Landing uses, so the experience is consistent across the
-  // self-service module. We listen on the actual scroll container (.page-scroll)
-  // because html/body have overflow:hidden in this app.
-  // rAF-throttled + hysteresis: prevents jitter at the boundary.
-  const [collapsed, setCollapsed] = React.useState(false);
-  React.useEffect(() => {
-    const target = document.querySelector('.page-scroll') || window;
-    let rafId = 0;
-    let lastCollapsed = false;
-    const tick = () => {
-      rafId = 0;
-      const top = target === window ? window.scrollY : target.scrollTop;
-      const next = lastCollapsed ? top > 260 : top > 360;
-      if (next !== lastCollapsed) {
-        lastCollapsed = next;
-        setCollapsed(next);
-      }
-    };
-    const onScroll = () => {
-      if (rafId) return;
-      rafId = requestAnimationFrame(tick);
-    };
-    target.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      target.removeEventListener('scroll', onScroll);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, []);
-
   return (
-    <div className="page" data-hero-collapsed={collapsed ? "true" : "false"} style={{ background: "var(--bg)" }}>
-
-      {/* Mini search — portaled to body so position:fixed isn't trapped by an
-          ancestor transform (animations on .page create one). */}
-      {ReactDOM.createPortal(
-        <div className="mini-search" data-show={collapsed ? "true" : "false"} aria-hidden={!collapsed}>
-          <div className="mini-search-shell">
-            <span className="mini-search-icon">
-              <IconSearch size={15} stroke={2} />
-            </span>
-            <input
-              type="text"
-              placeholder='Search "VPN", "password", "laptop"…'
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }
-              }}
-              tabIndex={collapsed ? 0 : -1} />
-            <button
-              className="mini-search-btn"
-              onClick={() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              tabIndex={collapsed ? 0 : -1}>
-              Search
-              <IconArrow size={13} stroke={2} />
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
+    <div className="page" data-hero-collapsed="false" style={{ background: "var(--bg)" }}>
 
       {/* Hero */}
       <div style={{
