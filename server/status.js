@@ -413,12 +413,21 @@ function parseStatusJson(json, filter) {
   return { state: 'operational', state_note: description };
 }
 
+// We couldn't READ a vendor's status (network error, timeout, HTTP error, bad
+// payload). That says nothing about the vendor — it used to be recorded as
+// Down/Degraded, so every blip on our side became a Slack "X is down" alert a
+// few minutes before "X has recovered" (and Chowly flip-flopped down↔degraded).
+// applyState keeps the last known state for these and only records the error.
+// HTTP probes (source 'probe') are different — they test the service itself,
+// so no answer there still means down.
+function unreadable(error, extra = {}) {
+  return { unreadable: true, error: error || 'check failed', ...extra };
+}
+
 async function probeStatuspage(service) {
-  if (!service.source_url) {
-    return { state: 'down', error: 'no source_url configured' };
-  }
+  if (!service.source_url) return unreadable('no source_url configured');
   const blocked = probeUrlBlockedReason(service.source_url);
-  if (blocked) return { state: 'down', error: blocked };
+  if (blocked) return unreadable(blocked);
   const t0 = Date.now();
   try {
     const r = await fetchWithTimeout(service.source_url, {
@@ -428,13 +437,13 @@ async function probeStatuspage(service) {
     const dt = Date.now() - t0;
     if (!r.ok) {
       drain(r);
-      return { state: 'degraded', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` };
+      return unreadable(`HTTP ${r.status}`, { response_ms: dt, http_status: r.status });
     }
     const json = await r.json();
     const parsed = parseStatusJson(json, service.match_filter);
     return { ...parsed, response_ms: dt, http_status: r.status };
   } catch (err) {
-    return { state: 'down', error: err.message || 'fetch failed' };
+    return unreadable(err.message || 'fetch failed');
   }
 }
 
@@ -511,7 +520,10 @@ function classifyFeed(items, filter) {
     // (Google prefixes its <title> with "RESOLVED:"). Either → this incident is
     // over, move on to older ones.
     if (FEED_RESOLVED_RE.test(head) || /\b(resolved|completed|recovered)\b/.test(title)) continue;
-    if (/\b(maintenance|scheduled)\b/.test(head) && !FEED_DOWN_RE.test(text)) continue;
+    // Maintenance, scheduled OR in progress: Statuspage only labels it
+    // "Scheduled" before it starts — once running the label is "In progress"
+    // and the word lives in the title (Twilio "… SMS Carrier Maintenance").
+    if ((/\b(maintenance|scheduled)\b/.test(head) || /\bmaintenance\b/.test(title)) && !FEED_DOWN_RE.test(text)) continue;
     // Prefer the entry title, but many feeds (AWS) leave it blank and put the
     // detail in the body — fall back to the first line of the content so the
     // alert carries real information instead of a generic "incident".
@@ -524,9 +536,9 @@ function classifyFeed(items, filter) {
 }
 
 async function probeFeed(service) {
-  if (!service.source_url) return { state: 'down', error: 'no source_url configured' };
+  if (!service.source_url) return unreadable('no source_url configured');
   const blocked = probeUrlBlockedReason(service.source_url);
-  if (blocked) return { state: 'down', error: blocked };
+  if (blocked) return unreadable(blocked);
   const t0 = Date.now();
   try {
     const r = await fetchWithTimeout(service.source_url, {
@@ -537,12 +549,12 @@ async function probeFeed(service) {
       },
     });
     const dt = Date.now() - t0;
-    if (!r.ok) { drain(r); return { state: 'degraded', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` }; }
+    if (!r.ok) { drain(r); return unreadable(`HTTP ${r.status}`, { response_ms: dt, http_status: r.status }); }
     const xml = (await r.text()).slice(0, 500_000);
     const parsed = classifyFeed(parseFeed(xml), service.match_filter);
     return { ...parsed, response_ms: dt, http_status: r.status };
   } catch (err) {
-    return { state: 'down', error: err.message || 'fetch failed' };
+    return unreadable(err.message || 'fetch failed');
   }
 }
 
@@ -553,21 +565,20 @@ const PAGE_DOWN_RE = /(major outage|complete outage|service unavailable|all syst
 const PAGE_DEGRADED_RE = /(degraded|partial outage|partial service|some (users|customers)|elevated errors?|increased errors?|investigating|identified|monitoring|service disruption|intermittent|slow performance)/;
 
 async function probePage(service) {
-  if (!service.source_url) return { state: 'down', error: 'no source_url configured' };
+  if (!service.source_url) return unreadable('no source_url configured');
   const blocked = probeUrlBlockedReason(service.source_url);
-  if (blocked) return { state: 'down', error: blocked };
+  if (blocked) return unreadable(blocked);
   const t0 = Date.now();
   try {
     let r = await fetchWithTimeout(service.source_url, { method: 'GET', headers: { 'User-Agent': 'Slice-IT-Hub/1.0 status-poller', 'Accept': 'text/html,*/*' } });
     const dt = Date.now() - t0;
-    if (r.status >= 500) { drain(r); return { state: 'down', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` }; }
-    if (!r.ok && r.status !== 401 && r.status !== 403) { drain(r); return { state: 'degraded', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` }; }
+    if (!r.ok && r.status !== 401 && r.status !== 403) { drain(r); return unreadable(`HTTP ${r.status}`, { response_ms: dt, http_status: r.status }); }
     const text = stripTags((await r.text()).slice(0, 300_000)).toLowerCase();
     if (PAGE_DOWN_RE.test(text))     return { state: 'down', state_note: 'Status page reports an outage', response_ms: dt, http_status: r.status };
     if (PAGE_DEGRADED_RE.test(text)) return { state: 'degraded', state_note: 'Status page reports degraded service', response_ms: dt, http_status: r.status };
     return { state: 'operational', response_ms: dt, http_status: r.status };
   } catch (err) {
-    return { state: 'down', error: err.message || 'fetch failed' };
+    return unreadable(err.message || 'fetch failed');
   }
 }
 
@@ -664,6 +675,22 @@ async function pollOne(pool, service) {
 // CONFIRM_SAMPLES consecutive readings agree. On a confirmed transition, open or
 // resolve an auto-incident so monitoring drives the public timeline.
 async function applyState(pool, service, observed) {
+  if (observed.unreadable) {
+    // Couldn't read the vendor's status: log the attempt with the LAST KNOWN
+    // state (status_checks only allows operational/degraded/down, and the
+    // public uptime bars read it) plus the error, so the admin's Health line
+    // shows the failure. No state change, no incident, no Slack alert.
+    await pool.query(
+      `INSERT INTO status_checks (service_id, state, response_ms, http_status, error)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [service.id, service.state, observed.response_ms || null, observed.http_status || null, observed.error],
+    );
+    await pool.query(
+      `UPDATE status_services SET last_checked_at = NOW(), last_error = $2, updated_at = NOW() WHERE id = $1`,
+      [service.id, observed.error],
+    );
+    return;
+  }
   await pool.query(
     `INSERT INTO status_checks (service_id, state, response_ms, http_status, error)
      VALUES ($1, $2, $3, $4, $5)`,
