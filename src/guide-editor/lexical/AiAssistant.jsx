@@ -76,7 +76,7 @@ export default function AiAssistantPlugin({ onAiAction, getTitle }) {
     // Anchor to the live selection rectangle so the palette appears where the
     // author is working rather than at a fixed spot.
     const domSel = window.getSelection();
-    let top = 120, left = 120, selected = false;
+    let top = null, left = null, selected = false;
     if (domSel && domSel.rangeCount > 0) {
       const rect = domSel.getRangeAt(0).getBoundingClientRect();
       if (rect && (rect.top || rect.left)) {
@@ -85,6 +85,17 @@ export default function AiAssistantPlugin({ onAiAction, getTitle }) {
       }
       selected = !domSel.isCollapsed;
     }
+    // No caret to anchor to (e.g. opened from the toolbar with nothing
+    // selected): drop it under the AI button rather than at a fixed 120,120,
+    // which put it in the page margin. Always keep it fully on screen.
+    if (top == null) {
+      const btn = document.querySelector('.lexical-ai-btn');
+      const r = btn && btn.getBoundingClientRect();
+      top = r ? r.bottom + 8 : 120;
+      left = r ? r.right - 320 : 120;
+    }
+    left = Math.max(12, Math.min(left, window.innerWidth - 332));
+    top = Math.max(12, Math.min(top, window.innerHeight - 160));
     setPos({ top, left });
     setHasSelection(selected);
     setQuery('');

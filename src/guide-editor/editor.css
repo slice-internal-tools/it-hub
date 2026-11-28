@@ -98,8 +98,8 @@
  * editor kept near-black text (33 30 30) while admin.html swapped the surface
  * to #15171C — text the same value as its background, i.e. invisible.
  *
- * Values mirror admin.html's own `body.editor-dark` palette (--canvas #15171C,
- * --ink #F1F3F5, --ink-2 #D1D5DB, --ink-3 #94A3B8, --border #2A2D34) so the
+ * Values mirror admin.html's own `body.editor-dark` palette (--canvas #1A1917,
+ * --ink #F4F1EC, --ink-2 #D9D3C9, --ink-3 #ADA597, --border #2E2B27) so the
  * editor matches the page it sits in rather than inventing a second dark theme.
  * [data-theme="dark"] is included for hosts that use that convention instead. */
 body.editor-dark .guide-editor-root,
@@ -108,15 +108,15 @@ body.editor-dark #ed-toolbar,
 [data-theme="dark"] .guide-editor-root,
 [data-theme="dark"] .guide-lexical-body,
 [data-theme="dark"] #ed-toolbar {
-  --color-bg-rgb: 15 17 21;
-  --color-surface-rgb: 21 23 28;
-  --color-surface-raised-rgb: 30 33 40;
-  --color-surface-subtle-rgb: 26 28 34;
-  --color-border-rgb: 42 45 52;
-  --color-border-strong-rgb: 58 62 71;
-  --color-text-rgb: 241 243 245;
-  --color-text-secondary-rgb: 209 213 219;
-  --color-text-muted-rgb: 148 163 184;
+  --color-bg-rgb: 18 17 16;
+  --color-surface-rgb: 26 25 23;
+  --color-surface-raised-rgb: 36 34 31;
+  --color-surface-subtle-rgb: 31 29 26;
+  --color-border-rgb: 46 43 39;
+  --color-border-strong-rgb: 63 59 53;
+  --color-text-rgb: 244 241 236;
+  --color-text-secondary-rgb: 217 211 201;
+  --color-text-muted-rgb: 173 165 151;
 }
 
 /* The toolbar is portaled into the host page's sticky header slot (#ed-toolbar)
@@ -176,6 +176,19 @@ body.editor-dark #ed-toolbar,
   padding-left: calc(max(0px, (100% - 830px) / 2) + 16px);
   padding-right: 16px;
 }
+/* Spacing: centre the row over the document card (it is wider than the card,
+ * so left-aligning left a ragged overhang on the right only), put 2px between
+ * buttons instead of none, and give each group divider 8px either side so the
+ * groups read as groups. Wins over the alignment rule above on purpose. */
+#ed-toolbar .guide-toolbar-row {
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 16px;
+}
+#ed-toolbar .guide-toolbar-row > .w-px {
+  margin-left: 8px;
+  margin-right: 8px;
+}
 
 /* Below 1040px the indent costs more than it is worth, so give the width back.
  *
@@ -190,8 +203,8 @@ body.editor-dark #ed-toolbar,
  * something this rule can fix. 1040px carries a little margin over 1032. */
 @media (max-width: 1040px) {
   #ed-toolbar .guide-toolbar-row {
-    padding-left: 6px;
-    padding-right: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
   }
 }
 
@@ -211,10 +224,135 @@ body.editor-dark #ed-toolbar,
    on a dark bar — the same invisible-text problem, just on the active state. */
 body.editor-dark #ed-toolbar,
 [data-theme="dark"] #ed-toolbar {
-  --color-primary-rgb: 241 243 245;
+  --color-primary-rgb: 244 241 236;
 }
 
 /* lexicalTheme.css is intentionally NOT imported here — LexicalEditor.jsx:85
  * and LexicalViewer.jsx:31 already import it themselves (as upstream does), so
  * Vite pulls it into this same bundle's stylesheet. Adding an @import would
  * both duplicate it and sit after rules, which is invalid CSS ordering. */
+
+/* Find & replace row: sit in the same centred column as the toolbar instead of
+ * stretching across the window, readable 13px text, and buttons that work in
+ * both themes. (bg-primary is retinted to ink in this bar, so the shipped
+ * `text-white bg-primary` made Replace / Replace All white-on-white in dark.) */
+#ed-toolbar .guide-find-row {
+  width: 100%;
+  max-width: 830px;
+  margin: 0 auto;
+  padding: 8px 24px;
+  gap: 8px;
+  background: transparent;
+  border-bottom: 0;
+}
+#ed-toolbar .guide-find-row input { height: 32px; font-size: 13px; }
+#ed-toolbar .guide-find-row > span { font-size: 12px; min-width: 72px; text-align: right; }
+#ed-toolbar .guide-find-row > button:nth-of-type(1),
+#ed-toolbar .guide-find-row > button:nth-of-type(2) {
+  height: 32px; padding: 0 12px; font-size: 13px; font-weight: 600; box-shadow: none;
+}
+#ed-toolbar .guide-find-row > button:nth-of-type(1) {
+  background: transparent;
+  color: rgb(var(--color-text-rgb));
+  border: 1px solid rgb(var(--color-border-strong-rgb));
+}
+#ed-toolbar .guide-find-row > button:nth-of-type(1):hover { background: rgb(var(--color-surface-raised-rgb)); }
+#ed-toolbar .guide-find-row > button:nth-of-type(2) {
+  background: rgb(var(--color-text-rgb));
+  color: rgb(var(--color-surface-rgb));
+}
+#ed-toolbar .guide-find-row > button:nth-of-type(2):hover { opacity: .9; background: rgb(var(--color-text-rgb)); }
+
+/* The AI button: a neutral outline pill like the rest of the chrome, not a
+ * Cheese-yellow fill. The "AI" label keeps it findable among the icons. */
+#ed-toolbar .lexical-ai-btn,
+body.editor-dark #ed-toolbar .lexical-ai-btn {
+  background: transparent;
+  color: rgb(var(--color-text-rgb));
+  border: 1px solid rgb(var(--color-border-strong-rgb));
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+#ed-toolbar .lexical-ai-btn:hover { background: rgb(var(--color-surface-raised-rgb)); box-shadow: none; }
+
+/* Every secondary row under the toolbar (link, table, image, embed, find) sits
+ * in the same centred 830px column as the document instead of spanning the
+ * whole window. Only one is open at a time (see LexicalEditor.jsx). */
+#ed-toolbar > div > div:not(.guide-toolbar-row) {
+  width: 100%;
+  max-width: 830px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  background: transparent;
+  border-bottom: 0;
+}
+
+/* AI palette: the highlighted row uses a neutral tint, not SliceDesk red. */
+.lexical-ai-item.is-active { background: rgb(var(--color-text-rgb) / 0.06); }
+
+/* Action buttons in the link / image / embed / table panels ship as
+ * `text-white bg-primary`. Here bg-primary is ink (charcoal in light, near-white
+ * in dark), so in dark mode "Insert" / "Embed" / "Upload" were white on white.
+ * Text takes the surface colour instead, and hover stays on the ink scale —
+ * primary-hover was still SliceDesk red, so the button flashed red on hover. */
+#ed-toolbar { --color-primary-hover-rgb: 74 63 46; }
+body.editor-dark #ed-toolbar,
+[data-theme="dark"] #ed-toolbar { --color-primary-hover-rgb: 255 255 255; }
+#ed-toolbar .bg-primary.text-white { color: rgb(var(--color-surface-rgb)); }
+#ed-toolbar .bg-primary.text-white:disabled { opacity: .45; }
+
+/* Table size picker: unselected cells were border-border/60 on the bar's own
+ * surface — invisible in dark mode. Give them a real outline. */
+#ed-toolbar button.w-5.h-5.rounded-sm:not(.bg-primary) {
+  background: transparent;
+  border-color: rgb(var(--color-border-strong-rgb));
+}
+#ed-toolbar button.w-5.h-5.rounded-sm.bg-primary { border-color: rgb(var(--color-text-rgb)); }
+
+/* ── Insert panels (image, embed): one quiet row + one hint/error line ── */
+#ed-toolbar .guide-panel { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; padding-bottom: 10px; }
+#ed-toolbar .guide-panel-row { display: flex; align-items: center; gap: 8px; }
+#ed-toolbar .guide-panel-icon { color: rgb(var(--color-text-secondary-rgb)); flex-shrink: 0; }
+#ed-toolbar .guide-panel-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; flex-shrink: 0;
+  border: 1px solid rgb(var(--color-border-strong-rgb)); border-radius: 8px; background: transparent;
+  font-size: 13px; font-weight: 600; color: rgb(var(--color-text-rgb)); cursor: pointer;
+}
+#ed-toolbar .guide-panel-btn:hover:not(:disabled) { background: rgb(var(--color-surface-raised-rgb)); }
+#ed-toolbar .guide-panel-btn:disabled { opacity: .7; cursor: progress; }
+#ed-toolbar .guide-panel-or { font-size: 12px; color: rgb(var(--color-text-muted-rgb)); }
+#ed-toolbar .guide-panel-input {
+  flex: 1; min-width: 0; height: 32px; padding: 0 10px; font-size: 13px;
+  color: rgb(var(--color-text-rgb)); background: rgb(var(--color-surface-rgb));
+  border: 1px solid rgb(var(--color-border-strong-rgb)); border-radius: 8px; outline: none;
+}
+#ed-toolbar .guide-panel-input:focus { border-color: rgb(var(--color-text-muted-rgb)); }
+#ed-toolbar .guide-panel-input::placeholder { color: rgb(var(--color-text-muted-rgb) / .7); }
+#ed-toolbar .guide-panel-close {
+  width: 32px; height: 32px; flex-shrink: 0; display: grid; place-items: center; border-radius: 8px;
+  border: 0; background: transparent; color: rgb(var(--color-text-muted-rgb)); cursor: pointer;
+}
+#ed-toolbar .guide-panel-close:hover { background: rgb(var(--color-surface-raised-rgb)); color: rgb(var(--color-text-rgb)); }
+#ed-toolbar .guide-panel-hint,
+#ed-toolbar .guide-panel-error { margin: 0; padding-left: 24px; font-size: 12px; line-height: 1.45; }
+#ed-toolbar .guide-panel-hint { color: rgb(var(--color-text-muted-rgb)); }
+#ed-toolbar .guide-panel-ok { color: rgb(var(--color-text-secondary-rgb)); }
+#ed-toolbar .guide-panel-error { color: #B92323; }
+body.editor-dark #ed-toolbar .guide-panel-error { color: #F26B5E; }
+#ed-toolbar .guide-panel-spin {
+  width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent;
+  animation: guide-spin .7s linear infinite;
+}
+@keyframes guide-spin { to { transform: rotate(360deg); } }
+
+/* + menu section labels: readable sentence case instead of 9px caps at 50%. */
+.guide-menu-label { padding: 8px 12px 4px; font-size: 11px; font-weight: 600; color: rgb(var(--color-text-muted-rgb)); }
+
+/* Toolbar dropdowns (+ menu, colour menu): wide enough that item descriptions
+ * sit on one line, tall enough to show the whole + menu with little scrolling. */
+#ed-toolbar .w-56.max-h-96 { width: 272px; max-height: min(520px, calc(100vh - 160px)); }

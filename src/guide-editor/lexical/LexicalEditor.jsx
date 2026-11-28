@@ -45,7 +45,7 @@ import { $buildToggle, $isToggleNode } from './ToggleNode';
 import { $buildColumns } from './ColumnsNode';
 import MentionPlugin from './MentionPlugin';
 import AiAssistantPlugin from './AiAssistant';
-import { resolveEmbed } from './embedUrls';
+import { resolveEmbed, describeEmbed } from './embedUrls';
 import { HeadingNode, QuoteNode, $isHeadingNode } from '@lexical/rich-text';
 import { CodeNode, CodeHighlightNode } from '@lexical/code';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
@@ -78,9 +78,10 @@ import {
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
   INSERT_CHECK_LIST_COMMAND,
+  REMOVE_LIST_COMMAND,
   $isListNode,
 } from '@lexical/list';
-import { $createHeadingNode, $createQuoteNode } from '@lexical/rich-text';
+import { $createHeadingNode, $createQuoteNode, $isQuoteNode } from '@lexical/rich-text';
 import { $createCodeNode, $isCodeNode } from '@lexical/code';
 import { $setBlocksType, $patchStyleText, $getSelectionStyleValueForProperty } from '@lexical/selection';
 import { $findMatchingParent, $getNearestNodeOfType } from '@lexical/utils';
@@ -218,9 +219,12 @@ function MenuItem({ onClick, icon, label, shortcut, description }) {
 const Btn = ({ onClick, title, children, active = false, disabled = false, className = '' }) => (
   <button
     type="button"
+    onMouseDown={(e) => e.preventDefault()}
     onClick={onClick}
     disabled={disabled}
     title={title}
+    aria-label={title}
+    aria-pressed={active}
     className={`p-2 rounded-lg transition-all flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-raised disabled:opacity-50 disabled:cursor-not-allowed ${active ? 'bg-primary/15 text-primary' : ''} ${className}`}
   >
     {children}
@@ -385,12 +389,21 @@ function applyColumns(editor, cols) {
 
 // Replace the current block with a real collapsible <details> block, using any
 // selected text as the summary label.
+//
+// Never destroys text: it used to REPLACE the current block unconditionally,
+// so inserting a toggle with the caret in a written paragraph deleted that
+// paragraph. Now it replaces only an empty block, or one whose whole text is
+// selected (that text becomes the summary); otherwise it goes in after it.
 function applyToggle(editor) {
   editor.update(() => {
     const sel = $getSelection();
     if (!$isRangeSelection(sel)) return;
-    const { toggle, body } = $buildToggle(sel.getTextContent());
-    sel.anchor.getNode().getTopLevelElementOrThrow().replace(toggle);
+    const selected = sel.getTextContent();
+    const block = sel.anchor.getNode().getTopLevelElementOrThrow();
+    const blockText = block.getTextContent().trim();
+    const { toggle, body } = $buildToggle(selected);
+    if (!blockText || (selected.trim() && selected.trim() === blockText)) block.replace(toggle);
+    else block.insertAfter(toggle);
     body.selectStart();
   });
 }
@@ -405,6 +418,11 @@ function Toolbar({ className, surface, showKeyboardHints }) {
   const [h1Active, setH1Active] = useState(false);
   const [h2Active, setH2Active] = useState(false);
   const [h3Active, setH3Active] = useState(false);
+  // Block-level state so list / quote / code buttons light up and toggle off,
+  // like the heading buttons already did.
+  const [listType, setListType] = useState(null); // 'bullet' | 'number' | 'check' | null
+  const [quoteActive, setQuoteActive] = useState(false);
+  const [codeBlockActive, setCodeBlockActive] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -416,6 +434,8 @@ function Toolbar({ className, surface, showKeyboardHints }) {
   const [imageOpen, setImageOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [imageAlt, setImageAlt] = useState('');
+  const [imageBusy, setImageBusy] = useState(false);   // upload in flight
+  const [imageError, setImageError] = useState('');
   const imageInputRef = useRef(null);
 
   const [embedOpen, setEmbedOpen] = useState(false);
@@ -427,15 +447,28 @@ function Toolbar({ className, surface, showKeyboardHints }) {
   const [tableCols, setTableCols] = useState(3);
   const [hoveredCell, setHoveredCell] = useState(null);
 
-  const [colorOpen, setColorOpen] = useState(false);
   const [textColorOpen, setTextColorOpen] = useState(false);
-  const [alignOpen, setAlignOpen] = useState(false);
   const [insertMenuOpen, setInsertMenuOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [replaceQuery, setReplaceQuery] = useState('');
   const [matchCount, setMatchCount] = useState(0);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+
+  // One secondary panel at a time: opening link / table / image / embed / find
+  // closes whichever was open, instead of stacking rows above the page.
+  const panelsRef = useRef({ linkOpen, tableOpen, imageOpen, embedOpen, findOpen });
+  useEffect(() => {
+    const now = { linkOpen, tableOpen, imageOpen, embedOpen, findOpen };
+    const opened = Object.keys(now).find((k) => now[k] && !panelsRef.current[k]);
+    panelsRef.current = now;
+    if (!opened) return;
+    if (opened !== 'linkOpen' && linkOpen) setLinkOpen(false);
+    if (opened !== 'tableOpen' && tableOpen) setTableOpen(false);
+    if (opened !== 'imageOpen' && imageOpen) setImageOpen(false);
+    if (opened !== 'embedOpen' && embedOpen) setEmbedOpen(false);
+    if (opened !== 'findOpen' && findOpen) setFindOpen(false);
+  }, [linkOpen, tableOpen, imageOpen, embedOpen, findOpen]);
 
   const updateActiveStates = useCallback(() => {
     editor.getEditorState().read(() => {
@@ -458,6 +491,10 @@ function Toolbar({ className, surface, showKeyboardHints }) {
           setH2Active(false);
           setH3Active(false);
         }
+        const list = $findMatchingParent(node, (n) => $isListNode(n));
+        setListType($isListNode(list) ? list.getListType() : null);
+        setQuoteActive(!!$findMatchingParent(node, (n) => $isQuoteNode(n)));
+        setCodeBlockActive(!!$findMatchingParent(node, (n) => $isCodeNode(n)));
       }
     });
   }, [editor]);
@@ -495,9 +532,15 @@ function Toolbar({ className, surface, showKeyboardHints }) {
   };
 
   const insertImage = () => {
-    if (!imageUrl) return;
+    const url = imageUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\/\S+$/i.test(url)) {
+      setImageError('Paste a full image link that starts with https://');
+      return;
+    }
+    setImageError('');
     withInsertionPoint((sel) => {
-      const imageNode = $createImageNode({ src: imageUrl, alt: imageAlt });
+      const imageNode = $createImageNode({ src: url, alt: imageAlt });
       const paragraph = $createParagraphNode();
       sel.insertNodes([imageNode, paragraph]);
     });
@@ -510,7 +553,7 @@ function Toolbar({ className, surface, showKeyboardHints }) {
   const insertEmbed = () => {
     const resolved = resolveEmbed(embedUrl);
     if (!resolved) {
-      setEmbedError('Paste a YouTube, Vimeo, or Google Docs/Drive link.');
+      setEmbedError("That link isn't supported. Use a YouTube, Vimeo, Loom or Google Docs/Sheets/Slides/Drive link.");
       return;
     }
     withInsertionPoint((sel) => {
@@ -534,21 +577,24 @@ function Toolbar({ className, surface, showKeyboardHints }) {
     setTableOpen(false);
   };
 
-  const insertBulletList = () => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined);
-  const insertNumberedList = () => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
-  const insertChecklist = () => editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined);
-  const insertCodeBlock = () => {
+  // Each block button is a toggle: clicking it inside that block returns the
+  // text to a plain paragraph (it used to re-apply and look like it did nothing).
+  const toggleList = (type, insertCommand) => editor.dispatchCommand(
+    listType === type ? REMOVE_LIST_COMMAND : insertCommand, undefined,
+  );
+  const insertBulletList = () => toggleList('bullet', INSERT_UNORDERED_LIST_COMMAND);
+  const insertNumberedList = () => toggleList('number', INSERT_ORDERED_LIST_COMMAND);
+  const insertChecklist = () => toggleList('check', INSERT_CHECK_LIST_COMMAND);
+  const toggleBlock = (isType, create) => {
     editor.update(() => {
       const sel = $getSelection();
-      if ($isRangeSelection(sel)) $setBlocksType(sel, () => $createCodeNode());
+      if (!$isRangeSelection(sel)) return;
+      const inside = !!$findMatchingParent(sel.anchor.getNode(), isType);
+      $setBlocksType(sel, () => (inside ? $createParagraphNode() : create()));
     });
   };
-  const insertQuoteBlock = () => {
-    editor.update(() => {
-      const sel = $getSelection();
-      if ($isRangeSelection(sel)) $setBlocksType(sel, () => $createQuoteNode());
-    });
-  };
+  const insertCodeBlock = () => toggleBlock((n) => $isCodeNode(n), () => $createCodeNode());
+  const insertQuoteBlock = () => toggleBlock((n) => $isQuoteNode(n), () => $createQuoteNode());
   const insertCallout = (emoji, variant) => applyCallout(editor, emoji, variant);
 
   // Headings TOGGLE. The toolbar lights H1/H2/H3 up when the caret sits in one
@@ -708,7 +754,7 @@ function Toolbar({ className, surface, showKeyboardHints }) {
         $patchStyleText(sel, { 'background-color': color || '' });
       }
     });
-    setColorOpen(false);
+    setTextColorOpen(false);
   };
 
   const insertToggle = () => applyToggle(editor);
@@ -720,16 +766,25 @@ function Toolbar({ className, surface, showKeyboardHints }) {
     input.onchange = async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      setImageError('');
+      setImageBusy(true);
       try {
-        const { data } = await uploadApi.upload(file);
+        // quiet: this panel shows the error itself (paste/drop get a toast).
+        const { data } = await uploadApi.upload(file, { quiet: true });
+        const alt = (file.name || '').replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
         withInsertionPoint((selection) => {
-          const imageNode = $createImageNode({ src: data.url, alt: '' });
+          const imageNode = $createImageNode({ src: data.url, alt });
           const paragraph = $createParagraphNode();
           selection.insertNodes([imageNode, paragraph]);
           paragraph.selectStart();
         });
-      } catch (err) { console.error('Image upload failed:', err); }
-      setImageOpen(false);
+        setImageOpen(false);
+      } catch (err) {
+        console.error('Image upload failed:', err);
+        setImageError(err?.message || 'Upload failed. Try again.');
+      } finally {
+        setImageBusy(false);
+      }
     };
     input.click();
   };
@@ -738,7 +793,7 @@ function Toolbar({ className, surface, showKeyboardHints }) {
     <div className={`border-b border-border bg-surface-subtle/50 flex flex-col ${className || ''}`}>
       {/* Find & Replace Bar */}
       {findOpen && (
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 bg-primary-light/5">
+        <div className="guide-find-row flex items-center gap-2 px-3 py-2 border-b border-border/50 bg-primary-light/5">
           <I size={14} className="text-text-muted flex-shrink-0"><path d="m21 21-4.35-4.35M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/></I>
           <input
             ref={linkInputRef}
@@ -774,20 +829,20 @@ function Toolbar({ className, surface, showKeyboardHints }) {
       {/* Main Toolbar — all tools flat, no dropdowns */}
       <div className="guide-toolbar-row flex items-center flex-wrap gap-0 px-1.5 py-1.5">
         {/* ── Text Formatting ── */}
-        <Btn onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold')} title="Bold (Ctrl+B)" active={boldActive}>
-          <I size={15}><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></I>
+        <Btn onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold')} title="Bold (⌘B)" active={boldActive}>
+          <I size={16}><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/></I>
         </Btn>
-        <Btn onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic')} title="Italic (Ctrl+I)" active={italicActive}>
-          <I size={15}><line x1="6" y1="4" x2="10" y2="4"/><line x1="14" y1="4" x2="18" y2="4"/><line x1="18" y1="4" x2="6" y2="20"/><line x1="6" y1="20" x2="14" y2="20"/><line x1="14" y1="20" x2="18" y2="20"/></I>
+        <Btn onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic')} title="Italic (⌘I)" active={italicActive}>
+          <I size={16}><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></I>
         </Btn>
-        <Btn onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline')} title="Underline (Ctrl+U)" active={underlineActive}>
-          <I size={15}><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></I>
+        <Btn onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline')} title="Underline (⌘U)" active={underlineActive}>
+          <I size={16}><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" y1="20" x2="20" y2="20"/></I>
         </Btn>
         <Btn onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough')} title="Strikethrough" active={strikeActive}>
-          <I size={15}><path d="M17.3 13.2c.7-.7 1.7-1.2 2.7-1.2 2 0 3.5 1.5 3.5 3.5 0 2-1.5 3.5-3.5 3.5-1 0-2-.5-2.7-1.2M3 12h18"/><path d="M8 5c-1 0-2 .5-2.7 1.3C4.6 7 4 8 4 9.2 4 11 5 12.5 6.3 13"/></I>
+          <I size={16}><path d="M16 4H9a3 3 0 0 0-2.83 4"/><path d="M14 12a4 4 0 0 1 0 8H6"/><line x1="4" y1="12" x2="20" y2="12"/></I>
         </Btn>
         <Btn onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'code')} title="Inline Code" active={codeActive}>
-          <I size={15}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></I>
+          <I size={16}><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></I>
         </Btn>
 
         <Sep />
@@ -797,8 +852,8 @@ function Toolbar({ className, surface, showKeyboardHints }) {
           open={textColorOpen}
           onToggle={setTextColorOpen}
           trigger={
-            <Btn onClick={() => setTextColorOpen(v => !v)} title="Text Color" active={textColorOpen}>
-              <I size={15}><path d="M9.62 12L12 5.67 14.38 12M7 16l1.5-4h7L17 16"/><line x1="3" y1="20" x2="21" y2="20" strokeWidth="3" stroke="#dc2626"/></I>
+            <Btn onClick={() => setTextColorOpen(v => !v)} title="Text colour & highlight" active={textColorOpen}>
+              <I size={16}><path d="M4 20h16"/><path d="m6 16 6-12 6 12"/><path d="M8 12h8"/></I>
             </Btn>
           }
         >
@@ -819,18 +874,6 @@ function Toolbar({ className, surface, showKeyboardHints }) {
               ))}
             </div>
           </div>
-        </DropdownMenu>
-
-        {/* ── Highlight (real colors) ── */}
-        <DropdownMenu
-          open={colorOpen}
-          onToggle={setColorOpen}
-          trigger={
-            <Btn onClick={() => setColorOpen(v => !v)} title="Highlight Color" active={colorOpen}>
-              <I size={15}><path d="M5.5 21h13M12 3l7 13H5z"/><line x1="3" y1="20" x2="21" y2="20" strokeWidth="3" stroke="#facc15"/></I>
-            </Btn>
-          }
-        >
           <div className="px-2 pt-2 pb-1">
             <div className="text-[9px] font-semibold text-text-muted/50 uppercase tracking-widest px-1 pb-1.5">Highlight</div>
             <div className="grid grid-cols-5 gap-1.5">
@@ -851,93 +894,59 @@ function Toolbar({ className, surface, showKeyboardHints }) {
           </div>
         </DropdownMenu>
 
-        <Btn onClick={() => setLinkOpen(true)} title="Add Link (Ctrl+K)">
-          <I size={15}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></I>
+        <Btn onClick={() => setLinkOpen(true)} title="Link (⌘K)">
+          <I size={16}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></I>
         </Btn>
 
         <Sep />
 
         {/* ── Headings ── */}
         <Btn onClick={() => insertCalloutHeading('h1')} title="Heading 1" active={h1Active}>
-          <span className="text-[11px] font-extrabold leading-none">H1</span>
+          <I size={16}><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="m17 12 3-2v8"/></I>
         </Btn>
         <Btn onClick={() => insertCalloutHeading('h2')} title="Heading 2" active={h2Active}>
-          <span className="text-[11px] font-bold leading-none">H2</span>
+          <I size={16}><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"/></I>
         </Btn>
         <Btn onClick={() => insertCalloutHeading('h3')} title="Heading 3" active={h3Active}>
-          <span className="text-[11px] font-semibold leading-none">H3</span>
+          <I size={16}><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 0 1-2 2"/><path d="M17 17.5c2 1.5 4 .3 4-1.5a2 2 0 0 0-2-2"/></I>
         </Btn>
 
         <Sep />
 
         {/* ── Lists (directly on toolbar) ── */}
-        <Btn onClick={insertBulletList} title="Bullet List">
-          <I size={15}><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></I>
+        <Btn onClick={insertBulletList} title="Bulleted list" active={listType === 'bullet'}>
+          <I size={16}><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/></I>
         </Btn>
-        <Btn onClick={insertNumberedList} title="Numbered List">
-          <I size={15}><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></I>
+        <Btn onClick={insertNumberedList} title="Numbered list" active={listType === 'number'}>
+          <I size={16}><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></I>
         </Btn>
-        <Btn onClick={insertChecklist} title="Checklist">
-          <I size={15}><rect x="3" y="5" width="6" height="6" rx="1"/><path d="m3 17 2 2 4-4"/><line x1="13" y1="8" x2="21" y2="8"/><line x1="13" y1="18" x2="21" y2="18"/></I>
-        </Btn>
-
-        <Sep />
-
-        {/* ── Text Alignment ── */}
-        <DropdownMenu
-          open={alignOpen}
-          onToggle={setAlignOpen}
-          trigger={
-            <Btn onClick={() => setAlignOpen(v => !v)} title="Text Alignment" active={alignOpen}>
-              <I size={15}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></I>
-            </Btn>
-          }
-        >
-          <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'left'); setAlignOpen(false); }}
-            icon={<I size={14}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></I>}
-            label="Align Left" />
-          <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'center'); setAlignOpen(false); }}
-            icon={<I size={14}><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></I>}
-            label="Align Center" />
-          <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'right'); setAlignOpen(false); }}
-            icon={<I size={14}><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></I>}
-            label="Align Right" />
-          <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'justify'); setAlignOpen(false); }}
-            icon={<I size={14}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></I>}
-            label="Justify" />
-        </DropdownMenu>
-
-        {/* ── Indent / Outdent ── */}
-        <Btn onClick={() => editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined)} title="Indent">
-          <I size={15}><polyline points="3 8 7 12 3 16"/><line x1="21" y1="12" x2="11" y2="12"/><line x1="21" y1="6" x2="11" y2="6"/><line x1="21" y1="18" x2="11" y2="18"/></I>
-        </Btn>
-        <Btn onClick={() => editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined)} title="Outdent">
-          <I size={15}><polyline points="7 8 3 12 7 16"/><line x1="21" y1="12" x2="11" y2="12"/><line x1="21" y1="6" x2="11" y2="6"/><line x1="21" y1="18" x2="11" y2="18"/></I>
+        <Btn onClick={insertChecklist} title="Checklist" active={listType === 'check'}>
+          <I size={16}><rect x="3" y="5" width="6" height="6" rx="1"/><path d="m3 17 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></I>
         </Btn>
 
         <Sep />
 
         {/* ── Blocks (directly on toolbar) ── */}
-        <Btn onClick={insertQuoteBlock} title="Quote / Callout">
-          <I size={15}><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z" fill="currentColor" stroke="none"/></I>
+        <Btn onClick={insertQuoteBlock} title="Quote" active={quoteActive}>
+          <I size={16}><path d="M17 6H3"/><path d="M21 12H8"/><path d="M21 18H8"/><path d="M3 12v6"/></I>
         </Btn>
-        <Btn onClick={insertCodeBlock} title="Code Block">
-          <I size={15}><rect x="4" y="4" width="16" height="16" rx="2"/><polyline points="10 10 8 12 10 14"/><polyline points="14 10 16 12 14 14"/></I>
+        <Btn onClick={insertCodeBlock} title="Code block" active={codeBlockActive}>
+          <I size={16}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m10 9-3 3 3 3"/><path d="m14 15 3-3-3-3"/></I>
         </Btn>
         <Btn onClick={() => editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined)} title="Divider">
-          <I size={15}><line x1="3" y1="12" x2="21" y2="12"/></I>
+          <I size={16}><line x1="3" y1="12" x2="21" y2="12"/><polyline points="8 8 12 4 16 8"/><polyline points="16 16 12 20 8 16"/></I>
         </Btn>
 
         <Sep />
 
         {/* ── Table ── */}
-        <Btn onClick={() => setTableOpen(!tableOpen)} title="Insert Table" active={tableOpen}>
-          <I size={15}><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></I>
+        <Btn onClick={() => setTableOpen(!tableOpen)} title="Table" active={tableOpen}>
+          <I size={16}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/></I>
         </Btn>
 
         {/* ── Image ── */}
-        <Btn onClick={() => setImageOpen(!imageOpen)} title="Insert Image" active={imageOpen}>
-          <I size={15}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></I>
+        <Btn onClick={() => setImageOpen(!imageOpen)} title="Image" active={imageOpen}>
+          <I size={16}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></I>
         </Btn>
 
         {/* PORTED: the GIF (Giphy) button is removed in it-hub. GiphyPicker
@@ -947,7 +956,7 @@ function Toolbar({ className, surface, showKeyboardHints }) {
 
         {/* ── Embed: video / Google Doc ── */}
         <Btn onClick={() => { setEmbedOpen(!embedOpen); setEmbedError(''); }} title="Embed video or Google Doc" active={embedOpen}>
-          <I size={15}><rect x="2" y="3" width="20" height="14" rx="2"/><path d="m10 8 5 3-5 3z"/></I>
+          <I size={16}><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="m10 7.5 4.5 2.5-4.5 2.5z"/></I>
         </Btn>
 
         <Sep />
@@ -957,39 +966,37 @@ function Toolbar({ className, surface, showKeyboardHints }) {
           open={insertMenuOpen}
           onToggle={setInsertMenuOpen}
           trigger={
-            <Btn onClick={() => setInsertMenuOpen(v => !v)} title="More blocks..." active={insertMenuOpen}>
-              <I size={15}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></I>
+            <Btn onClick={() => setInsertMenuOpen(v => !v)} title="More blocks" active={insertMenuOpen}>
+              <I size={16}><path d="M5 12h14"/><path d="M12 5v14"/></I>
             </Btn>
           }
         >
-          <div className="px-3 pt-1.5 pb-1 text-[9px] font-semibold text-text-muted/50 uppercase tracking-widest">Callouts</div>
-          <MenuItem onClick={() => { insertCallout('ℹ️ ', 'info'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">ℹ️</span>} label="Info Box" />
-          <MenuItem onClick={() => { insertCallout('💡 ', 'info'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">💡</span>} label="Tip / Pro Tip" />
-          <MenuItem onClick={() => { insertCallout('✅ ', 'success'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">✅</span>} label="Success / Done" />
-          <MenuItem onClick={() => { insertCallout('⚠️ ', 'warn'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">⚠️</span>} label="Warning Box" />
-          <MenuItem onClick={() => { insertCallout('❌ ', 'danger'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">❌</span>} label="Error / Don't" />
-          <MenuItem onClick={() => { insertCallout('🔒 ', 'warn'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">🔒</span>} label="Security Note" />
-          <MenuItem onClick={() => { insertCallout('📌 ', 'info'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">📌</span>} label="Important / Pinned" />
-          <MenuItem onClick={() => { insertCallout('🔧 ', 'info'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">🔧</span>} label="Troubleshooting" />
+          <div className="guide-menu-label">Callouts</div>
+          <MenuItem onClick={() => { insertCallout('ℹ️ ', 'info'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">ℹ️</span>} label="Note" description="Background or context" />
+          <MenuItem onClick={() => { insertCallout('💡 ', 'info'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">💡</span>} label="Tip" description="A shortcut or better way" />
+          <MenuItem onClick={() => { insertCallout('✅ ', 'success'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">✅</span>} label="Success" description="What it looks like when it worked" />
+          <MenuItem onClick={() => { insertCallout('⚠️ ', 'warn'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">⚠️</span>} label="Warning" description="Read this before you continue" />
+          <MenuItem onClick={() => { insertCallout('⛔️ ', 'danger'); setInsertMenuOpen(false); }} icon={<span className="text-[14px]">⛔️</span>} label="Don't" description="Something that will break things" />
           <div className="h-px bg-border/60 my-1 mx-2" />
-          <div className="px-3 pt-1.5 pb-1 text-[9px] font-semibold text-text-muted/50 uppercase tracking-widest">Advanced</div>
-          <MenuItem onClick={() => { insertToggle(); setInsertMenuOpen(false); }} icon={<I size={14}><path d="M9 6l-2 3h2v4H9l2 3V6z"/></I>} label="Toggle / Collapsible" />
-          <MenuItem onClick={() => { applyColumns(editor, 2); setInsertMenuOpen(false); }} icon={<I size={14}><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/></I>} label="2 columns" />
-          <MenuItem onClick={() => { applyColumns(editor, 3); setInsertMenuOpen(false); }} icon={<I size={14}><rect x="2" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="16" rx="1"/><rect x="17" y="4" width="5" height="16" rx="1"/></I>} label="3 columns" />
+          <div className="guide-menu-label">Layout</div>
+          <MenuItem onClick={() => { insertToggle(); setInsertMenuOpen(false); }} icon={<I size={14}><path d="m3 10 2.5-2.5L3 5"/><path d="m3 19 2.5-2.5L3 14"/><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/></I>} label="Toggle" description="Collapsible section" />
+          <MenuItem onClick={() => { applyColumns(editor, 2); setInsertMenuOpen(false); }} icon={<I size={14}><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/></I>} label="Two columns" />
+          <MenuItem onClick={() => { applyColumns(editor, 3); setInsertMenuOpen(false); }} icon={<I size={14}><rect x="2" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="16" rx="1"/><rect x="17" y="4" width="5" height="16" rx="1"/></I>} label="Three columns" />
+          <div className="h-px bg-border/60 my-1 mx-2" />
+          <div className="guide-menu-label">Format</div>
+          <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'left'); setInsertMenuOpen(false); }}
+            icon={<I size={14}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></I>}
+            label="Align left" />
+          <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'center'); setInsertMenuOpen(false); }}
+            icon={<I size={14}><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="5" y1="18" x2="19" y2="18"/></I>}
+            label="Align center" />
+          <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'right'); setInsertMenuOpen(false); }}
+            icon={<I size={14}><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="6" y1="18" x2="21" y2="18"/></I>}
+            label="Align right" />
           <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'subscript'); setInsertMenuOpen(false); }} icon={<span className="text-[11px] font-bold">X<sub>2</sub></span>} label="Subscript" />
           <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'superscript'); setInsertMenuOpen(false); }} icon={<span className="text-[11px] font-bold">X<sup>2</sup></span>} label="Superscript" />
-          <MenuItem onClick={() => { editor.update(() => { const sel = $getSelection(); if ($isRangeSelection(sel)) { $setBlocksType(sel, () => $createParagraphNode()); $patchStyleText(sel, { color: '', 'background-color': '', 'font-size': '' }); if (sel.hasFormat('bold')) sel.formatText('bold'); if (sel.hasFormat('italic')) sel.formatText('italic'); if (sel.hasFormat('underline')) sel.formatText('underline'); if (sel.hasFormat('strikethrough')) sel.formatText('strikethrough'); if (sel.hasFormat('code')) sel.formatText('code'); if (sel.hasFormat('highlight')) sel.formatText('highlight'); } }); setInsertMenuOpen(false); }} icon={<I size={14}><path d="M21 10H7"/><path d="M21 6H3"/><path d="M21 14H3"/><path d="M21 18H7"/></I>} label="Clear All Formatting" />
+          <MenuItem onClick={() => { editor.update(() => { const sel = $getSelection(); if ($isRangeSelection(sel)) { $setBlocksType(sel, () => $createParagraphNode()); $patchStyleText(sel, { color: '', 'background-color': '', 'font-size': '' }); if (sel.hasFormat('bold')) sel.formatText('bold'); if (sel.hasFormat('italic')) sel.formatText('italic'); if (sel.hasFormat('underline')) sel.formatText('underline'); if (sel.hasFormat('strikethrough')) sel.formatText('strikethrough'); if (sel.hasFormat('code')) sel.formatText('code'); if (sel.hasFormat('highlight')) sel.formatText('highlight'); } }); setInsertMenuOpen(false); }} icon={<I size={14}><path d="M21 10H7"/><path d="M21 6H3"/><path d="M21 14H3"/><path d="M21 18H7"/></I>} label="Clear formatting" />
         </DropdownMenu>
-
-        <Sep />
-
-        {/* ── Undo / Redo ── */}
-        <Btn onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)} title="Undo (Ctrl+Z)" disabled={!canUndo}>
-          <I size={15}><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/></I>
-        </Btn>
-        <Btn onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)} title="Redo (Ctrl+Y)" disabled={!canRedo}>
-          <I size={15}><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 019-9 9 9 0 016 2.3l3-2.3"/></I>
-        </Btn>
 
         <Sep />
 
@@ -1007,11 +1014,11 @@ function Toolbar({ className, surface, showKeyboardHints }) {
           title="Ask AI (⌘J)"
           onClick={() => window.dispatchEvent(new CustomEvent('guide-editor:open-ai'))}
         >
-          <I size={13}><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></I>
+          <I size={14}><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.13-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.13a.5.5 0 0 1 .96 0l1.58 6.13a2 2 0 0 0 1.44 1.44l6.13 1.58a.5.5 0 0 1 0 .96l-6.13 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.13a.5.5 0 0 1-.96 0z"/></I>
           <span>AI</span>
         </button>
-        <Btn onClick={() => setFindOpen(!findOpen)} title="Find & Replace (Ctrl+F)" active={findOpen}>
-          <I size={15}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></I>
+        <Btn onClick={() => setFindOpen(!findOpen)} title="Find & replace (⌘F)" active={findOpen}>
+          <I size={16}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></I>
         </Btn>
       </div>
 
@@ -1055,72 +1062,88 @@ function Toolbar({ className, surface, showKeyboardHints }) {
 
       {/* Image insertion row */}
       {imageOpen && (
-        <div className="flex items-center gap-2 px-3 py-2 border-t border-border/50 bg-primary-light/5 flex-wrap">
-          <I size={16} className="text-primary flex-shrink-0"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></I>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={triggerImageUpload}
-            className="h-8 px-3.5 text-xs font-semibold text-text-secondary bg-surface border border-border rounded-lg hover:bg-surface-raised transition-all flex-shrink-0 flex items-center gap-1.5"
-          >
-            <I size={13}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></I>
-            Upload
-          </button>
-          <span className="text-[10px] text-text-muted">or</span>
-          <input
-            ref={imageInputRef}
-            autoFocus
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') insertImage();
-              if (e.key === 'Escape') { setImageOpen(false); setImageUrl(''); setImageAlt(''); }
-            }}
-            placeholder="Paste image URL..."
-            className="flex-1 h-8 px-2.5 text-xs border border-border rounded-lg bg-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 min-w-0 transition-all"
-          />
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={insertImage}
-            className="h-8 px-3.5 text-xs font-semibold text-white bg-primary rounded-lg hover:bg-primary-hover transition-all shadow-sm flex-shrink-0">
-            Insert
-          </button>
-          <button type="button" onClick={() => { setImageOpen(false); setImageUrl(''); setImageAlt(''); }}
-            className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-raised transition-colors flex-shrink-0">
-            <I size={14}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></I>
-          </button>
+        <div className="guide-panel">
+          <div className="guide-panel-row">
+            <I size={16} className="guide-panel-icon"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></I>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={triggerImageUpload}
+              disabled={imageBusy}
+              className="guide-panel-btn"
+            >
+              {imageBusy
+                ? <><span className="guide-panel-spin" aria-hidden="true" />Uploading…</>
+                : <><I size={14}><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></I>Upload image</>}
+            </button>
+            <span className="guide-panel-or">or</span>
+            <input
+              ref={imageInputRef}
+              autoFocus
+              value={imageUrl}
+              disabled={imageBusy}
+              onChange={(e) => { setImageUrl(e.target.value); setImageError(''); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') insertImage();
+                if (e.key === 'Escape') { setImageOpen(false); setImageUrl(''); setImageAlt(''); setImageError(''); }
+              }}
+              placeholder="Paste an image link"
+              aria-label="Image link"
+              className="guide-panel-input"
+            />
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={insertImage}
+              disabled={imageBusy || !imageUrl.trim()}
+              className="h-8 px-3.5 text-xs font-semibold text-white bg-primary rounded-lg hover:bg-primary-hover transition-all shadow-sm flex-shrink-0">
+              Insert
+            </button>
+            <button type="button" aria-label="Close" onClick={() => { setImageOpen(false); setImageUrl(''); setImageAlt(''); setImageError(''); }}
+              className="guide-panel-close">
+              <I size={14}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></I>
+            </button>
+          </div>
+          {imageError
+            ? <p className="guide-panel-error" role="alert">{imageError}</p>
+            : <p className="guide-panel-hint">PNG, JPG, GIF or WebP, up to 8 MB. You can also paste or drop an image straight into the guide.</p>}
         </div>
       )}
 
       {/* Embed (video / Google Doc) insertion row */}
-      {embedOpen && (
-        <div className="flex items-center gap-2 px-3 py-2 border-t border-border/50 bg-primary-light/5 flex-wrap">
-          <I size={16} className="text-primary flex-shrink-0"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="m10 8 5 3-5 3z"/></I>
-          <input
-            autoFocus
-            value={embedUrl}
-            onChange={(e) => { setEmbedUrl(e.target.value); setEmbedError(''); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') insertEmbed();
-              if (e.key === 'Escape') { setEmbedOpen(false); setEmbedUrl(''); setEmbedError(''); }
-            }}
-            placeholder="Paste a YouTube, Vimeo, or Google Docs/Drive link..."
-            className="flex-1 h-8 px-2.5 text-xs border border-border rounded-lg bg-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 min-w-0 transition-all"
-          />
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={insertEmbed}
-            className="h-8 px-3.5 text-xs font-semibold text-white bg-primary rounded-lg hover:bg-primary-hover transition-all shadow-sm flex-shrink-0">
-            Embed
-          </button>
-          <button type="button" onClick={() => { setEmbedOpen(false); setEmbedUrl(''); setEmbedError(''); }}
-            className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-raised transition-colors flex-shrink-0">
-            <I size={14}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></I>
-          </button>
-          {embedError && <span className="w-full text-[10px] text-danger">{embedError}</span>}
-          <span className="w-full text-[10px] leading-snug text-text-muted">
-            For Google Docs/Sheets: the file must be shared so it can render inside SliceDesk.
-            If it shows a Google sign-in wall, open the file → <strong>File → Share → Publish to web</strong>,
-            then paste that link (or the normal doc link works once it's published).
-          </span>
+      {embedOpen && (() => {
+        const recognised = embedUrl.trim() ? describeEmbed(embedUrl) : null;
+        return (
+        <div className="guide-panel">
+          <div className="guide-panel-row">
+            <I size={16} className="guide-panel-icon"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="m10 7.5 4.5 2.5-4.5 2.5z"/></I>
+            <input
+              autoFocus
+              value={embedUrl}
+              onChange={(e) => { setEmbedUrl(e.target.value); setEmbedError(''); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') insertEmbed();
+                if (e.key === 'Escape') { setEmbedOpen(false); setEmbedUrl(''); setEmbedError(''); }
+              }}
+              placeholder="Paste a YouTube, Vimeo, Loom or Google Docs link"
+              aria-label="Link to embed"
+              className="guide-panel-input"
+            />
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={insertEmbed}
+              disabled={!embedUrl.trim()}
+              className="h-8 px-3.5 text-xs font-semibold text-white bg-primary rounded-lg hover:bg-primary-hover transition-all shadow-sm flex-shrink-0">
+              Embed
+            </button>
+            <button type="button" aria-label="Close" onClick={() => { setEmbedOpen(false); setEmbedUrl(''); setEmbedError(''); }}
+              className="guide-panel-close">
+              <I size={14}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></I>
+            </button>
+          </div>
+          {embedError
+            ? <p className="guide-panel-error" role="alert">{embedError}</p>
+            : recognised
+              ? <p className="guide-panel-hint guide-panel-ok">Recognised: {recognised}</p>
+              : <p className="guide-panel-hint">Google Docs, Sheets and Slides must be shared or published to the web (File → Share → Publish to web) to show for everyone.</p>}
         </div>
-      )}
+        );
+      })()}
 
       {/* Table insertion row with visual grid picker */}
       {tableOpen && (
@@ -1222,12 +1245,11 @@ function SlashCommandPlugin() {
       input.click();
     }},
     // ── Quick callouts ──
-    { id: 'info', label: 'Info Box', desc: 'Blue info callout', icon: <span className="text-[14px]">ℹ️</span>, action: () => applyCallout(editor, 'ℹ️ ', 'info') },
-    { id: 'tip', label: 'Tip / Pro Tip', desc: 'Helpful tip callout', icon: <span className="text-[14px]">💡</span>, action: () => applyCallout(editor, '💡 ', 'info') },
-    { id: 'success', label: 'Success', desc: 'Green success callout', icon: <span className="text-[14px]">✅</span>, action: () => applyCallout(editor, '✅ ', 'success') },
-    { id: 'warning', label: 'Warning', desc: 'Yellow warning callout', icon: <span className="text-[14px]">⚠️</span>, action: () => applyCallout(editor, '⚠️ ', 'warn') },
-    { id: 'error', label: 'Error / Don\'t', desc: 'Red error callout', icon: <span className="text-[14px]">❌</span>, action: () => applyCallout(editor, '❌ ', 'danger') },
-    { id: 'security', label: 'Security Note', desc: 'Security callout', icon: <span className="text-[14px]">🔒</span>, action: () => applyCallout(editor, '🔒 ', 'warn') },
+    { id: 'info', label: 'Note', desc: 'Callout: background or context', icon: <span className="text-[14px]">ℹ️</span>, action: () => applyCallout(editor, 'ℹ️ ', 'info') },
+    { id: 'tip', label: 'Tip', desc: 'Callout: a shortcut or better way', icon: <span className="text-[14px]">💡</span>, action: () => applyCallout(editor, '💡 ', 'info') },
+    { id: 'success', label: 'Success', desc: 'Callout: what it looks like when it worked', icon: <span className="text-[14px]">✅</span>, action: () => applyCallout(editor, '✅ ', 'success') },
+    { id: 'warning', label: 'Warning', desc: 'Callout: read this before you continue', icon: <span className="text-[14px]">⚠️</span>, action: () => applyCallout(editor, '⚠️ ', 'warn') },
+    { id: 'error', label: "Don't", desc: 'Callout: something that will break things', icon: <span className="text-[14px]">⛔️</span>, action: () => applyCallout(editor, '⛔️ ', 'danger') },
     // ── Alignment ──
     { id: 'align-left', label: 'Align Left', desc: 'Left-align text', icon: <I size={14}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></I>, action: () => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'left') },
     { id: 'align-center', label: 'Align Center', desc: 'Center-align text', icon: <I size={14}><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></I>, action: () => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'center') },
