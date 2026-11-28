@@ -2,6 +2,7 @@ import express from 'express';
 import pg from 'pg';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   attachSliceUser,
   requireSliceUser,
@@ -1424,8 +1425,16 @@ app.post('/api/guides/:id/duplicate', requireSliceAdmin, async (req, res, next) 
 });
 
 // =========== Image upload (base64 → file) ===========
-const UPLOAD_DIR = '/app/uploads';
-await mkdir(UPLOAD_DIR, { recursive: true }).catch(() => {});
+// /app/uploads inside the container (prod). Outside Docker that path isn't
+// writable, so every local upload failed with ENOENT — fall back to
+// server/uploads/ (git-ignored). UPLOAD_DIR can override either.
+let UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
+try {
+  await mkdir(UPLOAD_DIR, { recursive: true });
+} catch {
+  UPLOAD_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'uploads');
+  await mkdir(UPLOAD_DIR, { recursive: true }).catch(() => {});
+}
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d', immutable: true }));
 
 app.post('/api/uploads', requireSliceAdmin, async (req, res, next) => {
@@ -1436,9 +1445,22 @@ app.post('/api/uploads', requireSliceAdmin, async (req, res, next) => {
     }
     const m = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
     if (!m) return res.status(400).json({ error: 'malformed data URL' });
-    const ext = (m[1].split('/')[1] || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Raster formats only. SVG (and anything else claiming image/*) is refused:
+    // uploads are served back from this origin, and an SVG can carry script.
+    const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/avif': 'avif' };
+    const ext = EXT[m[1].toLowerCase()];
+    if (!ext) return res.status(415).json({ error: 'Only PNG, JPG, GIF, WebP or AVIF images can be uploaded.' });
     const buf = Buffer.from(m[2], 'base64');
     if (buf.length > 8 * 1024 * 1024) return res.status(413).json({ error: 'image too large (8 MB max)' });
+    // The bytes must match the claimed type (a renamed HTML/SVG file is refused).
+    const head = buf.subarray(0, 12);
+    const isPng = head.length >= 8 && head.readUInt32BE(0) === 0x89504e47;
+    const isJpg = head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
+    const isGif = head.toString('ascii', 0, 4) === 'GIF8';
+    const isWebp = head.toString('ascii', 0, 4) === 'RIFF' && head.toString('ascii', 8, 12) === 'WEBP';
+    const isAvif = head.toString('ascii', 4, 8) === 'ftyp';
+    const ok = { png: isPng, jpg: isJpg, gif: isGif, webp: isWebp, avif: isAvif }[ext];
+    if (!ok) return res.status(415).json({ error: "That file isn't a valid image." });
     const safe = String(filename || 'image').replace(/[^a-z0-9._-]/gi, '_').slice(0, 40).replace(/\.[^.]*$/, '');
     const final = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe || 'image'}.${ext}`;
     await writeFile(path.join(UPLOAD_DIR, final), buf);
@@ -1645,7 +1667,9 @@ async function callClaudeProxy(req, { system, messages, max_tokens = 1024 }) {
   }
   const j = await upstream.json();
   const text = (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-  return { text, usage: j.usage || null };
+  // stop_reason lets callers tell a finished answer from one cut off at
+  // max_tokens (a truncated JSON draft is unusable, not "a shorter draft").
+  return { text, usage: j.usage || null, stop_reason: j.stop_reason || null };
 }
 
 app.post('/api/ai-edit', requireSliceAdmin, async (req, res, next) => {
@@ -1676,7 +1700,13 @@ app.post('/api/ai-edit', requireSliceAdmin, async (req, res, next) => {
     } else if (action === 'ai-write-guide') {
       // Spec-driven full draft. Body should be a JSON spec from the modal.
       const t = String(text || '').slice(0, 4000);
-      if (!t.trim()) return res.status(400).json({ error: 'spec required' });
+      if (!t.trim()) return res.status(400).json({ error: 'Describe what the guide should cover.' });
+      let spec = null;
+      try { spec = JSON.parse(t); } catch { /* plain-text spec is fine too */ }
+      if (spec && typeof spec === 'object' && !String(spec.topic || '').trim()) {
+        return res.status(400).json({ error: 'Describe what the guide should cover.' });
+      }
+      req._aiWriteLength = spec && ['short', 'medium', 'long'].includes(spec.length) ? spec.length : 'medium';
       messages = [{ role: 'user', content: t }];
     } else {
       const t = String(text || '').slice(0, 8000);
@@ -1684,15 +1714,26 @@ app.post('/api/ai-edit', requireSliceAdmin, async (req, res, next) => {
       messages = [{ role: 'user', content: t }];
     }
 
+    // ai-write-guide returns the whole guide as markdown INSIDE a JSON string
+    // (escaped newlines/quotes), so it needs well over the word count in tokens.
+    // Sized by the requested length so "Long" is never cut off mid-JSON.
     const tokenBudget =
-      action === 'ai-write-guide' ? 2400 :
+      action === 'ai-write-guide' ? ({ short: 1600, medium: 3000, long: 5000 })[req._aiWriteLength || 'medium'] :
       (action === 'longer' || action === 'continue' || action === 'brainstorm') ? 1500 :
       800;
-    const { text: outText, usage } = await callClaudeProxy(req, {
+    const { text: outText, usage, stop_reason } = await callClaudeProxy(req, {
       system,
       messages,
       max_tokens: tokenBudget,
     });
+    if (action === 'ai-write-guide') {
+      if (stop_reason === 'max_tokens') {
+        return res.status(502).json({ error: 'The draft ran too long and was cut off. Try a shorter length or a narrower topic.' });
+      }
+      if (!String(outText || '').trim()) {
+        return res.status(502).json({ error: 'The AI returned an empty draft. Try again.' });
+      }
+    }
     res.json({ text: outText, usage });
   } catch (err) {
     console.warn('[ai-edit]', action, err.message);
