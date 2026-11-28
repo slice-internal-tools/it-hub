@@ -2,6 +2,7 @@ import { DecoratorNode } from 'lexical';
 // PORTED: was '../PdfEmbed' (pdf.js canvases). Local stub renders a link —
 // see PdfEmbed.jsx for why. Video/Doc embeds are unaffected.
 import PdfEmbed from './PdfEmbed';
+import { isAllowedEmbedSrc } from './embedUrls';
 
 // Generic embed node — backs video (YouTube/Vimeo/Drive) embeds, Google Doc/
 // Sheet/Slide embeds (iframe), and same-origin PDF-proxy embeds (rendered via
@@ -13,6 +14,17 @@ import PdfEmbed from './PdfEmbed';
 function EmbedComponent({ src, kind, title }) {
   const isVideo = kind === 'video';
   const isPdf = kind === 'pdf';
+  // Never iframe a host we don't know (see isAllowedEmbedSrc). PDFs render via
+  // PdfEmbed — a link, not an iframe — so they keep their own path.
+  if (!isPdf && !isAllowedEmbedSrc(src)) {
+    return (
+      <div className="lexical-embed my-3 block" data-embed-kind={kind}>
+        <div className="rounded-lg border border-border px-4 py-3 text-sm text-text-muted">
+          This embed isn't from a supported site, so it isn't shown.
+        </div>
+      </div>
+    );
+  }
   // PDFs read better tall (multi-page, internal scroll) than the squarish
   // 4:3 box used for Doc/Sheet embeds.
   const boxStyle = isVideo

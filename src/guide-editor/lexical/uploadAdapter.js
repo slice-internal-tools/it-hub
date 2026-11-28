@@ -21,13 +21,15 @@ export function setUploader(fn) {
 }
 
 export const uploadApi = {
-  async upload(file) {
+  async upload(file, opts = {}) {
     if (!impl) {
       // Surfaces as "Image upload failed:" in the console via the callers'
       // existing try/catch, rather than silently inserting a broken image.
       throw new Error('GuideEditor: no uploader configured — pass onUpload to mount()');
     }
-    const url = await impl(file);
+    // opts.quiet: the caller shows the error itself, so the host should not
+    // also toast it.
+    const url = await impl(file, opts);
     if (!url || typeof url !== 'string') {
       throw new Error('GuideEditor: onUpload must resolve to a URL string');
     }

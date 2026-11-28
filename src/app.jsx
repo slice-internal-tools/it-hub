@@ -12261,7 +12261,6 @@ function KnowledgePage({ onBack, onOpenGuide }) {
     helpful_count: g.helpful_count ?? 0,
   })), [dbGuides]);
 
-  const liveFeatured = React.useMemo(() => liveIndex.slice(0, 3), [liveIndex]);
   const livePopular  = React.useMemo(
     () => [...liveIndex].sort((a, b) => b.helpful_count - a.helpful_count || a.updated - b.updated).slice(0, 8),
     [liveIndex],
@@ -12402,21 +12401,6 @@ function KnowledgePage({ onBack, onOpenGuide }) {
               opacity: 0.45;
             }
           `}</style>
-
-          {/* Popular chips (now with active state) */}
-          <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, color: "#78684C", fontWeight: 600 }}>Popular:</span>
-            {["password reset", "VPN", "new laptop", "Slack", "phishing"].map((p) => {
-              const isActive = query === p;
-              return (
-                <button key={p}
-                  className={"kb-popular-chip" + (isActive ? " is-active" : "")}
-                  onClick={() => { setQuery(p); setActiveCat(null); }}>
-                  {p}
-                </button>
-              );
-            })}
-          </div>
         </div>
       </div>
 
@@ -12440,7 +12424,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
         <React.Fragment>
         {/* Topics — compact, icon-led rows so a dozen of them fit in two
             short lines instead of three rows of big empty tiles. */}
-        <SectionTitle kicker="Browse by topic" title="Topics" />
+        <SectionTitle title="Topics" />
         <div className="kb-topics">
           {liveCats.map((c) => (
             <button key={c.id} className="kb-topic" onClick={() => { setActiveCat(c.id); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}>
@@ -12449,25 +12433,12 @@ function KnowledgePage({ onBack, onOpenGuide }) {
                 <span className="kb-topic-name">{c.label}</span>
                 <span className="kb-topic-count">{c.count} {c.count === 1 ? "article" : "articles"}</span>
               </span>
-              <svg className="kb-topic-go" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.3 4.3a1.2 1.2 0 0 1 1.7 0l6.8 6.8a1.3 1.3 0 0 1 0 1.8L15 19.7a1.2 1.2 0 0 1-1.7-1.7l4.8-4.8H3.5a1.2 1.2 0 0 1 0-2.4h14.6l-4.8-4.8a1.2 1.2 0 0 1 0-1.7Z" /></svg>
             </button>
           ))}
         </div>
 
-        {/* Editor's picks — now with what the guide is about. */}
-        {liveFeatured.length > 0 && (
-          <>
-            <SectionTitle kicker="Editor's picks" title="Start here" />
-            <div className="kb-picks">
-              {liveFeatured.map((g) => (
-                <FeaturedGuideCard key={g.id} guide={g} onClick={() => onOpenGuide && onOpenGuide({ id: g.id, ...g })} />
-              ))}
-            </div>
-          </>
-        )}
-
         {/* All articles — one list, switch between most helpful and newest. */}
-        <SectionTitle kicker="Articles" title={listTab === "popular" ? "Most helpful" : "Recently updated"}
+        <SectionTitle title={listTab === "popular" ? "Most helpful" : "Recently updated"}
           right={(
             <div className="kb-seg" role="tablist" aria-label="Sort articles">
               {[["popular", "Most helpful"], ["recent", "Recently updated"]].map(([v, label]) => (
@@ -12682,9 +12653,11 @@ function SectionTitle({ kicker, title, right }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
       <div>
-        <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 4 }}>
-          {kicker}
-        </div>
+        {kicker && (
+          <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 4 }}>
+            {kicker}
+          </div>
+        )}
         <h2 style={{
           fontFamily: "var(--font-head)",
           fontSize: 24, fontWeight: 400, margin: 0,
@@ -12694,23 +12667,6 @@ function SectionTitle({ kicker, title, right }) {
       </div>
       {right}
     </div>
-  );
-}
-
-function FeaturedGuideCard({ guide, onClick }) {
-  return (
-    <button type="button" className="kb-pick" onClick={onClick}>
-      <span className="kb-pick-top">
-        <span className="kb-pick-icon"><RqIcon name={kbTopicIcon(guide.category)} size={15} /></span>
-        <span className="kb-pick-cat">{guide.category}</span>
-      </span>
-      <span className="kb-pick-title">{guide.title}</span>
-      {guide.body && <span className="kb-pick-excerpt">{guide.body}</span>}
-      <span className="kb-pick-foot">
-        <span>{guide.readMin ? `${guide.readMin} min read` : 'Guide'}</span>
-        <span className="kb-pick-read">Read →</span>
-      </span>
-    </button>
   );
 }
 
@@ -14344,8 +14300,10 @@ function renderMarkdown(md, opts = {}) {
     if (h) {
       const level = h[1].length;
       const isFirstElement = out.length === 0;
-      const sizes = { 1: isFirstElement ? 32 : 28, 2: 22, 3: 17 };
-      const margins = { 1: '36px 0 14px', 2: '30px 0 12px', 3: '22px 0 10px' };
+      // Guide reader: section headings sit on the type scale (20px, 32px above)
+      // under the 32px title. AI answers keep the original sizes.
+      const sizes = { 1: isFirstElement ? 32 : 28, 2: opts.guideHeadings ? 20 : 22, 3: 17 };
+      const margins = { 1: '36px 0 14px', 2: opts.guideHeadings ? '32px 0 12px' : '30px 0 12px', 3: '22px 0 10px' };
       const Tag = `h${Math.min(level + 1, 6)}`;
       out.push(
         <Tag key={key++} style={{
@@ -14535,7 +14493,7 @@ function GuideBody({ body, title, onOpenGuide }) {
       </div>
     );
   }
-  return renderMarkdown(stripLeadingTitleFromBody(body, title));
+  return renderMarkdown(stripLeadingTitleFromBody(body, title), { guideHeadings: true });
 }
 
 // Where the guide's tool icons, back arrow and (once condensed) the title all
@@ -14624,31 +14582,6 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
       .catch(() => { if (!cancelled) setRelated([]); });
     return () => { cancelled = true; };
   }, [category, guide.id]);
-
-  // Guide search in the top bar — jump to any other guide without leaving
-  // the reader.
-  const [searchQ, setSearchQ] = React.useState("");
-  const [searchHover, setSearchHover] = React.useState(false);
-  const [searchFocus, setSearchFocus] = React.useState(false);
-  const searchInputRef = React.useRef(null);
-  // Collapsed to a magnifier by default; expands on hover and stays open
-  // while focused or holding a query.
-  const searchOpen = searchHover || searchFocus || searchQ.trim() !== "";
-  const [allGuides, setAllGuides] = React.useState([]);
-  React.useEffect(() => {
-    fetch('/api/guides', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows) => setAllGuides(Array.isArray(rows) ? rows : []))
-      .catch(() => {});
-  }, []);
-  const searchHits = React.useMemo(() => {
-    const q = searchQ.trim().toLowerCase();
-    if (!q) return [];
-    return allGuides
-      .filter((g) => String(g.id) !== String(guide.id))
-      .filter((g) => (g.title || '').toLowerCase().includes(q) || (g.category || '').toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [allGuides, searchQ, guide.id]);
 
   // Pin — the SAME pin list as SliceDesk Docs (user_pinned_docs): pinning
   // here surfaces the guide on the portal home, SliceDesk Docs home,
@@ -14793,8 +14726,10 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   return (
     <div className="guide-reader" style={{
       // Sits under the portal's top bar (z 50) so the nav stays visible and
-      // usable while reading; the 64px top padding clears it.
-      position: 'fixed', inset: 0, zIndex: 46, paddingTop: 64, boxSizing: 'border-box',
+      // usable while reading. The 56px top padding is exactly the bar's height:
+      // sticky layers pin to this edge, so any extra let the article text show
+      // through a strip between the bar and the pinned header.
+      position: 'fixed', inset: 0, zIndex: 46, paddingTop: 56, boxSizing: 'border-box',
       background: 'var(--bg)',
       overflowY: 'auto',
       animation: 'fadeIn .25s var(--ease) both',
@@ -14892,7 +14827,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           the article card below. Opaque yellow wrapper masks content
           scrolling under. */}
       <div style={{
-        maxWidth: 830, margin: '0 auto', padding: '20px 24px 80px',
+        maxWidth: 830, margin: '0 auto', padding: '16px 24px 80px',
         width: '100%', boxSizing: 'border-box',
         flex: '1 0 auto', display: 'flex', flexDirection: 'column',
       }}>
@@ -14925,79 +14860,10 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               you start reading. Only the back arrow and the title stay pinned,
               so the reading area keeps a single slim header instead of a row of
               icons following you down the page. Zero-height, click-through
-              wrapper; only the cluster captures the pointer. Search expands
-              leftward on hover. */}
+              wrapper; only the cluster captures the pointer. */}
           <div style={{ position: 'relative', zIndex: 5, height: 0, pointerEvents: 'none' }}>
-          <div style={{ position: 'absolute', top: 0, right: 16, display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+          <div style={{ position: 'absolute', top: 0, right: -48, display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0, pointerEvents: 'auto' }}>
-        {/* Guide search — a magnifying glass that expands on hover (stays
-            open while focused / holding a query). Dropdown of matches below. */}
-        <div
-          onMouseEnter={() => setSearchHover(true)}
-          onMouseLeave={() => setSearchHover(false)}
-          onClick={() => searchInputRef.current && searchInputRef.current.focus()}
-          style={{ position: 'relative', flexShrink: 0, width: 34, height: 34 }}
-        >
-          {/* Right-anchored overlay: expands LEFT over the bar's empty
-              middle so the Pin/Share/Export buttons never move. */}
-          <div style={{
-            position: 'absolute', top: 0, right: 0, height: 34,
-            display: 'flex', alignItems: 'center',
-            border: '1px solid rgba(33,30,30,.14)', borderRadius: 8,
-            background: '#FFFFFF', boxSizing: 'border-box',
-            boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)',
-            width: searchOpen ? 'clamp(150px, calc(100vw - 470px), 340px)' : 34,
-            transition: 'width .22s cubic-bezier(.22,.61,.36,1)',
-            overflow: 'hidden', cursor: searchOpen ? 'text' : 'pointer',
-            zIndex: 6,
-          }}>
-            <input
-              ref={searchInputRef}
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              onFocus={() => setSearchFocus(true)}
-              onBlur={() => setSearchFocus(false)}
-              onKeyDown={(e) => { if (e.key === 'Escape') { setSearchQ(''); e.currentTarget.blur(); } }}
-              placeholder="Search guides…"
-              tabIndex={searchOpen ? 0 : -1}
-              style={{
-                flex: searchOpen ? 1 : '0 0 0px', minWidth: 0, width: searchOpen ? undefined : 0,
-                border: 'none', outline: 'none',
-                background: 'transparent', fontSize: 13, fontFamily: 'inherit',
-                color: '#211E1E', padding: searchOpen ? '0 0 0 12px' : 0,
-              }}
-            />
-            <span style={{ width: 32, textAlign: 'center', flexShrink: 0, display: 'inline-flex', justifyContent: 'center' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7"/>
-                <line x1="21" y1="21" x2="16.5" y2="16.5"/>
-              </svg>
-            </span>
-          </div>
-          {searchQ.trim() !== '' && (
-            <div style={{
-              position: 'absolute', top: '115%', right: 0, width: 'clamp(220px, calc(100vw - 470px), 340px)',
-              background: '#FFFFFF', border: '1px solid rgba(33,30,30,.14)', borderRadius: 8,
-              boxShadow: '0 1px 2px rgba(33,30,30,.06), 0 8px 24px -14px rgba(33,30,30,.28)', overflow: 'hidden',
-              maxHeight: 280, overflowY: 'auto', zIndex: 120,
-            }}>
-              {searchHits.length === 0 ? (
-                <div style={{ padding: '8px 12px', fontSize: 13, color: '#78684C', fontWeight: 600 }}>No matching guides.</div>
-              ) : searchHits.map((g) => (
-                <button key={g.id} className="guide-menu-item"
-                  onClick={() => { setSearchQ(''); onOpenGuide && onOpenGuide({ id: g.id, title: g.title, category: g.category }); }}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
-                    background: 'transparent', border: 'none', cursor: 'pointer', color: '#211E1E',
-                  }}>
-                  <b style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800 }}>{g.title}</b>
-                  {g.category && <span style={{ color: '#78684C', marginLeft: 8, fontSize: 12, fontWeight: 600 }}>{g.category}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
           {/* Pin — same pin list as SliceDesk Docs (home / profile / widget).
               Fills charcoal when pinned. */}
           <button
@@ -15079,7 +14945,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               way back without scrolling up. Zero-height, click-through wrapper;
               nudged left of the content into the card's 64px padding. */}
           <div style={{ position: 'sticky', top: STICKY_TOP, zIndex: 5, height: 0, pointerEvents: 'none' }}>
-            <button className="guide-back" onClick={onClose} aria-label="Back to Docs" title="Back to Docs" style={{
+            <button className="guide-back" onClick={onClose} aria-label="Back to Knowledge" title="Back to Knowledge" style={{
               ...toolBtn(false), pointerEvents: 'auto',
               position: 'relative', left: -48,
             }}>
@@ -15091,7 +14957,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               </span>
             </button>
           </div>
-          <div aria-hidden="true" style={{ height: 62 }} />
+          <div aria-hidden="true" style={{ height: 58 }} />
           {loading && <p style={{ color: '#888', margin: 0 }}>Loading…</p>}
           {error && (
             <div>
@@ -15128,7 +14994,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                 lineHeight: 1.2, paddingBottom: 16,
                 // Kept visible while pinned: it is the only thing separating
                 // the header from the body scrolling underneath.
-                borderBottom: '1px solid #E6EEF9', color: '#211E1E',
+                borderBottom: '1px solid #E2DCD0', color: '#211E1E',
                 // One line once pinned. With the tool icons scrolled away the
                 // title has the full 652px column, and a 30-character title at
                 // 32px needs ~506px — so this clips in practice only for
@@ -15139,6 +15005,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               }}>{title}</span>
             </h1>
           )}
+          {body && title && <div aria-hidden="true" style={{ height: 8 }} />}
           {body && <GuideBody body={body} title={title} onOpenGuide={onOpenGuide} />}
         </article>
 
